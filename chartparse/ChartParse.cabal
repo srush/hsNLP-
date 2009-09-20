@@ -1,0 +1,54 @@
+name:                chartparse
+version:             0.1
+synopsis:            A framework for building chart parsers 
+description:         This provides a simple framework for building probabilistic 
+                     chart parsers.
+category:            Natural Language Processing
+license:             BSD3
+license-file:        LICENSE
+author:              Sasha Rush
+maintainer:          <srush@mit.edu>
+build-Type:          Simple
+cabal-version:       >= 1.2
+
+
+flag testing
+    description: Testing mode, only build minimal components
+    default: False
+
+library
+    exposed-modules:     NLP.ChartParse
+                         NLP.ChartParse.Eisner
+
+    if flag(testing)
+        buildable: False
+
+    build-Depends:   base       >= 3   && < 4,
+                     containers >= 0.1 && < 0.3,
+                     array,
+                     semiring,
+                     fsm,
+                     pretty,
+                     prettyclass
+
+executable hstestsemi
+    main-is:            Tests.hs
+    other-modules:      NLP.ChartParse
+
+    
+    hs-source-dirs: . tests/
+
+    build-Depends:   base       >= 3   && < 4,
+                     containers >= 0.1 && < 0.3,
+                     monoids    >= 0.2.0.2 && < 0.3,
+                     array,                
+                     QuickCheck >= 2,
+                     HUnit,
+                     test-framework,
+                     test-framework-hunit,
+                     test-framework-quickcheck2
+                    
+                     
+    if !flag(testing)
+        buildable: False
+                  
