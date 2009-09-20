@@ -44,6 +44,8 @@ instance (Arbitrary a ) => Arbitrary (Dependency a) where
       arbDepMap n (const arbitrary)
 
 
+singletonDep head child info = Dependency $ M.singleton child (DEdge head info)
+
 getHead (Dependency m) i = (M.!) m i 
 
 arbDepMap :: (Arbitrary info) => Int -> (Int -> Gen info) -> Gen (Dependency info)      

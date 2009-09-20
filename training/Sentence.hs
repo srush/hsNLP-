@@ -34,11 +34,11 @@ type GWord = (Word, POS)
 
 -- ROOT is a special symbol that we put at the end of the sentence 
 class WordSym a where 
-    root :: a
+    root :: Int ->  a
 
 
 instance WordSym GWord where  
-    root = (Word "Root", POS "ROOT")  
+    root i = (Word "Root", POS "ROOT")  
 
 
 instance Arbitrary Word where 
@@ -66,7 +66,7 @@ instance (Semiring semi, WordSym word) => SentenceLattice (Sentence semi word) w
     type Symbol (Sentence semi word)= word
     type LatticeSemi (Sentence semi word)  = semi
     sentenceLength = slength
-    getWords (Sentence s) i = if i == n + 1 then [(one, root)] else  [s ! i] 
+    getWords (Sentence s) i = if i == n + 1 then [(one, root i)] else  [s ! i] 
         where n = slength (Sentence s)
 
 
