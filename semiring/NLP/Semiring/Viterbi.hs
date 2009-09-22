@@ -11,3 +11,4 @@ instance N One where
 type Viterbi semi = ViterbiNBest One semi
 
 mkViterbi v = ViterbiNBest [v]
+fromViterbi (ViterbiNBest [v]) =  v

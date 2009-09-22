@@ -5,7 +5,7 @@ import NLP.Semiring.Helpers
 import qualified Data.Set as S 
 import Data.Monoid
 import Data.Maybe (isNothing)
-
+import Control.Exception
 
 -- | The 'Derivation' semiring keeps track of a single path or derivation 
 --   that led to the known output. If there are more than one path it discards 
@@ -44,6 +44,7 @@ mkDerivation = Derivation . Just
 
 fromDerivation :: (Monoid m ) => Derivation m -> m 
 fromDerivation (Derivation (Just m)) = m  
+fromDerivation (Derivation Nothing) = throw $ AssertionFailed "no derivation"  
 
 
 -- | The 'MultiDerivation' semiring keeps track of a all paths or derivations 

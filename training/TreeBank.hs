@@ -174,10 +174,16 @@ toTagSentence initSemi (WordInfoSent wis)=
 toTAGDependency initSemi (WordInfoSent wis) = TAGSentence sent depstruct
     where sent = toTagSentence initSemi (WordInfoSent wis)
           depstruct = Dependency $ M.fromList $ map convertWI  $ elems wis
-
-          convertWI wi = (ind wi, if head == 0 then DEdge (n + 1) $ (adjPos wi, sister wi) else DEdge head $ (adjPos wi, sister wi))
+          convertWI wi = (ind wi, 
+                          if head == 0 then DEdge (n + 1) $ (adjPos wi, sister wi) 
+                          else DEdge head $ (adjPos wi, sister wi))
               where n = slength sent
                     head = adjoinInd wi
+
+toTAGTest counts probs (WordInfoSent wis) = sent
+    where sent = mkSentenceLat $ 
+                 map (mkTestTAGWord counts probs) $ 
+                 map (\wi -> (ind wi, (word wi, pos wi))) $ elems wis
 
 --testGraphViz = do 
 --  sent <- readSentence "data/sample.data"

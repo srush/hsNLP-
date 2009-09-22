@@ -19,3 +19,7 @@ type ViterbiNBestDerivation n m = ViterbiNBest n (Weighted Prob (Derivation m))
 --  
 -- > type ViterbiDerivation m  = Viterbi (Weighted Prob (Derivation m))
 type ViterbiDerivation m  = Viterbi (Weighted Prob (Derivation m))
+
+getBestDerivation :: (Monoid m) => ViterbiDerivation m -> m
+getBestDerivation = fromDerivation . getInfo . fromViterbi
+getBestScore = getWeight . fromViterbi

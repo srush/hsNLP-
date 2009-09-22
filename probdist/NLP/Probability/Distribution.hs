@@ -3,7 +3,7 @@ module NLP.Probability.Distribution where
 
 import qualified Data.Map as M 
 import Control.Monad (foldM, liftM)
-import Data.Maybe (fromJust, catMaybes)
+import Data.Maybe (catMaybes)
 import Data.Monoid
 import NLP.Probability.Observation
 
@@ -59,9 +59,9 @@ estimateLinearInterpolation (l1,l2,l3) =
 
 estimateWittenBell :: (Ord event) => Estimator event [Observed event]
 estimateWittenBell = 
-    estimateGeneralLinear [(lambda, estimateMLE), 
+    estimateGeneralLinear [(const 0, estimateMLE), 
                            (lambdaComp, estimateMLE),
-                           (const 0, estimateMLE)]
+                           (lambda, estimateMLE)]
     where lambda obs = 1.0 - lambdaComp obs
           lambdaComp :: (Ord a) => Observed a -> Double
           lambdaComp obs = nonTrivial / (nonTrivial + total)

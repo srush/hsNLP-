@@ -7,6 +7,7 @@ import ArbitraryHelpers
 import qualified Data.Map as M
 import Data.Function (on) 
 import Data.List (partition, sort, nub, inits) 
+import Data.Maybe (catMaybes)
 import Data.Graph.Inductive
 import Test.QuickCheck
 import Data.Monoid
@@ -18,7 +19,7 @@ import System.Random
 import NLP.FSM.Simple
 import NLP.Semiring
 import Test.QuickCheck
-
+import Safe (fromJustNote)
 -- Root is index 0
 
 newtype Dependency adjinfo = 
@@ -46,7 +47,7 @@ instance (Arbitrary a ) => Arbitrary (Dependency a) where
 
 singletonDep head child info = Dependency $ M.singleton child (DEdge head info)
 
-getHead (Dependency m) i = (M.!) m i 
+getHead (Dependency m) i =  fromJustNote "no head" $ M.lookup i m 
 
 arbDepMap :: (Arbitrary info) => Int -> (Int -> Gen info) -> Gen (Dependency info)      
 arbDepMap n arbInfo = do       
@@ -156,3 +157,9 @@ expectFSM transitions =
            [ (i-1, [(trans, (i, semi))])
             | ((trans,semi), i) <- zip transitions [1..]])  
         where n = length transitions
+
+
+score (Dependency d1) (Dependency d2) = 
+    catMaybes $ map (\(i, edge) -> if edge == (M.!) d2 i then Nothing
+                                   else Just ((i,edge), (i,(M.!) d2 i))
+                    ) $ M.toList d1 

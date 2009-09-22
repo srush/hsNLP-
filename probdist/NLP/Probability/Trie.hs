@@ -3,7 +3,8 @@ module NLP.Probability.Trie where
 import Data.Monoid
 import qualified Data.Map as M
 import Control.Monad (foldM, liftM)
-import Data.Maybe (fromJust, catMaybes)
+import Data.Maybe (catMaybes)
+import Safe (fromJustNote)
 import Text.Printf
 import Data.List (intercalate)
 import Test.QuickCheck
@@ -51,13 +52,13 @@ step l (Node _ m) = M.lookup l m
 
 addColumn :: (Ord letter, Monoid holder) => 
              [letter] -> holder -> Trie letter holder -> Trie letter holder 
-addColumn letters aholder n = fromJust $ loop letters aholder (Just n)
+addColumn letters aholder n = fromJustNote "add column" $ loop letters aholder (Just n)
     where loop (l:letters) aholder n =
               case n of 
                 (Just (Node h m)) ->   
                     Just $ Node (h `mappend` aholder) $ M.alter (next) l m
                 Nothing -> 
-                    Just $ Node aholder $ M.singleton l $ fromJust $ next Nothing
+                    Just $ Node aholder $ M.singleton l $ fromJustNote "next" $ next Nothing
               where  next = loop letters aholder
           loop [] aholder (Just (Node h m)) = 
               Just $ Node (h `mappend` aholder) m
@@ -76,7 +77,7 @@ expand :: (Ord letter) => Trie letter holder -> [[(Maybe letter, holder)]]
 expand (Node h m) = expand' m [(Nothing, h)]
     where
       expand' m soFar =
-              if M.null m then [soFar]
+              if M.null m then [reverse $ soFar]
               else concat $ map expandOne $ M.toList m 
                   where expandOne (l, Node h m) = expand' m ((Just l,h):soFar)
 

@@ -10,7 +10,9 @@ import Data.Char (toUpper)
 import Data.List
 import Data.Function (on)
 import Control.Monad (ap)
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (isNothing)
+import Safe (fromJustNote, atNote)
+
 import Data.Monoid
 import NLP.Semiring
 import NLP.Semiring.Derivation
@@ -31,7 +33,7 @@ import Control.Exception
 
 import Text.PrettyPrint.HughesPJClass
 
-import Test.HUnit hiding (State, Node)
+import Test.HUnit hiding (State, Node, assert)
 
 import Data.DeriveTH hiding (Derivation)
 import Data.Binary
@@ -75,8 +77,9 @@ newtype Spine = Spine [NonTerm]
 top (Spine []) = Nothing
 top (Spine nts) = Just $ last nts
 
+lastOfSpine (Spine nts) = length nts
 
-getNonTerm i (Spine nts) = nts !! i
+getNonTerm i (Spine nts) = atNote "getNonTerm" nts  i
 
 lookupNonTerm i (Spine nts) =
     if i >= length nts then Nothing
@@ -98,11 +101,15 @@ instance Context GWord where
     compose [pos, word] = (S.Word word, POS pos)
 
 
-type Distance = (Bool) -- TODO : this make this more accurate
+data Distance = Distance { isAdjacent :: Bool,
+                           spansVerb  :: Bool} 
+    deriving (Show, Eq, Ord)
+$( derive makeBinary ''Distance )
+
 type AdjunctionContext = 
     (NonTerm, -- The nonterminal adjoining into 
      Distance, -- The distance between the lexical items 
-     POS, -- pos of the word head spine
+     POS, -- , -- pos of the word head spine
      S.Word) -- the word of the head spine
 
 -- this is lame, but need it to make subcontext type safe
@@ -110,7 +117,8 @@ data AdjunctionSub = AdjunctionSub {
       adjNonTerm :: Maybe NonTerm,
       adjDistance:: Maybe Distance,
       adjPOS :: Maybe POS,
-      adjWord :: Maybe S.Word }
+      adjWord :: Maybe S.Word
+       }
                      deriving (Eq, Ord)
 $( derive makeBinary ''AdjunctionSub )
 
@@ -118,8 +126,9 @@ instance Show AdjunctionSub where
     show a = concatMap (\f-> f a) 
              [maybeShow . adjNonTerm, 
               maybeShow. adjDistance,
-              maybeShow. adjPOS, 
-              maybeShow. adjWord]  
+              maybeShow. adjPOS,
+              maybeShow. adjWord 
+              ]  
         where maybeShow Nothing = ""
               maybeShow (Just m) = show m ++ " " 
 
@@ -128,18 +137,18 @@ adjSubDef = AdjunctionSub Nothing Nothing Nothing Nothing
 instance Context AdjunctionContext where
     type Sub (AdjunctionContext) = AdjunctionSub
     decompose (nonterm, dis, pos, word) = 
-        --[adjSubDef {adjNonTerm =Just nonterm,
-         --           adjDistance = Just dis},
-         --adjSubDef {adjPOS = Just pos},
-         --adjSubDef {adjWord = Just word}]
-        [adjSubDef {adjNonTerm =Just nonterm},
-         adjSubDef {adjDistance = Just dis},
-         adjSubDef {adjPOS = Just pos}] -- simpler decomp
-    compose [adjSub1,adjSub2,adjSub3] =  
-        (fromJust $ adjNonTerm adjSub1, 
-         fromJust $ adjDistance adjSub2,
-         fromJust $ adjPOS adjSub3,  
-         S.Word "") --adjWord adjSub3) 
+        [adjSubDef {adjNonTerm =Just nonterm,
+                    adjDistance = Just dis},
+         adjSubDef {adjPOS = Just pos},
+         adjSubDef {adjWord = Just word}]
+        --[adjSubDef {adjNonTerm =Just nonterm},
+         --adjSubDef {adjDistance = Just dis},
+         --adjSubDef {adjPOS = Just pos}] -- simpler decomp
+    compose [adjSub1,adjSub2,adjSub3] =     
+        (fromJustNote "" $ adjNonTerm adjSub1, 
+         fromJustNote "" $ adjDistance adjSub1,
+         fromJustNote "" $ adjPOS adjSub2,  
+         fromJustNote "" $ adjWord adjSub3) 
 
 type AdjunctionEvent = (POS, -- The childword adjoining 
                         Maybe NonTerm, -- the nonterm of the top of the child 
@@ -244,7 +253,15 @@ newtype TAGDerivation = TAGDerivation (M.Map TAGWord Int,
                                        Dependency AdjunctionInfo) 
     deriving (Eq, Monoid, Show)
 
-initSemiProbs (TAGProbs init _ _) tword@(TAGWord ind word spine) =
+mkTestTAGWord counts probs (ind, word) = 
+    mapZip (initSemiProbs probs) $ map (TAGWord ind word) $ getPosSpines counts word 
+
+getPosSpines counts word =   
+    observedInContext word $ spineCounts counts 
+
+
+initSemiProbs :: TAGProbs -> TAGWord -> ViterbiDerivation TAGDerivation 
+initSemiProbs (TAGProbs init _ _) tword@(TAGWord ind word spine) =  
     viterbiHelp (prob (cond init word) spine)
                 (M.singleton tword 1, 
                   Dependency M.empty)
@@ -287,7 +304,7 @@ makeTagFSM getWordInfo headi (left, right)  =
     where  makeDirFSM side expObs= 
                       expectFSMTag $
                                     [((getWordInfo.fst) `liftM` childInd,
-                                      mkCountSemi side $ mkAdjunction tword
+                                      mkCountSemi side $ mkAdjunction getWordInfo tword
                                              (fmap (getWordInfo.fst) childInd) 
                                              pos (maybe Sister snd childInd) )
                                      | (pos, adjs)  <- aligned,
@@ -341,19 +358,34 @@ mkAdjunctionEvent child sister = do
           sister -- sister
          )
    
-mkAdjunctionContext (TAGWord headInd (headWord, headPOS) headSpine)  
-             child
-             pos  = 
+isVerb tword = take 2 pos == "VB"
+    where (_, POS pos) = twWord tword 
+
+between a b = [(min a b) +1  .. (max a b) -1] 
+
+
+mkAdjunctionContext :: (Int -> TAGWord) -> 
+                       TAGWord -> 
+                       Maybe TAGWord -> 
+                       Int -> AdjunctionContext
+mkAdjunctionContext getWord
+                    (TAGWord headInd (headWord, headPOS) headSpine)  
+                    child
+                    pos  =
     (getNonTerm pos headSpine, -- H
-     maybe True (\tword->abs (headInd - (twInd tword)) == 1) child, -- delta
+     maybe (Distance True False) 
+           (\tword -> Distance 
+                      (abs (headInd - (twInd tword)) == 1)
+                      (any (isVerb . getWord) $ between headInd (twInd tword))
+                                     ) child, -- delta
      headPOS, --t
      headWord)
 
                  
-mkAdjunction head child pos sister =
+mkAdjunction getWordInfo head child pos sister =
     singletonObservation 
     (mkAdjunctionEvent child sister)
-    (mkAdjunctionContext head child pos)
+    (mkAdjunctionContext getWordInfo head child pos)
 
 expectFSMTag transitions = 
     makeWFSM 0 n (Just Nothing) ((n, []):
@@ -364,17 +396,32 @@ expectFSMTag transitions =
 
 data AdjState = 
     AdjState { 
-      stateProbs :: AdjunctionDist,
-      stateHead :: TAGWord,
-      statePos :: Int 
+      stateProbs :: !AdjunctionDist,
+      stateHead :: !TAGWord,
+      statePos :: !Int, 
+      stateGetWord :: (Int -> TAGWord),
+      stateFinal :: !Bool,
+      stateNT :: NonTerm,
+      stateNext :: Maybe AdjState 
+
 } 
 
-initAdj probs tagword = 
-    AdjState {
-  stateProbs = probs, 
-  stateHead = tagword,
-  statePos = 0                 
-}
+initAdj getWord probs tagword = 
+    fromJustNote "nonblank" $ mkEmpty 0 $ lastOfSpine $ twSpine tagword
+    where 
+      mkEmpty i last = 
+          if i > last then Nothing  
+          else Just $ AdjState {
+                    stateProbs = probs,
+                    stateHead = tagword,
+                    statePos = i,
+                    stateNT = if last == i then undefined  else getNonTerm i $ twSpine tagword,
+                    stateFinal = last == i,
+                    stateGetWord = getWord,
+                    stateNext = mkEmpty (i+1) last 
+                   }
+
+stateSpine adjstate = twSpine $ stateHead adjstate
 
 instance Eq AdjState where 
     (==) = (==) `on` statePos
@@ -385,7 +432,7 @@ instance Ord AdjState where
 instance Show AdjState where 
     show = show . statePos
 
-stateSpine adjstate = twSpine $ stateHead adjstate
+
 
 instance WFSM AdjState where 
     type State AdjState = AdjState 
@@ -394,12 +441,14 @@ instance WFSM AdjState where
 tryEmpties (adjstate, semi) = (adjstate, semi):
     if isFinal adjstate then [] 
     else
-        tryEmpties (adjstate {statePos=  pos+1}, semi `times` semi') 
+     assert (statePos adjstate < (lastOfSpine $ stateSpine adjstate)) $  
+        tryEmpties (fromJustNote "not final" $ stateNext adjstate, semi `times` semi')
         where
           pos = statePos adjstate
           head = stateHead adjstate
           probs = stateProbs adjstate
-          semi' = viterbiHelp  (prob (cond probs $ mkAdjunctionContext head Nothing pos)
+          getWord = stateGetWord adjstate
+          semi' = viterbiHelp  (prob (cond probs $ mkAdjunctionContext getWord head Nothing pos)
                                 Nothing)
                                (mempty, 
                                 Dependency M.empty)
@@ -408,22 +457,29 @@ tryEmpties (adjstate, semi) = (adjstate, semi):
 instance FSMState AdjState where
     type FSMSymbol AdjState = Maybe TAGWord
     type FSMSemiring AdjState = ViterbiDerivation TAGDerivation
-    next adjstate child = concatMap tryEmpties $ maybe [] (\nt -> do
-                                                       atype <- [Sister, Regular]
-                                                       return $ (adjstate, findSemi nt atype)
-                                                    ) elem
+    next adjstate child = 
+        if isFinal adjstate then [] else
+            assert (statePos adjstate < (lastOfSpine $ stateSpine adjstate)) $  
+        concatMap tryEmpties $ do
+                 atype <- [Sister, Regular]
+                 let semi = findSemi nt atype
+                  --         trace ("Head: " ++ show head ++ " Child: " ++ show child ++ "prob: " ++ (show (prob (cond probs $ mkAdjunctionContext getWord head child pos ) $ 
+                 --             mkAdjunctionEvent child atype))) $ 
+                 return $ (adjstate, semi)
+                               
         where 
-          findSemi nt atype = viterbiHelp 
-                        (prob (cond probs $ mkAdjunctionContext head child pos ) $ 
-                              mkAdjunctionEvent child atype)
-                        (mempty,  singletonDep (twInd head) (twInd $ fromJust child) (pos, atype))
-          elem = lookupNonTerm pos (stateSpine adjstate)
+          findSemi nt atype = 
+              viterbiHelp 
+              (prob (cond probs $ mkAdjunctionContext getWord head child pos ) $ 
+                    mkAdjunctionEvent child atype)
+              (mempty,  singletonDep (twInd head) (twInd $ fromJustNote "index" child) (pos, atype))
+          nt = stateNT adjstate
           pos = statePos adjstate
           head = stateHead adjstate  
+          getWord = stateGetWord adjstate
           probs = stateProbs adjstate
 
-    isFinal adjstate = isNothing $ 
-                       lookupNonTerm (statePos adjstate) (stateSpine adjstate)  
+    isFinal adjstate = stateFinal adjstate  
 
 -- prop_directCheck tagsent = --trace ((show finalSemi) ++ "\n\n" ++ (show $ directCounts tagsent))  $  
 --     (directCounts tagsent == fromDerivation finalSemi)

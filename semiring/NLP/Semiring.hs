@@ -8,7 +8,8 @@ module NLP.Semiring(
   Monoid(..), 
   Semiring, 
   WeightedSemiring, 
-  Weighted(..)) where
+  Weighted(..), 
+  getWeight, getInfo                   ) where
  
 import Data.Monoid
 import Data.Monoid.Multiplicative 
@@ -56,6 +57,10 @@ instance (Semiring a, Semiring b) => Semiring (a,b)
 --   The best example of this is the ViterbiDerivation semiring.
 newtype Weighted semi1 semi2 = Weighted (semi1, semi2)
     deriving (Eq, Show, Monoid, Multiplicative, Semiring)
+
+getWeight (Weighted (semi1, _))= semi1 
+getInfo (Weighted (_, semi2))= semi2 
+
 
 instance (Ord semi1, Eq semi2) => Ord (Weighted semi1 semi2) where 
     compare (Weighted s1) (Weighted s2) = (compare `on` fst) s1 s2 

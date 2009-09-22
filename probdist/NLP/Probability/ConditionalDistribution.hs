@@ -1,12 +1,12 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts #-}
 module NLP.Probability.ConditionalDistribution where 
 import qualified Data.Map as M
-import Data.Maybe (fromJust)
 import Data.Monoid
 import NLP.Probability.Trie
 import NLP.Probability.Distribution
 import NLP.Probability.Observation
-
+import Safe (fromJustNote, fromJustDef)
+import Debug.Trace
 type CondObserved event context = 
     Trie (Sub context) (Observed event)
 
@@ -15,6 +15,10 @@ singletonObservation event context =
     addColumn decomp observed mempty 
         where observed = singleton event 
               decomp = decompose context 
+
+observedInContext context cond = 
+    maybe [] observedEvents $ find (decompose context) cond  
+
 
 type DistributionTree events context = 
     Trie (Sub context) (Distribution events)
@@ -35,14 +39,19 @@ toCondDistribution :: (Context c) =>
                       DistributionTree events c -> 
                       CondDistribution events c
 toCondDistribution tree = 
-    CondDistribution $ \context -> fromJust $ find (decompose context) tree    
+    CondDistribution $ \context -> fromJustNote "cond dist" $ find (decompose context) tree    
 
 estimateConditional est obs =
-    CondDistribution $ \context -> (M.!) condMap context 
+    CondDistribution $ \context -> 
+        --fromJustNote ("Context not found: " ++ show context) $ 
+        fromJustDef (trace "fail"$ uniform 1000000) $
+        M.lookup context condMap  
     where 
      condMap = M.fromList $ 
                map (\(letters, holder) -> (compose letters, est holder)) $ 
                expand_ obs 
+
+
      
 data CondDistribution event context = CondDistribution {
        cond :: context -> Distribution event

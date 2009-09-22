@@ -7,7 +7,7 @@ import qualified Data.Map as M
 import Data.Array
 import Data.List (intercalate)
 import Text.Printf
-
+import Safe (fromJustNote)
 import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass
 -- a distance from start to finish. Sometimes called a span 
@@ -71,7 +71,7 @@ chartParse sent combine = Chart chart
       n = sentenceLength sent
       chart = M.fromList $
 
-              [((i,k), Cell $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ (M.!) chart i))
+              [((i,k), Cell $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
                    | i <- [1 .. n+1],
                      k <- [i+1 .. n+1]]
 

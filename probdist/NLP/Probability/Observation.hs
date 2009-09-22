@@ -24,6 +24,8 @@ instance (Ord event) => Monoid (Observed event) where
 
 singleton event = Observed (M.singleton event 1)  
 
+observedEvents (Observed m) = map fst $ filter ((> 0) . snd) $ M.toList m  
+
 inc :: (Ord e) => Observed e -> e -> Count -> Observed e
 inc obs e c = obs {counts = M.insertWith (+) e c $ counts obs} 
 

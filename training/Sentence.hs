@@ -50,7 +50,6 @@ instance Show Word where
 newtype Sentence semi word = Sentence (Array Int (semi,word))
     deriving (Show, Eq)
 
-
 mkSentence :: (Semiring semi) => [(semi, word)] -> Sentence semi word
 mkSentence words = Sentence $ listArray (1, length words) words
 
@@ -74,6 +73,25 @@ slength :: Sentence a b -> Int
 slength (Sentence s) =  n
         where (1, n) = bounds s 
 
-
+getWord :: (Semiring a, WordSym word) => Sentence a word -> Int -> word 
 getWord sent i = w
     where [(_, w)] =  getWords sent i
+
+-- Sentence Lattice
+
+newtype SentenceLat semi word = SentenceLat (Array Int [(semi, word)])
+    deriving Show
+sllength (SentenceLat s) =  n
+        where (1, n) = bounds s 
+
+mkSentenceLat :: (Semiring semi) => [[(semi, word)]] -> SentenceLat semi word
+mkSentenceLat words = SentenceLat $ listArray (1, length words) words
+
+instance (Semiring semi, WordSym word) => SentenceLattice (SentenceLat semi word) where  
+    type Symbol (SentenceLat semi word)= word
+    type LatticeSemi (SentenceLat semi word)  = semi
+    sentenceLength = sllength
+    getWords (SentenceLat s) i = if i == n + 1 then [(one, root i)] else  s ! i 
+        where n = sllength (SentenceLat s)
+
+

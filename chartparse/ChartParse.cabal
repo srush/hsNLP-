@@ -29,8 +29,8 @@ library
                      semiring,
                      fsm,
                      pretty,
-                     prettyclass
-
+                     prettyclass,
+                     safe
 executable hstestsemi
     main-is:            Tests.hs
     other-modules:      NLP.ChartParse
