@@ -158,6 +158,8 @@ expectFSM transitions =
             | ((trans,semi), i) <- zip transitions [1..]])  
         where n = length transitions
 
+instance Functor Dependency where 
+    fmap f (Dependency d1) = Dependency $ M.map (\(DEdge h info ) -> DEdge h (f info) ) d1 
 
 score (Dependency d1) (Dependency d2) = 
     catMaybes $ map (\(i, edge) -> if edge == (M.!) d2 i then Nothing

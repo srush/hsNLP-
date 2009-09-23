@@ -5,8 +5,10 @@ import System.IO
 import Data.Monoid
 import Data.Binary
 import Data.List
+import qualified Data.Map as M
 import Sentence 
 import NLP.ChartParse
+import NLP.Semiring
 import NLP.ChartParse.Eisner
 import NLP.Semiring.ViterbiNBestDerivation
 import Safe (fromJustDef)
@@ -32,11 +34,17 @@ main = do
                separate "" $ lines contents
                         --print sents
   let [(d, (Just b, _)) ] = map (parseSent counts probs) sents
-  let TAGDerivation (_, dep)= getBestDerivation b
-  let wrong = score d dep
+  let TAGDerivation (words, dep)= getBestDerivation b
+  print $ TAGDerivation (words, dep)
+  let wrong = score d (fmap fst dep)
   if length wrong == 0 then putStrLn "Perfect."
    else putStrLn $ render $ vcat $ map (text.show) wrong
-          where parseSent counts probs insent = (dep ,eisnerParse getFSM symbolConv sent) 
+          where 
+            prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
+                     M.Map sig (ViterbiDerivation TAGDerivation)  
+            prune m = M.filter (\a -> (getBestScore a) > (best / 10000  )) m
+                where best = maximum $ map (getBestScore. snd) $ M.toList m 
+            parseSent counts probs insent = (dep ,eisnerParse getFSM symbolConv sent prune) 
                     where dsent = toTAGDependency (initSemiProbs probs) insent
                           (TAGSentence _ dep) = dsent
                           sent = toTAGTest counts probs insent   

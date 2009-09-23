@@ -201,9 +201,10 @@ eisnerParse :: (WFSM fsa, SentenceLattice sent, Semi fsa ~ LatticeSemi sent) =>
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 
+              (M.Map (Span fsa) (Semi fsa) -> M.Map (Span fsa) (Semi fsa)) -> 
                (Maybe (Semi fsa), Chart (Span fsa) (Semi fsa))
-eisnerParse getFSM wordConv sent = (semi, chart)  
-    where chart = chartParse sent (processCell getFSM sent wordConv)
+eisnerParse getFSM wordConv sent prune = (semi, chart)  
+    where chart = chartParse sent (processCell getFSM sent wordConv) prune
           semi = do
             last <- chartLookup (1, sentenceLength sent + 1) chart
             (_, semi) <- find accept last

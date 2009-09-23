@@ -23,7 +23,7 @@ import NLP.Semiring.ViterbiNBestDerivation
 import NLP.FSM.Simple
 import NLP.FSM
 import NLP.Probability.ConditionalDistribution
-import NLP.Probability.Distribution
+import NLP.Probability.Distribution hiding (Prob)
 import NLP.ChartParse
 import NLP.ChartParse.Eisner
 import Debug.Trace
@@ -94,6 +94,9 @@ data TAGWord = TAGWord {
       twWord  :: GWord,
       twSpine :: Spine}
                deriving (Eq, Ord, Show)
+
+instance Pretty TAGWord where 
+    pPrint (TAGWord ind word spine) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
 
 instance Context GWord where 
     type Sub (GWord) = String
@@ -249,10 +252,19 @@ estimateTAGProb (TAGTrainingCounts spineCounts leftAdjCounts rightAdjCounts) =
 type AdjunctionInfo = (Int, -- adjunction position
                        AdjunctionType) -- sister adjunction? 
 
-newtype TAGDerivation = TAGDerivation (M.Map TAGWord Int,
-                                       Dependency AdjunctionInfo) 
-    deriving (Eq, Monoid, Show)
+newtype TAGDerivation = TAGDerivation (M.Map TAGWord Prob,
+                                       Dependency (AdjunctionInfo, Prob)) 
+    deriving (Eq, Monoid)
 
+
+instance Show TAGDerivation where 
+    show = render . pPrint
+
+instance Pretty TAGDerivation where 
+    pPrint (TAGDerivation (words, der)) = 
+        (vcat $ map (\a -> (pPrint $ fst a) <+> (text $ show $ snd a) ) $ M.toList words) 
+        $$ (text $ show der)
+             
 mkTestTAGWord counts probs (ind, word) = 
     mapZip (initSemiProbs probs) $ map (TAGWord ind word) $ getPosSpines counts word 
 
@@ -262,10 +274,10 @@ getPosSpines counts word =
 
 initSemiProbs :: TAGProbs -> TAGWord -> ViterbiDerivation TAGDerivation 
 initSemiProbs (TAGProbs init _ _) tword@(TAGWord ind word spine) =  
-    viterbiHelp (prob (cond init word) spine)
-                (M.singleton tword 1, 
+    viterbiHelp p
+                 (M.singleton tword (Prob p), 
                   Dependency M.empty)
-
+                 where p = prob (cond init word) spine
 viterbiHelp prob td = 
     mkViterbi $ Weighted (Prob prob, mkDerivation $ TAGDerivation td)
 
@@ -470,9 +482,10 @@ instance FSMState AdjState where
         where 
           findSemi nt atype = 
               viterbiHelp 
-              (prob (cond probs $ mkAdjunctionContext getWord head child pos ) $ 
-                    mkAdjunctionEvent child atype)
-              (mempty,  singletonDep (twInd head) (twInd $ fromJustNote "index" child) (pos, atype))
+              (p atype)
+              (mempty,  singletonDep (twInd head) (twInd $ fromJustNote "index" child) ((pos, atype), Prob $ p atype) )
+          p atype = prob (cond probs $ mkAdjunctionContext getWord head child pos) $ 
+                    mkAdjunctionEvent child atype
           nt = stateNT adjstate
           pos = statePos adjstate
           head = stateHead adjstate  

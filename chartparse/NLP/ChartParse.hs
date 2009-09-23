@@ -61,19 +61,25 @@ class SentenceLattice a  where
     sentenceLength :: a -> Int
 
 
+
+
 -- A basic mono-lingual chart parser. 
 chartParse :: (Semiring semi, Ord sig, SentenceLattice sent, semi ~ LatticeSemi sent) => 
               sent ->
               (Range -> (Range -> [Item sig semi]) -> [Item sig semi]) -> 
+              (M.Map sig semi -> M.Map sig semi) -> 
               Chart sig semi 
-chartParse sent combine = Chart chart 
+chartParse sent combine prune = Chart chart 
     where 
       n = sentenceLength sent
       chart = M.fromList $
 
-              [((i,k), Cell $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
+              [((i,k), Cell $ prune $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
                    | i <- [1 .. n+1],
                      k <- [i+1 .. n+1]]
+
+
+
 
 type InitialDerivationRule item = [item]
 type SingleDerivationRule item = item -> [item] 
