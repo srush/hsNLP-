@@ -18,6 +18,7 @@ import Test.QuickCheck
 import Sentence 
 import ArbitraryHelpers
 import TAG
+import TAGparse
 import NLP.Semiring
 import Dependency
 import DependencyStructure
@@ -148,9 +149,9 @@ parseSentence file contents =
     Left error -> throw $ AssertionFailed $ show error 
 
     
-toSentence :: (Semiring semi) => WordInfoSent -> Sentence semi GWord
+toSentence :: WordInfoSent -> Sentence GWord
 toSentence (WordInfoSent wis)=  
-    mkSimpleSentence $ map (\wi -> (word wi, pos wi)) $ elems wis
+    mkSentence $ map (\wi -> (word wi, pos wi)) $ elems wis
 
 
 toDependency :: (Semiring semi) => WordInfoSent -> DependencySentence semi
@@ -166,13 +167,13 @@ toDependency (WordInfoSent wis) = DependencySentence sent depstruct
 
 
 --toTagSentence :: WordInfoSent -> Sentence TAGCountSemi (GWord, Spine)
-toTagSentence initSemi (WordInfoSent wis)=  
-    mkTagWords initSemi $  map (\wi -> (((word wi, pos wi), spine wi))) $ elems wis
+toTagSentence (WordInfoSent wis)=  
+    mkTagWords $  map (\wi -> (((word wi, pos wi), spine wi))) $ elems wis
 
 
 --toTAGDependency :: WordInfoSent -> TAGSentence TAGCountSemi
-toTAGDependency initSemi (WordInfoSent wis) = TAGSentence sent depstruct
-    where sent = toTagSentence initSemi (WordInfoSent wis)
+toTAGDependency (WordInfoSent wis) = TAGSentence sent depstruct
+    where sent = toTagSentence (WordInfoSent wis)
           depstruct = Dependency $ M.fromList $ map convertWI  $ elems wis
           convertWI wi = (ind wi, 
                           if head == 0 then DEdge (n + 1) $ (adjPos wi, sister wi) 
@@ -180,10 +181,10 @@ toTAGDependency initSemi (WordInfoSent wis) = TAGSentence sent depstruct
               where n = slength sent
                     head = adjoinInd wi
 
-toTAGTest counts probs (WordInfoSent wis) = sent
-    where sent = mkSentenceLat $ 
-                 map (mkTestTAGWord counts probs) $ 
-                 map (\wi -> (ind wi, (word wi, pos wi))) $ elems wis
+toTAGTest counts (WordInfoSent wis) = sent
+      where sent = mkSentenceLat $ 
+                   map (mkTestTAGWord counts) $ 
+                   map (\wi -> (ind wi, (word wi, pos wi))) $ elems wis
 
 --testGraphViz = do 
 --  sent <- readSentence "data/sample.data"

@@ -56,15 +56,12 @@ instance (Pretty sig, Pretty semi) => Pretty (Chart sig semi) where
 
 class SentenceLattice a  where
     type Symbol a 
-    type LatticeSemi a
-    getWords :: a -> Int -> [(LatticeSemi a, Symbol a)]   
+    getWords :: a -> Int -> [Symbol a]   
     sentenceLength :: a -> Int
 
 
-
-
 -- A basic mono-lingual chart parser. 
-chartParse :: (Semiring semi, Ord sig, SentenceLattice sent, semi ~ LatticeSemi sent) => 
+chartParse :: (Semiring semi, Ord sig, SentenceLattice sent) => 
               sent ->
               (Range -> (Range -> [Item sig semi]) -> [Item sig semi]) -> 
               (M.Map sig semi -> M.Map sig semi) -> 

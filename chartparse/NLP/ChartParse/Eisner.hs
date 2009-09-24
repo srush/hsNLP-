@@ -129,34 +129,34 @@ combine (span1, semi1) (span2, semi2) =
 singleEnd :: (WFSM fsa) => 
              fsa -> 
              Sym fsa ->
-            [(Semi fsa, SpanEnd fsa)]
+            [(SpanEnd fsa, Semi fsa)]
 singleEnd fsa word = do 
-    (state, semi) <- initialState $ fsa
-    return (semi,
-            SpanEnd {                  
-              state = state,
-              word = word,
-              hasParent = False})
+    (state, semi)  <- initialState $ fsa
+    return $ (SpanEnd {                  
+                 state = state,
+                 word = word,
+                 hasParent = False}, 
+             semi)
 
 -- Seed 
 seed :: (WFSM fsa) => 
         GetFSM fsa -> 
         Int ->
-       [(Semi fsa, Sym fsa)] -> 
-       [(Semi fsa, Sym fsa)] -> 
+       [Sym fsa] -> 
+       [Sym fsa] -> 
        InitialDerivationRule (EItem fsa)
 seed getFSA i sym1s sym2s = do  
-      (semi1, sym1) <- sym1s 
-      (_, sym2) <- sym2s
+      sym1 <- sym1s 
+      sym2 <- sym2s
       let (_, rightFSA) = getFSA i sym1
       let (leftFSA, _) = getFSA (i+1) sym2
-      (semi1', span1) <- singleEnd rightFSA $ sym1
-      (semi2', span2) <- singleEnd leftFSA $  sym2
+      (span1, semi1) <- singleEnd rightFSA $ sym1
+      (span2, semi2) <- singleEnd leftFSA $  sym2
       return (Span {
                 leftEnd = span1,
                 rightEnd = span2,
                 simple = True}, 
-              semi1 `times` semi1' `times` semi2') 
+              semi1 `times` semi2) 
     
 accept :: (WFSM fsa) => EItem fsa -> Bool
 accept (span, _) = 
@@ -169,7 +169,7 @@ accept (span, _) =
 
 type GetFSM fsa = Int -> Sym fsa -> (fsa, fsa) --todo: fix this 
 
-processCell :: (WFSM fsa, SentenceLattice sent, LatticeSemi sent ~ Semi fsa) => 
+processCell :: (WFSM fsa, SentenceLattice sent) => 
                GetFSM fsa -> 
                sent ->  
                (Symbol sent -> Sym fsa) ->                
@@ -179,8 +179,8 @@ processCell :: (WFSM fsa, SentenceLattice sent, LatticeSemi sent ~ Semi fsa) =>
 processCell getFSA sentence wordConv (i, k) chart = concat $ 
     if k-i == 1 then
         let seedCells = seed getFSA i 
-                        (map (\(s, w) -> (s, wordConv w)) $ getWords sentence i) 
-                        (map (\(s, w) -> (s, wordConv w))  $ getWords sentence (i+1))
+                        (map wordConv $ getWords sentence i) 
+                        (map wordConv  $ getWords sentence (i+1))
         in
         map (\seedCell -> 
         concat $ [[seedCell],
@@ -197,7 +197,7 @@ processCell getFSA sentence wordConv (i, k) chart = concat $
                 s1 <- chart (i,j)]
          
 
-eisnerParse :: (WFSM fsa, SentenceLattice sent, Semi fsa ~ LatticeSemi sent) => 
+eisnerParse :: (WFSM fsa, SentenceLattice sent) => 
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 

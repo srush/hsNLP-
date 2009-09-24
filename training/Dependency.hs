@@ -17,7 +17,7 @@ import Debug.Trace.Helpers
 import Debug.Trace
 
 data DependencySentence semi = 
-    DependencySentence (Sentence semi GWord) (Dependency ())
+    DependencySentence (Sentence GWord) (Dependency ())
                          deriving (Eq)
 
 instance (Semiring semi) => Arbitrary (DependencySentence semi) where     
