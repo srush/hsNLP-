@@ -38,6 +38,7 @@ executable hstestprobdist
                      containers >= 0.1 && < 0.3,
                      monoids    >= 0.2.0.2 && < 0.3,
                      QuickCheck >= 2,
+                     Safe,
                      HUnit,
                      test-framework,
                      test-framework-hunit,

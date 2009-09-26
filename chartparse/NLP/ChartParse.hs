@@ -64,14 +64,14 @@ class SentenceLattice a  where
 chartParse :: (Semiring semi, Ord sig, SentenceLattice sent) => 
               sent ->
               (Range -> (Range -> [Item sig semi]) -> [Item sig semi]) -> 
-              (M.Map sig semi -> M.Map sig semi) -> 
+              (Range -> M.Map sig semi -> M.Map sig semi) -> 
               Chart sig semi 
 chartParse sent combine prune = Chart chart 
     where 
       n = sentenceLength sent
       chart = M.fromList $
 
-              [((i,k), Cell $ prune $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
+              [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
                    | i <- [1 .. n+1],
                      k <- [i+1 .. n+1]]
 

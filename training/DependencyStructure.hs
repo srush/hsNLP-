@@ -49,7 +49,7 @@ singletonDep head child info = Dependency $ M.singleton child (DEdge head info)
 
 getHead (Dependency m) i =  fromJustNote "no head" $ M.lookup i m 
 
-arbDepMap :: (Arbitrary info) => Int -> (Int -> Gen info) -> Gen (Dependency info)      
+arbDepMap :: Int -> (Int -> Gen info) -> Gen (Dependency info)      
 arbDepMap n arbInfo = do       
     start <- choose (1,n)
     info <- arbInfo (n+1)
@@ -127,12 +127,15 @@ showDotGraph gr = do
   runCommand $ "dotty " ++ filename 
     where s = printDotGraph $ gr
 
-flattenDep (Dependency dep)  = 
+flattenDep dep  = 
     map (\i -> (i, M.findWithDefault ([],[]) i sMap)) [1..n]
     where 
-          sMap = splitMap $ reverseMap (Dependency dep)
-          (n,_) = M.findMax sMap
+          sMap = splitMap $ reverseMap dep
+          n = rootPos dep
 
+rootPos dep = n
+    where (n,_) = M.findMax r
+          r = reverseMap dep
 makeDependencyFSM :: 
     (Semiring semi, Ord wordinfo) => 
     (Int -> wordinfo) -> 

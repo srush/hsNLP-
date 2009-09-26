@@ -1,5 +1,6 @@
 import TreeBank 
 import TAG 
+import Adjunction
 import TAGparse
 import System (getArgs) 
 import System.IO
@@ -10,20 +11,17 @@ import NLP.ChartParse.Eisner
 import NLP.Semiring.Derivation
 import Control.Exception
 import Control.Parallel.Strategies
-import Data.Helpers
+import DataHelpers
 
 main = do 
   [file1, file2] <- getArgs
   counts <- readAndCount file1 file2
   print "full count done"
-  encodeFile file2 counts
+  encodeFile file2 (counts::TAGCounts)
 
 
 readAndCount file1 file2 = do
-  contents <- readFile file1
-  let sents =  separate "" $ lines contents
-  let nsents = ngroup sents 1000 
-  let newsents = map (map (parseSentence file1. unlines)) nsents   
+  newsents <- getSentences file1
   print "ending parsing" 
   let counts = parMap rwhnf countSome $ zip newsents [0..]
   print "count sets done"
@@ -33,7 +31,8 @@ readAndCount file1 file2 = do
             --do 
           --putStrLn $ "set" ++ (show n)
           --return $! 
-            mconcat $ map (directCounts2 . toTAGDependency) ls
+          mconcat $ map (directCounts2 . toTAGDependency) ls 
+            
 
 readCounts file = 
     decodeFile file
@@ -48,5 +47,5 @@ directCounts2 dsent =
       fsms = tagSentenceFSMs dsent
       getFSM i _ = fsms !! (i-1)
       symbolConv word = Just word 
-      (semi,chart) =   eisnerParse getFSM symbolConv  sent id 
+      (semi,chart) =   eisnerParse getFSM symbolConv sent id 
       

@@ -5,7 +5,7 @@ import NLP.Semiring
 -- | The 'Prob' semiring keeps track of the likelihood of the known output 
 --   by keeping track of the probability of all paths. 
 newtype Prob = Prob Double
-    deriving (Eq, Show, Num, Fractional, Ord) 
+    deriving (Eq, Show, Num, Real, Fractional, Ord) 
 
 instance Multiplicative Prob where
     one = 1.0

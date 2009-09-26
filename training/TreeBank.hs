@@ -17,8 +17,8 @@ import Test.HUnit
 import Test.QuickCheck
 import Sentence 
 import ArbitraryHelpers
-import TAG
-import TAGparse
+import TAG hiding (adjPos)
+import TAGparse 
 import NLP.Semiring
 import Dependency
 import DependencyStructure
@@ -99,13 +99,13 @@ instance Parsable WordInfo where
 parseString = manyTill anyChar space
 
 instance Parsable Word where 
-    parser = Word `liftM` parseString 
+    parser = mkWord `liftM` parseString 
 
 instance Parsable POS where 
-    parser = POS `liftM` parseString 
+    parser = mkPOS `liftM` parseString 
 
 instance Parsable NonTerm where 
-    parser = NonTerm `liftM` (many1 $ choice [upper, char '_'])
+    parser = mkNonTerm `liftM` (many1 $ choice [upper, char '_'])
 
 instance Parsable Spine where 
     parser = do 
@@ -176,8 +176,8 @@ toTAGDependency (WordInfoSent wis) = TAGSentence sent depstruct
     where sent = toTagSentence (WordInfoSent wis)
           depstruct = Dependency $ M.fromList $ map convertWI  $ elems wis
           convertWI wi = (ind wi, 
-                          if head == 0 then DEdge (n + 1) $ (adjPos wi, sister wi) 
-                          else DEdge head $ (adjPos wi, sister wi))
+                          if head == 0 then DEdge (n + 1) $ AdjunctionInfo (adjPos wi) (sister wi) () 
+                          else DEdge head $ AdjunctionInfo (adjPos wi) (sister wi) ())
               where n = slength sent
                     head = adjoinInd wi
 
@@ -195,7 +195,7 @@ toTAGTest counts (WordInfoSent wis) = sent
 
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (Word "in") (POS "IN") 20 (Spine [NonTerm "PP"]) 0 Sister)] 
+ WordInfo 23 (mkWord "in") (mkPOS "IN") 20 (Spine [mkNonTerm "PP"]) 0 Sister)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]

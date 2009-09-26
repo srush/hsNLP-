@@ -201,7 +201,7 @@ eisnerParse :: (WFSM fsa, SentenceLattice sent) =>
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 
-              (M.Map (Span fsa) (Semi fsa) -> M.Map (Span fsa) (Semi fsa)) -> 
+              (Range -> M.Map (Span fsa) (Semi fsa) -> M.Map (Span fsa) (Semi fsa)) -> 
                (Maybe (Semi fsa), Chart (Span fsa) (Semi fsa))
 eisnerParse getFSM wordConv sent prune = (semi, chart)  
     where chart = chartParse sent (processCell getFSM sent wordConv) prune

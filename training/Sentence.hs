@@ -10,24 +10,39 @@ import Debug.Trace
 import ArbitraryHelpers
 import Data.DeriveTH
 import Data.Binary hiding (Word)
+import qualified Data.ByteString.Char8 as BS
+--import StringTable.Atom
 
-newtype POS = POS String 
-    deriving ( Eq, Ord)
+newtype  POS = POS BS.ByteString 
+    deriving (Eq, Ord, Binary)
 
-$( derive makeBinary ''POS )
-
-
+--instance Binary POS where 
+--    put (POS p) = 
+--      put $ ((fromAtom p) ::String)
+--    get = do 
+--      w <- get
+--      return $ mkPOS (w::String)
+ 
 instance Show POS where 
-    show (POS s) = s
+    show (POS s) = BS.unpack s
+
+mkPOS = POS . BS.pack
 
 instance Arbitrary POS where 
     arbitrary = 
-      POS `liftM` map toUpper `liftM` (listOf1 $ elements basicChar) 
+      mkPOS `liftM` map toUpper `liftM` (listOf1 $ elements basicChar) 
 
-newtype Word = Word String 
-          deriving (Eq, Ord)
+newtype Word = Word BS.ByteString 
+          deriving (Eq, Ord, Binary)
 
-$( derive makeBinary ''Word )
+--instance Binary Word where 
+--    put (Word p) = put $ ((fromAtom p)::String)
+--    get = do 
+--      w <- get
+--      return $ mkWord (w::String)
+
+mkWord = Word . BS.pack
+
 
 type GWord = (Word, POS)
 
@@ -37,14 +52,14 @@ class WordSym a where
 
 
 instance WordSym GWord where  
-    root i = (Word "Root", POS "ROOT")  
+    root i = (mkWord "Root", mkPOS "ROOT")  
 
 
 instance Arbitrary Word where 
-    arbitrary = Word `liftM` (listOf1 $ elements basicChar)
+    arbitrary = mkWord `liftM` (listOf1 $ elements basicChar)
 
 instance Show Word where 
-    show (Word w) = w
+    show (Word w) = BS.unpack w
 
 newtype Sentence word = Sentence (Array Int word)
     deriving (Show, Eq)

@@ -20,21 +20,29 @@ import Test.HUnit hiding (State, Node, assert)
 
 import Data.DeriveTH hiding (Derivation)
 import Data.Binary
-
+--import StringTable.Atom
 import qualified Data.Map as M
-
+import qualified Data.ByteString.Char8 as BS
 
 -- | A non-terminal in the TAG grammar 
-newtype NonTerm = NonTerm String 
+newtype NonTerm = NonTerm BS.ByteString 
     deriving (Eq, Ord, Binary)
 
+--instance Binary NonTerm where 
+--    put (NonTerm p) = 
+--      put $ ((fromAtom p) ::String)
+--    get = do 
+--      w <- get
+--      return $ mkNonTerm (w::String)
+
+mkNonTerm = NonTerm . BS.pack
 
 instance Show NonTerm where 
-    show (NonTerm nt) = nt
+    show (NonTerm nt) = BS.unpack nt
 
 instance Arbitrary NonTerm where
     arbitrary = 
-      NonTerm `liftM` map toUpper `liftM` listOf1 (elements alpha) 
+      mkNonTerm `liftM` map toUpper `liftM` listOf1 (elements alpha) 
 
 
 data ParseTree = 
@@ -51,10 +59,10 @@ instance Pretty ParseTree where
     pPrint (Leaf (w,pos)) = 
        lparen <> (text $ show pos) <+> (text $ show w) <> rparen 
     pPrint (Node nt rest) =  
-        hang 
+        
         (lparen <> (text $ show nt))
-        2
-        (vcat $ map pPrint rest) <> rparen
+        <+>
+        (hsep $ map pPrint rest) <> rparen
 -- | There are two types of adjunction, 
 --   Sister comes from a single position, 
 --   regular duplicates the node in the head tree 
@@ -87,7 +95,7 @@ getNonTerm i (Spine nts) = atNote "getNonTerm" nts i
 fromPOS (POS ps) = NonTerm ps 
 
 lookupNonTerm i (Spine nts) =
-    if i >= length nts then Nothing
+    if i >= length nts || i < 0 then Nothing
     else Just $ nts !! i
 
 instance Show Spine where 
@@ -111,7 +119,7 @@ instance Pretty TAGWord where
 
 data TAGSentence  = 
     TAGSentence { tsSent :: Sentence TAGWord,
-                  tsDep  :: Dependency AdjunctionInfo}
+                  tsDep  :: Dependency (AdjunctionInfo ())}
                 deriving (Show)
 
 convertToTree tagsent = head n  
@@ -128,7 +136,7 @@ convertToTree tagsent = head n
                    ([convertToTree' tw (spos-1)]) ++ 
                    (map convertNewTree $ atSpos right)
                   where  (_, (left, right)) = flat !! ((twInd tw) -1)
-                         atSpos = map (\(i, _) -> getWord sent i). catMaybes.  
+                         atSpos = map (\ainfo -> getWord sent $ adjPos ainfo). catMaybes.  
                                   fromMaybe [] . lookup spos . alignWithSpine (twSpine tw)
 mkTagWords words = 
     mkSentence $ newWords
@@ -137,8 +145,9 @@ mkTagWords words =
 instance Arbitrary Spine where
     arbitrary = Spine `liftM` listOf1 arbitrary
 
+rootNT = mkNonTerm "ROOT"
 instance WordSym TAGWord where
-    root ind = TAGWord ind (root ind) (Spine [NonTerm "ROOT"])
+    root ind = TAGWord ind (root ind) (Spine [rootNT])
 
 
 instance Arbitrary TAGSentence where 
@@ -151,22 +160,26 @@ instance Arbitrary TAGSentence where
                   let tagWord = getWord sent i
                   let Spine sp = twSpine tagWord
                   adjPos <- choose (0,length sp -1)
-                  return (adjPos, Sister)
+                  return $ AdjunctionInfo adjPos Sister ()
 
 
-type AdjunctionInfo = (Int, -- adjunction position
-                       AdjunctionType) -- sister adjunction? 
+data AdjunctionInfo a  = 
+    AdjunctionInfo {adjPos :: Int, -- adjunction position
+                    adjType :: AdjunctionType,
+                    adjInfo :: a } -- sister adjunction? 
+    deriving (Show, Eq)
+
 
 
 -- | Takes a spine and an ordered list of adjunctions, 
 --   returns the list of adjunctions with epsilons inserted 
-alignWithSpine :: Spine -> [DEdge AdjunctionInfo] -> [(Int, [Maybe AdjunctionInfo])] 
+alignWithSpine :: Spine -> [DEdge (AdjunctionInfo a)] -> [(Int, [Maybe (AdjunctionInfo a)])] 
 alignWithSpine (Spine spine) adjs =
     [(pos, getAdj nt pos ++ [Nothing]) | 
      (nt, pos) <- zip spine [0..]] 
     where 
       indexedAdj = M.fromListWith (flip (++)) $ 
-                   map (\(DEdge to (pos, sister)) -> ((pos), [(to,sister)]) ) adjs
+                   map (\(DEdge to ainfo) -> (adjPos ainfo, [ainfo {adjPos = to}]) ) adjs
       getAdj nt ind  = 
           case M.lookup ind indexedAdj of
             Nothing -> [] 
@@ -176,14 +189,24 @@ alignWithSpine (Spine spine) adjs =
 
 testAlign = TestCase $  
             mapM_ (\ ((sp, adj), ans) -> assertEqual "alignment" ans (alignWithSpine sp adj)) test
-    where  test = [((Spine [NonTerm "A", NonTerm "B"], [DEdge 10 (1, Regular) ]), 
-                    [(0,[Nothing]),(1, [Just (10, Regular),Nothing])]),
+    where  test = [((Spine [mkNonTerm "A", mkNonTerm "B"], [DEdge 10 $ AdjunctionInfo 1 Regular () ]), 
+                    [(0,[Nothing]),(1, [Just $ AdjunctionInfo 10 Regular (),Nothing])]),
 
-                   ((Spine [NonTerm "A", NonTerm "B"], [DEdge 10 (1, Regular), DEdge 12 (1, Regular), DEdge 15 (1, Sister)  ]), 
-                    [(0,[Nothing]),(1,[Just (10, Regular) ,Just (12, Regular), Just (15, Sister), Nothing])]),
-                  ((Spine [NonTerm "A"], [DEdge 4 (0, Sister), DEdge 3 (0, Sister), DEdge 2 (0, Sister)]), 
-                    [(0,[Just (4, Sister), Just (3, Sister) , Just (2, Sister), Nothing])])]
+                   ((Spine [mkNonTerm "A", mkNonTerm "B"], [DEdge 10 $ AdjunctionInfo 1 Regular () , 
+                                                            DEdge 12 $ AdjunctionInfo 1 Regular () , 
+                                                            DEdge 15 $ AdjunctionInfo 1 Sister ()   ]), 
+                    [(0,[Nothing]),(1,[Just $ AdjunctionInfo 10 Regular () ,
+                                       Just $ AdjunctionInfo 12 Regular (), 
+                                       Just $ AdjunctionInfo 15 Sister (), Nothing])]),
+                  ((Spine [mkNonTerm "A"], [DEdge 4 $ AdjunctionInfo 0 Sister (), 
+                                            DEdge 3 $ AdjunctionInfo 0 Sister (), 
+                                            DEdge 2 $ AdjunctionInfo 0 Sister ()]), 
+                    [(0,[Just $ AdjunctionInfo 4 Sister (), 
+                         Just $ AdjunctionInfo 3 Sister (), 
+                         Just $ AdjunctionInfo 2 Sister (), Nothing])])]
 
+isVerb tword = (take 2 $ BS.unpack pos) == "VB"
+    where (_, POS pos) = twWord tword 
 
 
 
