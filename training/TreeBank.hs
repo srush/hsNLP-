@@ -23,9 +23,10 @@ import NLP.Semiring
 import Dependency
 import DependencyStructure
 import Debug.Trace
-
+import POS
+import NonTerm
 import qualified NLP.ChartParse as CP
-
+import Word
 
 newtype WordInfoSent = WordInfoSent (Array Int WordInfo)
     deriving (Eq)
@@ -204,7 +205,7 @@ test1 = TestCase (mapM_ (\(str, testParse) ->
                          assertEqual "parse fail" (fromRight $ parse parser "" str) testParse) 
                   testData)
 
-prop_showParse w = case parse parser "" (show w) of 
+prop_showParse w =  case parse parser "" (show w) of 
                      Right s -> w == s
                      Left error ->  False --throw $ AssertionFailed $ show error 
     where types = (w::WordInfo) 

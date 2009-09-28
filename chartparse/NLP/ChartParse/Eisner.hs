@@ -22,7 +22,8 @@ data SpanEnd fsa =
     SpanEnd {
       hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
       state :: State fsa, -- q1 and q2
-      word :: Sym fsa
+      word :: Sym fsa,
+      headTil :: (Int, Int) -- the "last" point in the span where this word is the head
 }  
 
 instance (WFSM fsa) => Show (SpanEnd fsa) where 
@@ -92,7 +93,8 @@ optLinkL (span, semi) = do
       (False, False) <- [hasParentPair span]
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span)   
       return $ (span { simple = True, 
-                       leftEnd = leftEnd',
+                       leftEnd = leftEnd' {headTil = (fst $ headTil $ leftEnd $ span, 
+                                                      snd $ headTil $ rightEnd $ span)} ,
                        rightEnd = (rightEnd span) {hasParent = True}
                      },
                p `times` semi)
@@ -103,7 +105,8 @@ optLinkR (span, semi) = do
     (False, False) <- [hasParentPair span]
     (rightEnd', p) <- advance (rightEnd span) (word $ leftEnd span)   
     return  $ (span {simple = True, 
-                      rightEnd = rightEnd',
+                      rightEnd = rightEnd' {headTil = (fst $ headTil $ leftEnd $ span, 
+                                                       snd $ headTil $ rightEnd $ span)},
                       leftEnd = (leftEnd span) {hasParent = True}
                     },
                 p `times` semi)
@@ -127,15 +130,18 @@ combine (span1, semi1) (span2, semi2) =
           w2 = word $ leftEnd span2
 
 singleEnd :: (WFSM fsa) => 
+             Int -> 
              fsa -> 
              Sym fsa ->
             [(SpanEnd fsa, Semi fsa)]
-singleEnd fsa word = do 
+singleEnd i fsa word = do 
     (state, semi)  <- initialState $ fsa
     return $ (SpanEnd {                  
                  state = state,
                  word = word,
-                 hasParent = False}, 
+                 hasParent = False,
+                 headTil = (i,i) 
+              }, 
              semi)
 
 -- Seed 
@@ -150,8 +156,8 @@ seed getFSA i sym1s sym2s = do
       sym2 <- sym2s
       let (_, rightFSA) = getFSA i sym1
       let (leftFSA, _) = getFSA (i+1) sym2
-      (span1, semi1) <- singleEnd rightFSA $ sym1
-      (span2, semi2) <- singleEnd leftFSA $  sym2
+      (span1, semi1) <- singleEnd i rightFSA $ sym1
+      (span2, semi2) <- singleEnd (i+1) leftFSA $  sym2
       return (Span {
                 leftEnd = span1,
                 rightEnd = span2,

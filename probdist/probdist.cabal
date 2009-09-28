@@ -19,7 +19,7 @@ library
     exposed-modules:     NLP.Probability.Distribution
                          NLP.Probability.Observation     
                          NLP.Probability.ConditionalDistribution     
-                         NLP.Probability.Trie     
+                         NLP.Probability.TrieWrap     
 
     if flag(testing)
         buildable: False
@@ -28,7 +28,10 @@ library
                      containers >= 0.1 && < 0.3,
                      monoids    >= 0.2.0.2 && < 0.3,
                      binary,
-                     safe
+                     safe >= 0.2,
+                     list-tries,
+                     pretty,
+                     prettyclass 
 
 executable hstestprobdist
     main-is:         Tests.hs
@@ -38,7 +41,9 @@ executable hstestprobdist
                      containers >= 0.1 && < 0.3,
                      monoids    >= 0.2.0.2 && < 0.3,
                      QuickCheck >= 2,
-                     Safe,
+                     pretty,
+                     prettyclass,
+                     safe,
                      HUnit,
                      test-framework,
                      test-framework-hunit,

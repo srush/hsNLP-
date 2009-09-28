@@ -22,6 +22,7 @@ import Test.QuickCheck
 import Safe (fromJustNote)
 -- Root is index 0
 
+
 newtype Dependency adjinfo = 
     Dependency (M.Map Int (DEdge adjinfo))
     deriving (Eq, Monoid, Ord) -- not sure why this needs to be ord
@@ -45,6 +46,14 @@ instance (Arbitrary a ) => Arbitrary (Dependency a) where
       arbDepMap n (const arbitrary)
 
 
+covers :: Dependency m -> Int -> (Int, Int)
+covers m i = (minimum children, maximum children)
+    where rm = reverseMap m 
+          children = i: dfs i
+          dfs n = case M.lookup n rm of 
+                    Nothing -> []
+                    (Just children) -> (map to children) ++ concatMap (dfs.to) children
+   
 singletonDep head child info = Dependency $ M.singleton child (DEdge head info)
 
 getHead (Dependency m) i =  fromJustNote "no head" $ M.lookup i m 

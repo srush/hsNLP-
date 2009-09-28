@@ -12,13 +12,13 @@ import NLP.Semiring.Derivation
 import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
-
+import Debug.Trace
+import Counts 
 main = do 
   [file1, file2] <- getArgs
   counts <- readAndCount file1 file2
   print "full count done"
   encodeFile file2 (counts::TAGCounts)
-
 
 readAndCount file1 file2 = do
   newsents <- getSentences file1
@@ -29,23 +29,10 @@ readAndCount file1 file2 = do
       where 
         countSome (ls,n) = 
             --do 
-          --putStrLn $ "set" ++ (show n)
           --return $! 
-          mconcat $ map (directCounts2 . toTAGDependency) ls 
+          mconcat $ map (countTAG . toTAGDependency) ls 
             
 
 readCounts file = 
     decodeFile file
-directCounts2 dsent =
-    case semi of 
-        Nothing -> throw $ AssertionFailed $ show dsent
-        Just s -> fromDerivation s
 
-    where 
-      (TAGSentence sent _) = dsent
-  --print sent
-      fsms = tagSentenceFSMs dsent
-      getFSM i _ = fsms !! (i-1)
-      symbolConv word = Just word 
-      (semi,chart) =   eisnerParse getFSM symbolConv sent id 
-      

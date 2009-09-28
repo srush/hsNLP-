@@ -11,55 +11,25 @@ import ArbitraryHelpers
 import Data.DeriveTH
 import Data.Binary hiding (Word)
 import qualified Data.ByteString.Char8 as BS
+import POS 
+import Word
 --import StringTable.Atom
-
-newtype  POS = POS BS.ByteString 
-    deriving (Eq, Ord, Binary)
-
---instance Binary POS where 
---    put (POS p) = 
---      put $ ((fromAtom p) ::String)
---    get = do 
---      w <- get
---      return $ mkPOS (w::String)
- 
-instance Show POS where 
-    show (POS s) = BS.unpack s
-
-mkPOS = POS . BS.pack
-
-instance Arbitrary POS where 
-    arbitrary = 
-      mkPOS `liftM` map toUpper `liftM` (listOf1 $ elements basicChar) 
-
-newtype Word = Word BS.ByteString 
-          deriving (Eq, Ord, Binary)
-
---instance Binary Word where 
---    put (Word p) = put $ ((fromAtom p)::String)
---    get = do 
---      w <- get
---      return $ mkWord (w::String)
-
-mkWord = Word . BS.pack
-
 
 type GWord = (Word, POS)
 
+
+data GWord2 = GWord2 Word POS
+            deriving Show
+ 
+
 -- ROOT is a special symbol that we put at the end of the sentence 
 class WordSym a where 
-    root :: Int ->  a
-
+    root :: Int -> a
+    isRoot :: a -> Bool
 
 instance WordSym GWord where  
-    root i = (mkWord "Root", mkPOS "ROOT")  
-
-
-instance Arbitrary Word where 
-    arbitrary = mkWord `liftM` (listOf1 $ elements basicChar)
-
-instance Show Word where 
-    show (Word w) = BS.unpack w
+    root _ = (mkWord "Root", mkPOS "ROOT")  
+    isRoot (_, pos) = mkPOS "ROOT" == pos  
 
 newtype Sentence word = Sentence (Array Int word)
     deriving (Show, Eq)
@@ -77,7 +47,6 @@ instance (WordSym word) => SentenceLattice (Sentence word) where
     sentenceLength = slength
     getWords (Sentence s) i = if i == n + 1 then [root i] else  [s ! i] 
         where n = slength (Sentence s)
-
 
 slength :: Sentence b -> Int
 slength (Sentence s) =  n
