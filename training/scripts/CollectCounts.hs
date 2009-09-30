@@ -30,6 +30,7 @@ readAndCount file1 file2 = do
         countSome (ls,n) = 
             --do 
           --return $! 
+          trace (show n) $ 
           mconcat $ map (countTAG . toTAGDependency) ls 
             
 

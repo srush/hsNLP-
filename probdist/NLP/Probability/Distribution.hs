@@ -57,14 +57,14 @@ estimateLinearInterpolation (l1,l2,l3) =
                  ( l2, estimateMLE),
                  ( l3, estimateMLE)]
 
-estimateWittenBell :: (Enum event, Ord event) => Estimator event [Observed event]
-estimateWittenBell = 
-    estimateGeneralLinear [(const 0.0, estimateMLE), 
-                           (lambda, estimateMLE),
-                           (lambdaComp, estimateMLE)]
-    where lambda obs = 1.0 - lambdaComp obs
-          lambdaComp :: (Enum a) => [Observed a] -> Double
-          lambdaComp [obs1, obs2, obs3] = nonTrivial / (nonTrivial + total)
-              where total = calcTotal obs3 
-                    nonTrivial = countNonTrivial obs3
-          lambdaComp _ = 0.0
+-- estimateWittenBell :: (Enum event, Ord event) => Estimator event [Observed event]
+-- estimateWittenBell = 
+--     estimateGeneralLinear [(const 0.0, estimateMLE), 
+--                            (lambda, estimateMLE),
+--                            (lambdaComp, estimateMLE)]
+--     where lambda obs = 1.0 - lambdaComp obs
+--           lambdaComp :: (Enum a) => [Observed a] -> Double
+--           lambdaComp [obs1, obs2, obs3] = nonTrivial / (nonTrivial + total)
+--               where total = calcTotal obs3 
+--                     nonTrivial = countNonTrivial obs3
+--           lambdaComp _ = 0.0

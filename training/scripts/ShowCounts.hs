@@ -46,13 +46,12 @@ main = do
                separate "" $ lines contents
                         --print sents
   --print sents
-  let results = [  (b''', b)
-          | (_, (Just b''', _) , (Just b', _),(Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
-
+  let results = [  (b', b)
+          | (_, (Just b', _) , _, (Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
   mapM_ (\(a,b) ->  do
-         putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation a))
+           putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation a))
 --         putStrLn $ show $ getBestDerivation b
-         putStrLn $ ("T" ++ (show $ tagDerToTree  $ getBestDerivation b))) results
+           putStrLn $ ("T" ++ (show $ tagDerToTree  $ getBestDerivation b))) results
       --print "The fixed parse answer"
   --putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation b'''))
   --putStrLn $ ("T" ++ (show $ tagDerToTree  $ getBestDerivation b))
@@ -66,21 +65,21 @@ main = do
   --let wrong = score d (fmap (\adj -> AdjunctionInfo{TAG.adjPos = TAG.adjPos adj, adjType = adjType adj,adjInfo = ()})  dep)
   --if length wrong == 0 then putStrLn "Perfect."
    --else putStrLn $ render $ vcat $ map (text.show) wrong
-          where 
+          
        
 
 parseSent counts spineCounts probs probSpine insent = (dep, 
-                                                       eisnerParse getFSM symbolConv actualsent (specialPrune insent),
+                                                       eisnerParse getFSM symbolConv actualsent (\ wher m -> specialPrune insent wher $  globalThres wher m),
                                                        eisnerParse getFSM symbolConv actualsent (prune probSpine),
-                                                       eisnerParse getFSM symbolConv sent (prune probSpine))
+                                                       eisnerParse getFSM symbolConv sent (\ wher m -> prune probSpine wher $ globalThres wher m))
     where dsent = toTAGDependency insent
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
-          getFSM i (Just word) =  (initAdj (head . getWords sent) probs ALeft word,
-                                   initAdj (head . getWords sent) probs ARight word)
+          getFSM i (Just word) =  (initAdj probs ALeft word,
+                                   initAdj probs ARight word)
           symbolConv word = Just word 
                           
-specialPrune :: WordInfoSent -> Range -> M.Map (Span AdjState)  semi -> M.Map (Span AdjState) semi
+specialPrune :: WordInfoSent -> Range -> M.Map (Span (AdjState TAGProbs))  semi -> M.Map (Span (AdjState TAGProbs)) semi
 specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
      M.filterWithKey killNonSeen m 
          where  killNonSeen sig _ =
@@ -95,6 +94,10 @@ specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
                 (_,n) = bounds wisent
                 endy k' = if k' > n then 0 else k'  
 
+
+globalThres wher m =
+    M.filter (\p -> getBestScore p > 1e-100 ) $  m    
+
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
 --                     M.Map sig (ViterbiDerivation TAGDerivation)  
@@ -105,7 +108,8 @@ prune probs wher m = --trace ((printf "Best for %s is : %s " (show wher ) (show 
       p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       getProb = probSpine probs 
-      getPrior sig = (prior getProb $ state $ leftEnd sig) * (prior getProb $ state $ rightEnd sig) 
+      getPrior sig = (prior getProb $ state $ leftEnd sig) * 
+                     (prior getProb $ state $ rightEnd sig) 
       getInside i  =  p
           where (Prob p) = getBestScore i 
       getFOM (sig, semi) = getPrior sig * getInside semi

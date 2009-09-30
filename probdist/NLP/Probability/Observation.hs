@@ -14,6 +14,9 @@ newtype Observed event = Observed {
       counts :: M.IntMap Count 
 } deriving (Eq, Ord, Binary)
 
+
+
+
 instance (Show event) => (Show (Observed event)) where 
     show (Observed counts) = 
         "[ " ++ (intercalate ","  $ map (\(event, count) -> printf "%s: %s" (show event) (show count)) $ M.toList counts) ++ " ]"
@@ -38,6 +41,17 @@ inc obs e c = obs {counts = M.insertWith (+) (fromEnum e) c $ counts obs}
 
 inc1 :: (Enum e) => Observed e -> e -> Observed e 
 inc1 obs e = inc obs e 1.0
+
+
+data ExtraObserved event = ExtraObserved {
+      eoObserved :: Observed event,
+      eoTotal  :: Double, 
+      eoUnique :: Count
+} deriving Show
+
+
+storeState :: (Enum event) => Observed event -> ExtraObserved event 
+storeState obs = ExtraObserved obs (calcTotal obs) (countNonTrivial obs)
 
 -- | Gives the total number of observations
 --   sum_a C(a)

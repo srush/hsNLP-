@@ -10,6 +10,7 @@ import Data.Monoid.Multiplicative (times, one)
 import Data.Maybe (catMaybes)
 import Text.Printf
 import Text.PrettyPrint.HughesPJClass
+import Debug.Trace
 
 type EisnerChart fsa = Chart (Span fsa) (FSMSemiring (State fsa))
 type Semi fsa = FSMSemiring (State fsa)
@@ -89,7 +90,7 @@ advance headSpan nextWord = do
 -- The OptLink Rules take spans with dual head (0,0) and adjoin the head on 
 -- one side to the head on the other. 
 optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
-optLinkL (span, semi) = do
+optLinkL (span, semi) = do --trace "optLinkL" $ do
       (False, False) <- [hasParentPair span]
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span)   
       return $ (span { simple = True, 
@@ -101,7 +102,7 @@ optLinkL (span, semi) = do
 
 
 optLinkR :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
-optLinkR (span, semi) = do 
+optLinkR (span, semi) =  do --trace "optLinkR" $ do 
     (False, False) <- [hasParentPair span]
     (rightEnd', p) <- advance (rightEnd span) (word $ leftEnd span)   
     return  $ (span {simple = True, 
@@ -183,6 +184,7 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
                (Range -> [EItem fsa]) -> -- function from cell to contenst 
                [EItem fsa] -- contents of the new cell 
 processCell getFSA sentence wordConv (i, k) chart = concat $ 
+    --trace(show (i,k)) $! 
     if k-i == 1 then
         let seedCells = seed getFSA i 
                         (map wordConv $ getWords sentence i) 

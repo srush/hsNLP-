@@ -71,9 +71,11 @@ chartParse sent combine prune = Chart chart
       n = sentenceLength sent
       chart = M.fromList $
 
-              [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
-                   | i <- [1 .. n+1],
-                     k <- [i+1 .. n+1]]
+              [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ 
+                combine (i,k) (\i -> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
+                   | d <- [1..n], 
+                     i <- [1..n+1],
+                     let k = i + d] 
 
 
 

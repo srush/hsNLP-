@@ -69,3 +69,12 @@ prop_monoid2 trie1 trie2 (a,b,c) =
     (TW.lookup key trie1 `mappend` TW.lookup key trie2)
      where types = (trie1,trie2, (a,b,c)) :: (TW.SumTrie Bool [Bool], TW.SumTrie Bool [Bool], (Bool, Bool, Bool))
            key = [a,b]
+
+instance Monoid Int where 
+    mempty = 0 
+    mappend = (+)
+
+prop_addExpand ls = (length ls > 2) ==>  all (\(ls',hs) -> (last hs) == (length $ filter (startsWith ls') ls)) $ TW.expand_ st  
+    where types = (ls :: [[Char]])
+          st = mconcat $ map (\cs -> TW.addColumn cs 1 mempty) ls 
+          startsWith s1 s2 = s1 == take (length s1) s2

@@ -13,14 +13,14 @@ import Data.Binary hiding (Word)
 import qualified Data.ByteString.Char8 as BS
 import POS 
 import Word
+import EnumHelpers
 --import StringTable.Atom
 
 type GWord = (Word, POS)
 
-
-data GWord2 = GWord2 Word POS
-            deriving Show
- 
+instance Enum GWord where 
+    fromEnum (a,b) = mkFromEnum2 (a, maxBound) (b, maxBound)
+    toEnum = mkToEnum2 (maxBound, maxBound)
 
 -- ROOT is a special symbol that we put at the end of the sentence 
 class WordSym a where 
