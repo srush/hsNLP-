@@ -184,14 +184,16 @@ instance Context (AdjunctionContext2 ) where
 data AdjunctionContext3 = 
     AdjunctionContext3 {
       adjEvent13 :: MAdjEvent1,
-      adjEvent23 :: MAdjEvent2
+      adjEvent23 :: MAdjEvent2,
+      adjCon13 :: AdjunctionContext1
     } deriving (Eq, Ord, Show)
 
 
 data AdjunctionSubContext3 = 
     AdjunctionSubContext3 {
       madjEvent13 :: Maybe MAdjEvent1,
-      madjEvent23 :: Maybe MAdjEvent2
+      madjEvent23 :: Maybe MAdjEvent2,
+      madjCon13 :: Maybe (AdjunctionSubContext1)
     } deriving (Eq, Ord, Show)
 
 $( derive makeBinary ''AdjunctionSubContext3 )
@@ -203,15 +205,16 @@ instance Pretty AdjunctionSubContext3 where
 
 type AdjContext3 = AdjunctionContext3  
 
-adjCon3Def = AdjunctionSubContext3 Nothing Nothing
+adjCon3Def = AdjunctionSubContext3 Nothing Nothing Nothing
 
 instance Context AdjunctionContext3  where
     type Sub AdjunctionContext3 = AdjunctionSubContext3
     decompose adjcon = 
         [adjCon3Def {madjEvent13 = dec $ adjEvent13 adjcon},
-         adjCon3Def {madjEvent23 = dec $ adjEvent23 adjcon},
-         adjCon3Def]
-
+         adjCon3Def {madjEvent23 = dec $ adjEvent23 adjcon},         
+         adjCon3Def {madjCon13 = dec $ decon11}
+         ]
+        where [decon11, _, decon13] = decompose $ adjCon13 adjcon
 
 
 
@@ -260,7 +263,7 @@ mkAdjunctionContexts (e1, e2, e3)
                     delta =
     ((e1, adjcon1),
      (e2, AdjunctionContext2 adjcon1 (childPOS `liftM` e1) (childTopNT `liftM` e1) ),
-     (e3, AdjunctionContext3 e1 e2))
+     (e3, AdjunctionContext3 e1 e2 adjcon1))
       
           where adjcon1 = AdjunctionContext1 
                           (getNonTerm pos headSpine)

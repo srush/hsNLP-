@@ -38,7 +38,7 @@ main = do
   spineCounts <- decodeFile spineCountFile
   spineCounts2 <- decodeFile spineProbFile
   let probSpine = estimatePrior spineCounts2
-            --print counts
+  --print counts
   let probs = estimateTAGProb (counts::TAGCounts)
   contents <- readFile testFile
   hSetBuffering stdout NoBuffering
@@ -48,7 +48,9 @@ main = do
   --print sents
   let results = [  (b', b)
           | (_, (Just b', _) , _, (Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
+
   --print results
+
   mapM_ (\(a,b) ->  do
            putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation a))
 --         putStrLn $ show $ getBestDerivation b
@@ -97,7 +99,7 @@ specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
 
 
 globalThres wher m =
-    M.filter (\p -> getBestScore p > 1e-100 ) $  m    
+    M.filter (\p -> getBestScore p > 1e-60 ) $  m    
 
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
