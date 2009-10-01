@@ -49,6 +49,20 @@ probMLE ev exobs =
     where c = counts $ eoObserved exobs 
           total = eoTotal exobs   
 
+
+lambdaWB :: (Enum a) => ExtraObserved a -> Double
+lambdaWB eobs = nonTrivial / (nonTrivial + total)
+    where total = eoTotal eobs
+          nonTrivial = eoUnique eobs
+
+
+-- Page 18 of Collins 2003
+lambdaWBC :: (Enum a) => ExtraObserved a -> Double
+lambdaWBC eobs = total / ((5 * distinct) + total)
+    where total = eoTotal eobs
+          distinct = eoUnique eobs
+
+
 estimateWittenBell :: (Enum event, Context context, Show event) =>
                       CondObserved event context -> 
                       CondDistribution event context 
@@ -68,23 +82,16 @@ estimateWittenBell_ cstat =
                        ) 
           where stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat)  $ reverse $  
                         tail $ inits $ decompose context
-            
-   --   cobsStat :: DistributionTree event context 
-      --cobsStat = toDistributionTree cobs 
       
             
 
   --    wittenBell :: (Enum event) => [ExtraObserved event] -> event -> Double
       wittenBell [last] event =  if eoTotal last > 0 then probMLE event last else 0.0  
       wittenBell (cur:ls) event =  --trace ((show cur) ++ show l) $  
-          if eoTotal cur > 0 then ((1-l) * (probMLE  event cur)) + (l * (wittenBell ls event)) 
+          if eoTotal cur > 0 then (l * (probMLE  event cur)) + ((1-l) * (wittenBell ls event)) 
           else wittenBell ls event  
-          where l = lambda cur
+          where l = lambdaWBC cur
 
-      lambda :: (Enum a) => ExtraObserved a -> Double
-      lambda eobs = nonTrivial / (nonTrivial + total)
-          where total = eoTotal eobs
-                nonTrivial = eoUnique eobs
           
 
 

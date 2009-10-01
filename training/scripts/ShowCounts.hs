@@ -48,6 +48,7 @@ main = do
   --print sents
   let results = [  (b', b)
           | (_, (Just b', _) , _, (Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
+  -- print results
   mapM_ (\(a,b) ->  do
            putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation a))
 --         putStrLn $ show $ getBestDerivation b
