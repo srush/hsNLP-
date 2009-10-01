@@ -2,6 +2,7 @@
 module Adjunction (
                    TAGCounts,
                    TAGProbs,
+                   Adjunction,
                    mkAdjunction,
                    countAdjunction,
                    probAdjunction,

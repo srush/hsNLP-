@@ -113,7 +113,7 @@ instance Parsable Spine where
       nonterms <- choice [Just `liftM` parser, 
                           char '*' >> return Nothing] 
                   `sepBy` char '+'
-      return $ Spine $ catMaybes nonterms
+      return $ mkSpine $ catMaybes nonterms
 
 instance Parsable WordInfoSent where 
     parser = do 
@@ -196,7 +196,7 @@ toTAGTest counts (WordInfoSent wis) = sent
 
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (mkWord "in") (mkPOS "IN") 20 (Spine [mkNonTerm "PP"]) 0 Sister)] 
+ WordInfo 23 (mkWord "in") (mkPOS "IN") 20 (mkSpine [mkNonTerm "PP"]) 0 Sister)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]

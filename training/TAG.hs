@@ -92,7 +92,7 @@ data TAGSentence  =
 valid (TAGSentence sent dep) head child pos atype = 
     case child of 
       Nothing -> True
-      Just child' -> (not $ isRoot child') &&(h == twInd head) && (pos == pos') && (atype == atype')
+      Just child' -> (not $ isRoot child') && (h == twInd head) && (pos == pos') && (atype == atype')
           where (DEdge h (AdjunctionInfo pos' atype' _)) = getHead dep $ twInd child'
 
 convertToTree tagsent = head n  
@@ -129,7 +129,7 @@ instance Arbitrary TAGSentence where
       return $ TAGSentence tsent dep
           where pickAdjInd sent i = do 
                   let tagWord = getWord sent i
-                  let (Spine sp) = twSpine tagWord
+                  let (Spine sp _) = twSpine tagWord
                   adjPos <- choose (0,length sp -1)
                   return $ AdjunctionInfo adjPos Sister ()
 
@@ -145,7 +145,7 @@ data AdjunctionInfo a  =
 -- | Takes a spine and an ordered list of adjunctions, 
 --   returns the list of adjunctions with epsilons inserted 
 alignWithSpine :: Spine -> [DEdge (AdjunctionInfo a)] -> [(Int, [Maybe (AdjunctionInfo a)])] 
-alignWithSpine (Spine spine) adjs =
+alignWithSpine (Spine spine _) adjs =
     [(pos, getAdj nt pos ++ [Nothing]) | 
      (nt, pos) <- zip spine [0..]] 
     where 

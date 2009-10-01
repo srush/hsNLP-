@@ -48,7 +48,7 @@ main = do
   --print sents
   let results = [  (b', b)
           | (_, (Just b', _) , _, (Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
-  -- print results
+  --print results
   mapM_ (\(a,b) ->  do
            putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation a))
 --         putStrLn $ show $ getBestDerivation b
@@ -105,7 +105,7 @@ globalThres wher m =
 prune probs wher m = --trace ((printf "Best for %s is : %s " (show wher ) (show best)) ++ ("\nBadies\n" ++ (show $ Cell p)) ++ ("\ngoodies\n" ++(show $ Cell p'))) $ s 
  s
      where 
-      s = M.filterWithKey (\sig semi -> (getFOM (sig,semi)) > (best / 1000)) m    
+      s = M.filterWithKey (\sig semi -> (getFOM (sig,semi)) > (best / 10000)) m    
       p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       getProb = probSpine probs 

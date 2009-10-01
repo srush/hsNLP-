@@ -184,7 +184,7 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
                (Range -> [EItem fsa]) -> -- function from cell to contenst 
                [EItem fsa] -- contents of the new cell 
 processCell getFSA sentence wordConv (i, k) chart = concat $ 
-    --trace(show (i,k)) $! 
+    -- trace(show (i,k)) $! 
     if k-i == 1 then
         let seedCells = seed getFSA i 
                         (map wordConv $ getWords sentence i) 

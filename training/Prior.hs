@@ -9,15 +9,20 @@ import NLP.Probability.ConditionalDistribution
 import TAG
 import Sentence
 import NonTerm
-
+import Word 
+import POS
 type PriorObs = (Observed GWord,
                  CondObserved Spine GWord)
 
 type PriorProbs = (Distribution GWord,
-                   CondDistribution Spine GWord) 
+                   CondDistribution Spine GWord)
+
+type SubGWord = (Maybe Word, Maybe POS)
+  
 instance Context GWord where 
-    type Sub GWord = GWord
-    decompose g = [g]
+    type Sub GWord = SubGWord
+    decompose (word, pos) = [(Nothing, Just pos),
+                             (Just word, Nothing)]
         
 countSpine :: TAGWord -> PriorObs
 countSpine tagword = 
@@ -31,5 +36,6 @@ probSpine (udist, cdist) tagword =
 
 estimatePrior :: PriorObs -> PriorProbs
 estimatePrior (ucounts, ccounts) = (estimateMLE ucounts, 
-                                    estimateConditional (estimateMix [(1.0,estimateMLE)]) ccounts) 
+                                    estimateLinear [0.7, 0.3] ccounts) 
     
+

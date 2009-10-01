@@ -84,7 +84,6 @@ estimateWittenBell_ cstat =
                         tail $ inits $ decompose context
       
             
-
   --    wittenBell :: (Enum event) => [ExtraObserved event] -> event -> Double
       wittenBell [last] event =  if eoTotal last > 0 then probMLE event last else 0.0  
       wittenBell (cur:ls) event =  --trace ((show cur) ++ show l) $  
@@ -93,6 +92,26 @@ estimateWittenBell_ cstat =
           where l = lambdaWBC cur
 
           
+estimateLinear :: (Enum event, Context context, Show event) =>
+                      [Double] ->
+                      CondObserved event context -> 
+                      CondDistribution event context 
+estimateLinear interp = estimateLinear_ interp . fmap storeState 
+
+estimateLinear_ :: (Enum event, Context context, Show event) => 
+                      [Double] ->
+                      DistributionTree event context -> 
+                      CondDistribution event context
+estimateLinear_ interpolation cstat = 
+    CondDistribution conFun 
+    where
+      --conFun :: (Context context, Enum event) => context -> Distribution event
+      conFun context = (Distribution $ \event ->  
+                             sum $ zipWith (*) interpolation $ map (probMLE event) stats  
+                       ) 
+          where stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat)  $ reverse $  
+                        tail $ inits $ decompose context
+               
 
 
 estimateConditional est obs =
