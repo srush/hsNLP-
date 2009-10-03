@@ -4,7 +4,6 @@ import qualified Data.IntMap as M
 import Data.Monoid
 import Text.Printf
 import Data.List (intercalate)
-import Data.Generics 
 import Data.Binary
 import Text.PrettyPrint.HughesPJClass
 

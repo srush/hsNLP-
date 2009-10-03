@@ -14,7 +14,7 @@ import Sentence
 import NLP.ChartParse
 import NLP.Semiring
 import NLP.Semiring.Prob
-import NLP.ChartParse.Eisner
+import NLP.ChartParse.Eisner as EI
 import NLP.Semiring.ViterbiNBestDerivation
 import Safe (fromJustDef, fromJustNote, at)
 import DependencyStructure
@@ -52,9 +52,24 @@ main = do
   --print results
 
   mapM_ (\(a,b) ->  do
-           putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation a))
+           let der1 = getBestDerivation a
+           let der2 = getBestDerivation b
+           let (Prob sc1) = getBestScore a
+           let (Prob sc2) = getBestScore b
+           let TAGDerivation (_, debug1) = der1  
+           let TAGDerivation (_, debug2) = der2
+           let m1 = M.fromList debug1
+           let m2 = M.fromList debug2
+           let diff1 = M.difference m1 m2 
+           let diff2 = M.difference m2 m1
+           putStrLn $ "First " ++ (printf "%.3e" sc1) 
+           putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
+           putStrLn $ "Second" ++ (printf "%.3e" sc2) 
+           putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
+ 
+           putStrLn $ ("G" ++ (show $ tagDerToTree der1))
 --         putStrLn $ show $ getBestDerivation b
-           putStrLn $ ("T" ++ (show $ tagDerToTree  $ getBestDerivation b))) results
+           putStrLn $ ("T" ++ (show $ tagDerToTree der2))) results
       --print "The fixed parse answer"
   --putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation b'''))
   --putStrLn $ ("T" ++ (show $ tagDerToTree  $ getBestDerivation b))
@@ -92,14 +107,14 @@ specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
                       (False, True) -> not (simple sig) || endy righty == 0 || (adjoinInd (wisent ! righty) == 
                                         endy lefty)
                       _ -> True
-                    where righty = twInd $ fromJustNote "" $ NLP.ChartParse.Eisner.word $ rightEnd $ sig
-                          lefty = twInd $ fromJustNote "" $ NLP.ChartParse.Eisner.word $ leftEnd $ sig
+                    where righty = twInd $ fromJustNote "" $ EI.word $ rightEnd $ sig
+                          lefty = twInd $ fromJustNote "" $ EI.word $ leftEnd $ sig
                 (_,n) = bounds wisent
                 endy k' = if k' > n then 0 else k'  
 
 
 globalThres wher m =
-    M.filter (\p -> getBestScore p > 1e-60 ) $  m    
+    M.filter (\p -> getBestScore p > 1e-500 ) $  m    
 
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
@@ -107,18 +122,25 @@ globalThres wher m =
 prune probs wher m = --trace ((printf "Best for %s is : %s " (show wher ) (show best)) ++ ("\nBadies\n" ++ (show $ Cell p)) ++ ("\ngoodies\n" ++(show $ Cell p'))) $ s 
  s
      where 
-      s = M.filterWithKey (\sig semi -> (getFOM (sig,semi)) > (best / 5000)) m    
-      p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
-      p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
+      s = M.filterWithKey (\sig semi -> if (hasAdjoin (sig,semi)) then  
+                                            (getFOM (sig,semi)) > (bestH / 1000)
+                                        else  (getFOM (sig,semi)) > (bestNH / 1000)
+                          ) m    
+--      p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
+--      p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       getProb = probSpine probs 
-      getPrior sig = (prior getProb $ state $ leftEnd sig) * 
-                     (prior getProb $ state $ rightEnd sig) 
+      getPrior sig = (prior getProb $ EI.word $ leftEnd sig) * 
+                     (prior getProb $ EI.word $ rightEnd sig) 
       getInside i  =  p
           where (Prob p) = getBestScore i 
       getFOM (sig, semi) = getPrior sig * getInside semi
       hasAdjoin (sig, semi) = hasParentPair sig /= (False, False) 
-      best = case  map getFOM $ filter hasAdjoin $ M.toList m of
+      bestH = case  map getFOM $ filter hasAdjoin $ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls
+      bestNH = case  map getFOM $ filter (not.hasAdjoin) $ M.toList m of
+               [] -> 0.0
+               ls -> maximum $ ls
+
 --
     --where best = 

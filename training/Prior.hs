@@ -11,6 +11,8 @@ import Sentence
 import NonTerm
 import Word 
 import POS
+import qualified Data.Map as M
+
 type PriorObs = (Observed GWord,
                  CondObserved Spine GWord)
 
@@ -21,6 +23,7 @@ type SubGWord = (Maybe Word, Maybe POS)
   
 instance Context GWord where 
     type Sub GWord = SubGWord
+    type SubMap GWord = M.Map
     decompose (word, pos) = [(Nothing, Just pos),
                              (Just word, Nothing)]
         

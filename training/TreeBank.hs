@@ -134,13 +134,13 @@ readSentence :: String -> IO WordInfoSent
 readSentence file = do
   contents <- readFile file
   case parse parser file contents of 
-    Right s -> return s
+    Right s -> return $ cleanSentence s
     Left error -> throw $ AssertionFailed $ show error 
 
 parseSentences :: String -> String -> [WordInfoSent]
 parseSentences file contents = 
   case parse (parser `sepEndBy` newline)  file contents of 
-    Right s -> s
+    Right s -> map cleanSentence s
     Left error -> throw $ AssertionFailed $ show error 
 
 parseSentence :: String -> String -> WordInfoSent
@@ -172,6 +172,16 @@ toTagSentence (WordInfoSent wis)=
     mkTagWords $  map (\wi -> (((word wi, pos wi), spine wi))) $ elems wis
 
 
+cleanSentence (WordInfoSent wis) =  
+    WordInfoSent $ listArray (1,length wisLs - length baddies) $ foldr shift wisLs baddies 
+    where
+      wisLs = elems wis
+      baddies = map ind $ filter (isPOSPunc . pos) wisLs
+      shift i ls = 
+              map (\wi -> wi {ind = if ind wi > i then ind wi -1 else ind wi, 
+                              adjoinInd = if adjoinInd wi > i then adjoinInd wi -1 else adjoinInd wi}) $ 
+              filter ((/= i)  . ind) ls 
+          
 --toTAGDependency :: WordInfoSent -> TAGSentence TAGCountSemi
 toTAGDependency (WordInfoSent wis) = TAGSentence sent depstruct
     where sent = toTagSentence (WordInfoSent wis)

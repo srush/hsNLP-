@@ -18,11 +18,22 @@ type Sym fsa = FSMSymbol (State fsa)
 type EItem fsa = Item (Span fsa) (Semi fsa) 
 
 
+data Seal a = Sealed | Open a
+              deriving (Eq, Ord, Show)
+
+isSealed Sealed = True
+isSealed _ = False
+
+isStateFinal Sealed = True -- Check this! 
+isStateFinal (Open a) = isFinal a  
+
+fromSeal (Open a) = a 
+ 
 -- Data structure from p. 12 declarative structure  
 data SpanEnd fsa =
     SpanEnd {
       hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
-      state :: State fsa, -- q1 and q2
+      state :: Seal (State fsa), -- q1 and q2
       word :: Sym fsa,
       headTil :: (Int, Int) -- the "last" point in the span where this word is the head
 }  
@@ -80,8 +91,8 @@ hasParentPair span =
 advance :: (WFSM fsa) => SpanEnd fsa -> Sym fsa -> 
            [(SpanEnd fsa, Semi fsa)] 
 advance headSpan nextWord = do 
-    (newState, p) <- next (state headSpan) nextWord 
-    return (headSpan {state = newState}, p) 
+    (newState, p) <- next (fromSeal $ state headSpan) nextWord 
+    return (headSpan {state = Open newState}, p) 
  
 
 
@@ -92,6 +103,7 @@ advance headSpan nextWord = do
 optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkL (span, semi) = do --trace "optLinkL" $ do
       (False, False) <- [hasParentPair span]
+      (Open _)  <- [state $ leftEnd span]
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span)   
       return $ (span { simple = True, 
                        leftEnd = leftEnd' {headTil = (fst $ headTil $ leftEnd $ span, 
@@ -104,6 +116,7 @@ optLinkL (span, semi) = do --trace "optLinkL" $ do
 optLinkR :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkR (span, semi) =  do --trace "optLinkR" $ do 
     (False, False) <- [hasParentPair span]
+    (Open _)  <- [state $ rightEnd span]
     (rightEnd', p) <- advance (rightEnd span) (word $ leftEnd span)   
     return  $ (span {simple = True, 
                       rightEnd = rightEnd' {headTil = (fst $ headTil $ leftEnd $ span, 
@@ -117,7 +130,7 @@ optLinkR (span, semi) =  do --trace "optLinkR" $ do
 -- that is ready for an optlink adjunction  
 combine :: (WFSM fsa) => DoubleDerivationRule (EItem fsa)
 combine (span1, semi1) (span2, semi2) = 
-    if simple span1 && (b2 /= b2') && f1 && f2 && w1 == w2 then 
+    if simple span1 && (b2 /= b2') && f1 && f2 && fOuter && w1 == w2 then 
              [(Span {simple = False,
                     leftEnd = leftEnd span1,
                     rightEnd = rightEnd span2},
@@ -125,8 +138,9 @@ combine (span1, semi1) (span2, semi2) =
     else []
         where
           ((_, b2), (b2', _)) =  (hasParentPair span1, hasParentPair span2)
-          f1 = isFinal (state $ rightEnd span1)
-          f2 = isFinal (state $ leftEnd span2)
+          f1 = isSealed $ state $ rightEnd span1
+          f2 = isSealed $ state $ leftEnd span2
+          fOuter = any (isSealed.state) [leftEnd span1, rightEnd span2] -- for faster O(t) speedup 
           w1 = word $ rightEnd span1
           w2 = word $ leftEnd span2
 
@@ -138,7 +152,7 @@ singleEnd :: (WFSM fsa) =>
 singleEnd i fsa word = do 
     (state, semi)  <- initialState $ fsa
     return $ (SpanEnd {                  
-                 state = state,
+                 state = Open state,
                  word = word,
                  hasParent = False,
                  headTil = (i,i) 
@@ -165,13 +179,29 @@ seed getFSA i sym1s sym2s = do
                 simple = True}, 
               semi1 `times` semi2) 
     
+
+seal :: (WFSM fsa) => EItem fsa -> Maybe (EItem fsa) 
+seal (span, semi) =
+    if not $ any (isStateFinal.state) [leftEnd span, rightEnd span] then
+        Nothing
+    else 
+        Just (newSpan, semi)
+    where
+      newSpan = span{ leftEnd = trySeal $ leftEnd span,
+                       rightEnd = trySeal $ rightEnd span} 
+      trySeal spanEnd = 
+              if isStateFinal $ state $ spanEnd then
+                  spanEnd { state = Sealed }
+              else spanEnd
+                 
+
 accept :: (WFSM fsa) => EItem fsa -> Bool
 accept (span, _) = 
     b == (True, False) && f1 && f2 
         where
           b =  hasParentPair span
-          f1 = isFinal (state $ rightEnd span)
-          f2 = isFinal (state $ leftEnd span)
+          f1 = isSealed (state $ rightEnd span)
+          f2 = isStateFinal (state $ leftEnd span)
 
 
 type GetFSM fsa = Int -> Sym fsa -> (fsa, fsa) --todo: fix this 
@@ -183,7 +213,7 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
                Range -> -- Size of the cell 
                (Range -> [EItem fsa]) -> -- function from cell to contenst 
                [EItem fsa] -- contents of the new cell 
-processCell getFSA sentence wordConv (i, k) chart = concat $ 
+processCell getFSA sentence wordConv (i, k) chart = catMaybes $ map seal $ concat $ 
     -- trace(show (i,k)) $! 
     if k-i == 1 then
         let seedCells = seed getFSA i 
@@ -192,8 +222,8 @@ processCell getFSA sentence wordConv (i, k) chart = concat $
         in
         map (\seedCell -> 
         concat $ [[seedCell],
-         optLinkL seedCell,
-         optLinkR seedCell]) seedCells
+                  optLinkL seedCell,
+                  optLinkR seedCell]) seedCells
     else
         concat $ 
         [let s = combine s1 s2 in

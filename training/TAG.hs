@@ -54,7 +54,12 @@ instance Pretty AdjunctionType where
     pPrint Regular = text "REG" 
 
 data AdjunctionSide = ALeft | ARight
-                    deriving (Eq, Ord, Enum, Bounded, Show)
+                    deriving (Eq, Ord, Enum, Bounded)
+instance Show AdjunctionSide where 
+    show ALeft = "Left"
+    show ARight = "Right"
+
+instance Pretty AdjunctionSide where pPrint = text . show
 
 instance Show AdjunctionType where 
     show Sister = "s"
@@ -65,18 +70,25 @@ $( derive makeArbitrary ''AdjunctionType )
 
   
 data TAGWord = TAGWord {
-      twWord  :: GWord,
       twSpine :: Spine,
+      twWord  :: GWord,
       twIsVerb :: Bool,
+      twIsComma :: Bool,
       twInd ::Int 
     }
-               deriving (Eq, Ord, Show)
+               deriving (Ord, Show)
+
+
+
+instance Eq TAGWord where 
+    (==) = (==) `on` comp
+           where comp a = (twSpine a, twWord a) 
 
 mkTAGWord :: GWord -> Spine -> Int -> TAGWord
-mkTAGWord w s ind = TAGWord w s (isVerb w) ind
+mkTAGWord (w,pos) s ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) ind
 
 instance Pretty TAGWord where 
-    pPrint (TAGWord word spine _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
+    pPrint (TAGWord word spine _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
 
 -- instance Context GWord where 
 --     type Sub (GWord) = String
