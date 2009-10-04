@@ -30,7 +30,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import POS
 import Debug
-
+import Distance
 
 type SpineExist = M.Map POS (S.Set Spine)
 
@@ -78,9 +78,9 @@ instance Pretty TAGDerivation where
         (text $ show der)
              
 
-mkTestTAGWord :: SpineExist -> (Int, GWord) -> [TAGWord]
-mkTestTAGWord counts (ind, (word,pos)) = 
-     map (\sp -> mkTAGWord (word,pos) sp ind) $ S.toList $ 
+mkTestTAGWord :: SpineExist -> (Int, GWord, (Bool, Bool)) -> [TAGWord]
+mkTestTAGWord counts (ind, (word,pos), comma) = 
+     map (\sp -> mkTAGWord (word,pos) sp comma ind) $ S.toList $ 
      fromJustDef mempty $ M.lookup pos counts
 
 viterbiHelp prob td = 
@@ -124,46 +124,43 @@ data AdjState model =
       stateModel :: model,
       stateHead :: !TAGWord,
       statePos :: !Int, 
-      stateFinal :: !Bool,
-      stateNT :: NonTerm,
-      stateNext :: Maybe (AdjState model),
       stateSide :: !AdjunctionSide,
-      stateHasAdjunction :: Bool,
-      stateHasAdjoinedVerb :: Bool,
-      stateNumCommas :: Int,
-      stateContext :: AdjunctionParent
+      stateDisCache :: DisCache
+      -- stateDistance :: Distance,
+      --stateContext :: AdjunctionParent
 } 
 
 initAdj :: model ->
+           DisCache ->
            AdjunctionSide ->
            TAGWord ->
            AdjState model 
-initAdj model side tagword = 
+initAdj model discache side tagword = 
     fromJustNote "nonblank" $ mkEmpty 0 $ lastOfSpine $ twSpine tagword
     where 
       mkEmpty i last = 
           if i > last then Nothing  
-          else Just $ cacheContext $ AdjState {
+          else Just $ AdjState {
                     stateModel = model,
                     stateHead = tagword,
-                    statePos = i,
-                    stateHasAdjunction = False,
-                    stateHasAdjoinedVerb = False, 
-                    stateNumCommas = 0, 
-                    stateNT = if last == i then undefined else getNonTerm i $ twSpine tagword,
-                    stateFinal = last == i,
-                    stateNext = mkEmpty (i+1) last,
                     stateSide = side, 
-                    stateContext = undefined
+
+                    statePos = i,
+                    stateDisCache = discache
+                    --stateDistance = mempty{ numComma = case side of 
+                    --                                    ALeft  -> if fst $ twNearComma $ tagword then OneComma else NoComma
+                    --                                    ARight -> if snd $ twNearComma $ tagword then OneComma else NoComma},
+                    -- stateContext = undefined
                    }
-cacheContext adjstate = adjstate {stateContext = 
-                                      mkParent (stateHead adjstate) 
-                                               (statePos adjstate) 
-                                               (stateSide adjstate)
-                                               (not $ stateHasAdjunction adjstate)
-                                               (stateHasAdjoinedVerb adjstate)
-                                               (stateNumCommas adjstate)
-                                 }
+
+stateNT adjstate = getNonTerm (statePos adjstate) $ twSpine (stateHead adjstate)
+
+-- cacheContext adjstate = adjstate {stateContext = 
+--                                       mkParent (stateHead adjstate) 
+--                                                (statePos adjstate) 
+--                                                (stateSide adjstate)
+--                                                (stateDistance adjstate)
+--                                  }
 
 stateSpine adjstate = twSpine $ stateHead adjstate
 
@@ -175,7 +172,7 @@ prior probs (Just adjstate) =  pairLikelihood
        pairLikelihood = probs $ adjstate
 
 {-# INLINE expandAdjState #-}
-expandAdjState as =  (statePos as, stateHasAdjunction as, stateHasAdjoinedVerb as, stateNumCommas as)
+expandAdjState as =  (statePos as)
 
 
 instance Eq (AdjState a) where 
@@ -189,40 +186,37 @@ instance Show (AdjState a) where
     show = show . statePos
 
 
-tryEmpties findSemi (adjstate, semi) = (adjstate, semi):
+tryEmpties findSemi split (adjstate, semi) = (adjstate, semi):
     if isFinal adjstate then [] 
     else
         case semi' of 
           Nothing -> []
           Just semi' -> 
-              tryEmpties findSemi (fromJustNote "not final" $ stateNext adjstate, semi `times` semi')
+              tryEmpties findSemi split (adjstate {statePos = statePos adjstate + 1}, semi `times` semi')
         where
-          semi' = findSemi adjstate Nothing Sister 
+          semi' = findSemi adjstate split Nothing Sister 
           
 generalNext :: (Semiring semi, FSMState (AdjState a) ) => 
-               (AdjState a -> Maybe TAGWord -> AdjunctionType ->  Maybe semi) -> 
+               (AdjState a -> Int -> Maybe (TAGWord) -> AdjunctionType ->  Maybe semi) -> 
                (AdjState a) ->  
-               (Maybe TAGWord) ->
+               (Maybe (TAGWord)) ->
+               Int -> --huge hack!
                [(AdjState a, semi)] 
-generalNext findSemi adjstate child = 
+generalNext findSemi adjstate child split  = 
         if isFinal adjstate then [] 
         else if stateNT adjstate == rootNT then 
-           [(fromJustNote "last" $  stateNext adjstate, 
-             fromJust $ findSemi adjstate child Sister)]
+           [(adjstate {statePos = statePos adjstate + 1}, 
+             fromJust $ findSemi adjstate split child Sister)]
         else
-            concatMap (tryEmpties findSemi) $ do
+            concatMap (tryEmpties findSemi split) $ do
               atype <- [Sister, Regular]
-              let semi = findSemi adjstate child atype
+              let semi = findSemi adjstate split child atype
               guard $ isJust semi 
-              return $ (cacheContext $ adjstate {stateHasAdjunction = True, 
-                                                 stateHasAdjoinedVerb = twIsVerb $ fromJustNote "child" child,
-                                                 stateNumCommas = (stateNumCommas adjstate) + (if twIsComma $ fromJustNote "child" child then  1 else 0)
-                                                } ,
+              let tagtree = fromJust child
+              return $ (adjstate,
                         fromJust semi)
 
-
-
-findSemiProbs adjstate child atype = 
+findSemiProbs adjstate split child atype = 
     Just $ case child of 
              Nothing -> 
                  viterbiHelp p
@@ -233,48 +227,53 @@ findSemiProbs adjstate child atype =
                        (AdjunctionInfo pos atype (mkDerivationCell child')), 
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
+          parent = mkParent head pos side (discache (twInd head, split)  ) 
           adj = mkAdjunction parent child atype
           p = probAdjunction adj probs
           AdjState {stateSide  = side, 
-                    stateNT    = nt, 
                     statePos   = pos,
                     stateHead  = head,
                     stateModel = probs,
-                    stateContext = parent,
-                    stateHasAdjunction = hasAdj,
-                    stateHasAdjoinedVerb = hasVerb} = adjstate
+                    stateDisCache = discache
+                                 
+                    } = adjstate
+
+data  TAGTree a =  TAGTree {leftForest :: AdjState a, 
+                            rootWord :: TAGWord, 
+                            rightForest :: AdjState a}
+                deriving (Show, Eq, Ord)
+adjStateFinal adjstate = statePos adjstate == (lastOfSpine $ twSpine $ stateHead adjstate) 
 
 instance WFSM (AdjState TAGProbs) where 
     type State (AdjState TAGProbs) = (AdjState TAGProbs) 
-    initialState init = tryEmpties findSemiProbs (init, one)
+    initialState init = tryEmpties findSemiProbs (twInd $ stateHead init)  (init, one)
 
 instance FSMState (AdjState TAGProbs) where
-    type FSMSymbol (AdjState TAGProbs) = Maybe TAGWord
+    type FSMSymbol (AdjState TAGProbs) = Maybe (TAGWord)
     type FSMSemiring (AdjState TAGProbs) = ViterbiDerivation TAGDerivation
     next = generalNext findSemiProbs
-    isFinal adjstate = stateFinal adjstate  
+    isFinal = adjStateFinal  
 
-findSemiCounts adjstate child atype = 
+findSemiCounts adjstate split child atype = 
     if not $ valid model head child pos atype then 
         Nothing
     else
         Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child atype
         where
+          parent = mkParent head pos side (discache (twInd head, split) ) 
           AdjState {stateSide  = side, 
-                    stateNT    = nt, 
                     statePos   = pos,
                     stateHead  = head,
                     stateModel = model,
-                    stateContext = parent,
-                    stateHasAdjunction = hasAdj,
-                    stateHasAdjoinedVerb = hasVerb} = adjstate
+                    stateDisCache = discache
+                    } = adjstate
 
 instance WFSM (AdjState TAGSentence) where 
     type State (AdjState TAGSentence) = (AdjState TAGSentence) 
-    initialState init = tryEmpties findSemiCounts (init, one)
+    initialState init = tryEmpties findSemiCounts (twInd $ stateHead init) (init, one)
 
 instance FSMState (AdjState TAGSentence)  where
-    type FSMSymbol (AdjState TAGSentence) = Maybe TAGWord
+    type FSMSymbol (AdjState TAGSentence) = Maybe (TAGWord)
     type FSMSemiring (AdjState TAGSentence) = Derivation TAGCounts 
     next = generalNext findSemiCounts 
-    isFinal adjstate = stateFinal adjstate  
+    isFinal = adjStateFinal 

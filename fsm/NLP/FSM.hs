@@ -17,7 +17,7 @@ class (Ord a, Semiring (FSMSemiring a),
     FSMState a where
     type FSMSymbol a 
     type FSMSemiring a  
-    next :: a -> FSMSymbol a -> [(a, FSMSemiring a)]
+    next :: a -> FSMSymbol a -> Int -> [(a, FSMSemiring a)]
     isFinal :: a -> Bool
     
 

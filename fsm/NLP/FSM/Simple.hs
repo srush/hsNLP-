@@ -42,7 +42,7 @@ instance (Ord node, Ord edge, Show node, Show edge, Semiring semi) => WFSM (Grap
 instance (Ord node, Show node, Ord edge, Show edge, Semiring semi) => FSMState (GraphState node edge semi) where 
     type FSMSymbol (GraphState node edge semi) = edge
     type FSMSemiring (GraphState node edge semi) = semi
-    next = nextState
+    next state sym _ = nextState state sym
     isFinal = final
 
 

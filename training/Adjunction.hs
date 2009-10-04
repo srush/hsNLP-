@@ -10,7 +10,10 @@ module Adjunction (
                    estimateTAGProb,
                    mkParent,
                    ProbDebug,
-                   probAdjunctionDebug
+                   probAdjunctionDebug, 
+                   Distance(..),
+                   
+                   Comma(..)
                   ) where 
 import Data.Function (on)
 import NLP.Probability.ConditionalDistribution
@@ -30,6 +33,7 @@ import NonTerm
 import EnumHelpers
 import Word
 import Text.Printf
+import Distance
 import qualified Data.Map as M
 import qualified Data.ListTrie.Base.Map as LT
 import qualified Data.Bimap as BM 
@@ -120,43 +124,6 @@ $( derive makeBinary ''AdjunctionEvent3 )
 type MAdjEvent3 = Maybe AdjunctionEvent3
 
 dec = Just 
-data Comma = NoComma | OneComma | TwoComma | ManyComma
-           deriving (Eq, Ord, Show, Enum, Bounded) 
-
-toComma 0 = NoComma 
-toComma 1 = OneComma 
-toComma 2 = TwoComma 
-toComma _ = ManyComma 
-
-data Distance = Distance { isAdjacent :: Bool,
-                           spansVerb  :: Bool,
-                           numComma   :: Comma
-                         } 
-    deriving (Show, Eq, Ord)
-
-disMap = BM.fromList(zip [ Distance a b c | 
-                           a <- [False, True], 
-                           b <- [False, True],
-                           c <- [minBound::Comma .. maxBound]
-                     ] [0..])
-instance Enum Distance where
-    {-# INLINE toEnum #-}
-    toEnum n = fromJustNote ("dist" ++ show n) $ BM.lookupR n disMap
-    fromEnum dis = fromJustNote ("dist" ++ show dis) $ BM.lookup dis disMap
-
-instance Bounded Distance where 
-    minBound = toEnum 0
-    maxBound = Distance True True maxBound
-
-$( derive makeBinary ''Comma )
-$( derive makeBinary ''Distance )
-instance Pretty Distance where 
-    pPrint d = text $ showBoolPair (isAdjacent d, spansVerb d, NoComma /= numComma d )
-        where
-          showBool True = "1"
-          showBool False = "0"
-          showBoolPair :: (Bool, Bool, Bool) -> String
-          showBoolPair (a,b,c) = printf "(%s %s %s)" (showBool a) (showBool b) (showBool c) 
 
 --data AdjunctionContext1 = 
 --    AdjunctionContext1 {
@@ -491,12 +458,11 @@ instance Pretty ProbDebug where
           ) 
 
 mkParent:: TAGWord -> Int -> AdjunctionSide ->     
-            Bool -> 
-            Bool -> 
-            Int ->
+           Distance ->
+
             AdjunctionParent
-mkParent head pos side isAdjacent isVerb numComma = 
-    (side, mkMainAdjunctionContext head pos (Distance isAdjacent isVerb $ toComma numComma ))
+mkParent head pos side distance = 
+    (side, mkMainAdjunctionContext head pos distance)
 
 mkAdjunction :: 
     AdjunctionParent ->

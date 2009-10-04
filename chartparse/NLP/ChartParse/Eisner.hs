@@ -11,6 +11,8 @@ import Data.Maybe (catMaybes)
 import Text.Printf
 import Text.PrettyPrint.HughesPJClass
 import Debug.Trace
+import Safe (fromJustNote)
+import Data.Maybe (maybe)
 
 type EisnerChart fsa = Chart (Span fsa) (FSMSemiring (State fsa))
 type Semi fsa = FSMSemiring (State fsa)
@@ -21,21 +23,22 @@ type EItem fsa = Item (Span fsa) (Semi fsa)
 data Seal a = Sealed | Open a
               deriving (Eq, Ord, Show)
 
-isSealed Sealed = True
+isSealed (Sealed)= True
 isSealed _ = False
 
-isStateFinal Sealed = True -- Check this! 
 isStateFinal (Open a) = isFinal a  
+isStateFinal (Sealed) = True -- Check this! 
+
 
 fromSeal (Open a) = a 
+
  
 -- Data structure from p. 12 declarative structure  
 data SpanEnd fsa =
     SpanEnd {
       hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
       state :: Seal (State fsa), -- q1 and q2
-      word :: Sym fsa,
-      headTil :: (Int, Int) -- the "last" point in the span where this word is the head
+      word  :: Sym fsa
 }  
 
 instance (WFSM fsa) => Show (SpanEnd fsa) where 
@@ -57,7 +60,8 @@ data Span fsa =
     Span {
       simple :: Bool, -- s
       leftEnd :: SpanEnd fsa,
-      rightEnd :: SpanEnd fsa
+      rightEnd :: SpanEnd fsa,
+      midSplit :: Maybe (Int, Int) -- (currently indexed -fix) the "last" point in the span where this word is the head
 } deriving (Eq, Ord) 
 
 
@@ -88,10 +92,10 @@ hasParentPair span =
 
 -- Advances an internal WFSM (equivalent in this model to "adjoining" a new
 -- dependency. 
-advance :: (WFSM fsa) => SpanEnd fsa -> Sym fsa -> 
+advance :: (WFSM fsa) => SpanEnd fsa -> Int -> Sym fsa -> 
            [(SpanEnd fsa, Semi fsa)] 
-advance headSpan nextWord = do 
-    (newState, p) <- next (fromSeal $ state headSpan) nextWord 
+advance headSpan split nextWord  = do 
+    (newState, p) <- next (fromSeal $ state headSpan) nextWord split 
     return (headSpan {state = Open newState}, p) 
  
 
@@ -104,11 +108,11 @@ optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkL (span, semi) = do --trace "optLinkL" $ do
       (False, False) <- [hasParentPair span]
       (Open _)  <- [state $ leftEnd span]
-      (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span)   
+      (leftEnd', p) <- advance (leftEnd span) (fst $ fromJustNote "must be split" $ midSplit span) (word $ rightEnd span) 
       return $ (span { simple = True, 
-                       leftEnd = leftEnd' {headTil = (fst $ headTil $ leftEnd $ span, 
-                                                      snd $ headTil $ rightEnd $ span)} ,
-                       rightEnd = (rightEnd span) {hasParent = True}
+                       leftEnd = leftEnd',
+                       rightEnd = (rightEnd span) {hasParent = True},
+                       midSplit = Nothing
                      },
                p `times` semi)
 
@@ -117,11 +121,11 @@ optLinkR :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkR (span, semi) =  do --trace "optLinkR" $ do 
     (False, False) <- [hasParentPair span]
     (Open _)  <- [state $ rightEnd span]
-    (rightEnd', p) <- advance (rightEnd span) (word $ leftEnd span)   
+    (rightEnd', p) <- advance (rightEnd span) (snd $ fromJustNote "must be split" $ midSplit span) (word $ leftEnd span)   
     return  $ (span {simple = True, 
-                      rightEnd = rightEnd' {headTil = (fst $ headTil $ leftEnd $ span, 
-                                                       snd $ headTil $ rightEnd $ span)},
-                      leftEnd = (leftEnd span) {hasParent = True}
+                      rightEnd = rightEnd',
+                      leftEnd = (leftEnd span) {hasParent = True},
+                      midSplit = Nothing
                     },
                 p `times` semi)
 
@@ -133,7 +137,9 @@ combine (span1, semi1) (span2, semi2) =
     if simple span1 && (b2 /= b2') && f1 && f2 && fOuter && w1 == w2 then 
              [(Span {simple = False,
                     leftEnd = leftEnd span1,
-                    rightEnd = rightEnd span2},
+                    rightEnd = rightEnd span2,
+                    midSplit = maybe (midSplit span2) Just (midSplit span1)  -- span1 is simple
+                    },
              semi1 `times` semi2)]
     else []
         where
@@ -154,8 +160,7 @@ singleEnd i fsa word = do
     return $ (SpanEnd {                  
                  state = Open state,
                  word = word,
-                 hasParent = False,
-                 headTil = (i,i) 
+                 hasParent = False
               }, 
              semi)
 
@@ -176,7 +181,9 @@ seed getFSA i sym1s sym2s = do
       return (Span {
                 leftEnd = span1,
                 rightEnd = span2,
-                simple = True}, 
+                simple = True,
+                midSplit = Just (i, i+1) 
+              }, 
               semi1 `times` semi2) 
     
 

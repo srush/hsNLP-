@@ -13,7 +13,7 @@ import Control.Monad (liftM, ap)
 import Control.Exception
 import Data.Either.Unwrap (fromRight)
 import Data.Maybe (catMaybes)
-import Test.HUnit
+import Test.HUnit hiding (assert)
 import Test.QuickCheck
 import Sentence 
 import ArbitraryHelpers
@@ -27,7 +27,7 @@ import POS
 import NonTerm
 import qualified NLP.ChartParse as CP
 import Word
-
+import Safe (atNote)
 newtype WordInfoSent = WordInfoSent (Array Int WordInfo)
     deriving (Eq)
 
@@ -38,14 +38,16 @@ data WordInfo = WordInfo {
       adjoinInd :: Int,
       spine  :: Spine,
       adjPos :: Int,
-      sister :: AdjunctionType
+      sister :: AdjunctionType,
+      puncLeft :: Bool,
+      puncRight :: Bool
 } deriving (Eq)
 
 
 
 instance Arbitrary WordInfo where 
     arbitrary = return WordInfo `ap` positive `ap` arbitrary `ap` arbitrary `ap` 
-                positive `ap` arbitrary `ap` positive `ap` arbitrary
+                positive `ap` arbitrary `ap` positive `ap` arbitrary `ap` arbitrary `ap` arbitrary
 
 instance Show WordInfo where 
     show wi = 
@@ -58,7 +60,9 @@ instance Show WordInfo where
                const "HOLDER",
                show . spine, 
                show . adjPos,
-               show . sister
+               show . sister,
+               show . puncLeft,
+               show . puncRight
               ]
 
 -- parsing Xavier's tree files with spines
@@ -88,13 +92,15 @@ instance Parsable WordInfo where
       sister <- anyChar
 --      if adjPos /= 0 && adjInd == 0 then throw $ AssertionFailed (show word ++ " "  ++ show n ++ show adjInd ++ show adjPos)
       return $ WordInfo {
-                   ind = fromIntegral n,
+                   ind  = fromIntegral n,
                    word = word,
-                   pos = pos,
+                   pos  = pos,
                    adjoinInd = fromIntegral adjInd,
                    spine = spine, 
                    sister = if sister == 's' then Sister else Regular,
-                   adjPos = fromIntegral adjPos
+                   adjPos = fromIntegral adjPos,
+                   puncLeft  = False, 
+                   puncRight = False
                  }
 
 parseString = manyTill anyChar space
@@ -146,7 +152,7 @@ parseSentences file contents =
 parseSentence :: String -> String -> WordInfoSent
 parseSentence file contents = 
   case parse parser file contents of 
-    Right s -> s
+    Right s -> cleanSentence s
     Left error -> throw $ AssertionFailed $ show error 
 
     
@@ -169,14 +175,26 @@ toDependency (WordInfoSent wis) = DependencySentence sent depstruct
 
 --toTagSentence :: WordInfoSent -> Sentence TAGCountSemi (GWord, Spine)
 toTagSentence (WordInfoSent wis)=  
-    mkTagWords $  map (\wi -> (((word wi, pos wi), spine wi))) $ elems wis
+    mkTagWords $  map (\wi -> (((word wi, pos wi), spine wi, (puncLeft wi, puncRight wi) ))) $ elems wis
 
 
 cleanSentence (WordInfoSent wis) =  
-    WordInfoSent $ listArray (1,length wisLs - length baddies) $ foldr shift wisLs baddies 
+    WordInfoSent $ listArray (1,length wisLs - length combBad) $ 
+                 foldr shift (elems annotatedWIS) combBad
     where
+      
       wisLs = elems wis
+      combBad = sort $ baddies ++ commies
       baddies = map ind $ filter (isPOSPunc . pos) wisLs
+      commies = map ind $ filter (isPOSComma . pos) wisLs
+      annotatedWIS = wis // (filter (validInd) $ 
+                             concatMap (\comInd -> 
+                                        [(comInd - 1, (wis ! (comInd -1)) {puncRight = True}),
+                                         (comInd + 1, (wis ! (comInd +1)) {puncLeft = True})
+                                        ]) commies) 
+--      atSafe arr ind = if ind <l || ind > u then throw $ AssertionFailed "bad comma" else arr ! ind 
+--          where (l,u) = bounds arr
+      validInd (i,_) = i < length wisLs && i > 0 
       shift i ls = 
               map (\wi -> wi {ind = if ind wi > i then ind wi -1 else ind wi, 
                               adjoinInd = if adjoinInd wi > i then adjoinInd wi -1 else adjoinInd wi}) $ 
@@ -195,7 +213,7 @@ toTAGDependency (WordInfoSent wis) = TAGSentence sent depstruct
 toTAGTest counts (WordInfoSent wis) = sent
       where sent = mkSentenceLat $ 
                    map (mkTestTAGWord counts) $ 
-                   map (\wi -> (ind wi, (word wi, pos wi))) $ elems wis
+                   map (\wi -> (ind wi, (word wi, pos wi), (puncLeft wi, puncRight wi))) $ elems wis
 
 --testGraphViz = do 
 --  sent <- readSentence "data/sample.data"
@@ -206,7 +224,7 @@ toTAGTest counts (WordInfoSent wis) = sent
 
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (mkWord "in") (mkPOS "IN") 20 (mkSpine [mkNonTerm "PP"]) 0 Sister)] 
+ WordInfo 23 (mkWord "in") (mkPOS "IN") 20 (mkSpine [mkNonTerm "PP"]) 0 Sister False False)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]

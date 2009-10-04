@@ -24,6 +24,7 @@ readAndCount file1 file2 = do
   newsents <- getSentences file1
   print "ending parsing" 
   let counts = parMap rwhnf countSome $ zip newsents [0..]
+  --print counts
   print "count sets done"
   return $! mconcat counts
       where 
@@ -33,7 +34,3 @@ readAndCount file1 file2 = do
           trace (show n) $ 
           mconcat $ map (countTAG . toTAGDependency) ls 
             
-
-readCounts file = 
-    decodeFile file
-

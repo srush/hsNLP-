@@ -7,6 +7,9 @@ import TreeBank
 import Control.Exception
 import Control.Monad
 import Text.PrettyPrint.HughesPJClass
+import Debug.Trace
+import Data.Monoid
+import Distance
 
 readTAG f = toTAGDependency `liftM` readSentence f
 
@@ -17,13 +20,15 @@ showCount f = do
 
 countTAG dsent =
     case semi of 
-        Nothing -> throw $ AssertionFailed $ show dsent
+        Nothing -> trace ("failed to parse" ++ show chart) mempty -- throw $ AssertionFailed $ show dsent
         Just s -> fromDerivation s
     where 
       (TAGSentence sent _) = dsent
+      ldiscache = mkDistCacheLeft sent
+      rdiscache = mkDistCacheRight sent
   --print sent
-      getFSM i (Just word) =  (initAdj dsent ALeft word,
-                               initAdj dsent ARight word)
+      getFSM i (Just word) =  (initAdj dsent ldiscache ALeft word,
+                               initAdj dsent rdiscache ARight word)
       symbolConv word = Just word 
       (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) 
       

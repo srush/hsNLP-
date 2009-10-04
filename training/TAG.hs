@@ -73,19 +73,17 @@ data TAGWord = TAGWord {
       twSpine :: Spine,
       twWord  :: GWord,
       twIsVerb :: Bool,
-      twIsComma :: Bool,
+      twNearComma :: (Bool, Bool),
       twInd ::Int 
     }
                deriving (Ord, Show)
-
-
 
 instance Eq TAGWord where 
     (==) = (==) `on` comp
            where comp a = (twSpine a, twWord a) 
 
-mkTAGWord :: GWord -> Spine -> Int -> TAGWord
-mkTAGWord (w,pos) s ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) ind
+mkTAGWord :: GWord -> Spine -> (Bool, Bool) -> Int -> TAGWord
+mkTAGWord (w,pos) s commas ind = TAGWord s (w,pos) (isPOSVerb pos) commas ind
 
 instance Pretty TAGWord where 
     pPrint (TAGWord word spine _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
@@ -126,12 +124,12 @@ convertToTree tagsent = head n
                                   fromMaybe [] . lookup spos . alignWithSpine (twSpine tw)
 mkTagWords words = 
     mkSentence $ newWords
-               where newWords = map (\(i, (a,b)) -> mkTAGWord a b i) $ zip [1..] words
+               where newWords = map (\(i, (a,b,c)) -> mkTAGWord a b c i) $ zip [1..] words
 
 
 rootNT = mkNonTerm "ROOT"
 instance WordSym TAGWord where
-    root i = mkTAGWord (root i) (mkSpine [rootNT]) i
+    root i = mkTAGWord (root i) (mkSpine [rootNT]) (False, False) i
     isRoot = isRoot . twWord 
 instance Arbitrary TAGSentence where 
     arbitrary = do

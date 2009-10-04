@@ -19,9 +19,9 @@ type Range = (Int, Int)
 -- (for now just use Set and eat the extra log) 
 
 -- S bounds the number of items per cell, must be O(1) 
-newtype Cell sub sig semi = Cell (M.Map sub (M.Map sig semi))
+newtype Cell sig semi = Cell (M.Map sig semi)
 
-uncell s (Cell cell) = M.findWithDefault mempty s cell
+uncell (Cell cell) = cell
 
 instance (Show sig, Show semi) => Show (Cell sig semi) where  
     show (Cell m) = intercalate "\n\t" $ map (\(sig,semi) -> show sig ++ "\t" ++ show semi) $  M.toList m
@@ -72,7 +72,7 @@ chartParse sent combine prune = Chart chart
       chart = M.fromList $
 
               [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ 
-                combine (i,k) (\i s -> M.toList $ uncell s $ fromJustNote "lookup fail" $ M.lookup i chart))
+                combine (i,k) (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
                    | d <- [1..n], 
                      i <- [1..n+1],
                      let k = i + d] 

@@ -87,10 +87,12 @@ main = do
        
 
 parseSent counts spineCounts probs probSpine insent = (dep, 
-                                                       eisnerParse getFSM symbolConv actualsent (\ wher m -> specialPrune insent wher $  globalThres wher m),
+                                                       (Just b, chart),
                                                        eisnerParse getFSM symbolConv actualsent (prune probSpine),
-                                                       eisnerParse getFSM symbolConv sent (\ wher m -> prune probSpine wher $ globalThres wher m))
+                                                       eisnerParse getFSM symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m))
     where dsent = toTAGDependency insent
+          sc1 = getBestScore b
+          (Just b, chart) = eisnerParse getFSM symbolConv actualsent (\ wher m -> specialPrune insent wher $  globalThres 1e-400 wher m)
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
           getFSM i (Just word) =  (initAdj probs ALeft word,
@@ -113,8 +115,8 @@ specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
                 endy k' = if k' > n then 0 else k'  
 
 
-globalThres wher m =
-    M.filter (\p -> getBestScore p > 1e-500 ) $  m    
+globalThres n wher m =
+    M.filter (\p -> getBestScore p >= n ) $  m    
 
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
@@ -123,8 +125,8 @@ prune probs wher m = --trace ((printf "Best for %s is : %s " (show wher ) (show 
  s
      where 
       s = M.filterWithKey (\sig semi -> if (hasAdjoin (sig,semi)) then  
-                                            (getFOM (sig,semi)) > (bestH / 1000)
-                                        else  (getFOM (sig,semi)) > (bestNH / 1000)
+                                            (getFOM (sig,semi)) > (bestH / 5000)
+                                        else  (getFOM (sig,semi)) > (bestNH / 5000)
                           ) m    
 --      p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
 --      p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
