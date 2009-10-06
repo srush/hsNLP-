@@ -178,13 +178,30 @@ toTagSentence (WordInfoSent wis)=
     mkTagWords $  map (\wi -> (((word wi, pos wi), spine wi, (puncLeft wi, puncRight wi) ))) $ elems wis
 
 
+liftCommas (WordInfoSent wis) =
+    WordInfoSent $ foldr lift wis commas  
+    where 
+      (_,n) = bounds wis
+      commas = catMaybes $ map (\(i,w)-> if isPOSComma $ pos w then Just i else Nothing) $ zip [1..] $ elems wis 
+      lift i wis = if grandParentInd /= 0 && canLift then lift i (wis // [(i, (wis ! i) {adjoinInd = grandParentInd,
+                                                               adjPos = adjPos parent})])
+               else wis 
+              where
+                canLift = all ((/= parentInd). adjoinInd . (wis !)) posSiblings
+                posSiblings  = if i < parentInd then [i-1,i-2..1] 
+                               else [i+1 .. n]
+                parentInd = adjoinInd (wis ! i)
+                parent = wis ! parentInd 
+                grandParentInd = adjoinInd parent
+
+
 cleanSentence (WordInfoSent wis) =  
-    WordInfoSent $ listArray (1,length wisLs - length combBad) $ 
+    liftCommas $ WordInfoSent $ listArray (1,length wisLs - length combBad) $ 
                  foldr shift (elems annotatedWIS) combBad
     where
       
       wisLs = elems wis
-      combBad = sort $ baddies ++ commies
+      combBad = sort $ baddies
       baddies = map ind $ filter (isPOSPunc . pos) wisLs
       commies = map ind $ filter (isPOSComma . pos) wisLs
       annotatedWIS = wis // (M.toList $ M.fromListWith (\a b -> a{puncRight = puncRight a || puncRight b, 

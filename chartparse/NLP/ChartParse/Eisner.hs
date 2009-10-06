@@ -138,7 +138,8 @@ combine (span1, semi1) (span2, semi2) =
              [(Span {simple = False,
                     leftEnd = leftEnd span1,
                     rightEnd = rightEnd span2,
-                    midSplit = maybe (midSplit span2) Just (midSplit span1)  -- span1 is simple
+                    midSplit = --trace ((show $ midSplit span2) ++ (show $ midSplit span1)) $ 
+                               maybe (midSplit span2) Just (midSplit span1)  -- span1 is simple
                     },
              semi1 `times` semi2)]
     else []

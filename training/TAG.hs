@@ -73,7 +73,7 @@ data TAGWord = TAGWord {
       twSpine :: Spine,
       twWord  :: GWord,
       twIsVerb :: Bool,
-      twNearComma :: (Bool, Bool),
+      twIsComma :: Bool,
       twInd ::Int 
     }
                deriving (Ord, Show)
@@ -83,7 +83,7 @@ instance Eq TAGWord where
            where comp a = (twSpine a, twWord a) 
 
 mkTAGWord :: GWord -> Spine -> (Bool, Bool) -> Int -> TAGWord
-mkTAGWord (w,pos) s commas ind = TAGWord s (w,pos) (isPOSVerb pos) commas ind
+mkTAGWord (w,pos) s commas ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) ind
 
 instance Pretty TAGWord where 
     pPrint (TAGWord word spine _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
@@ -99,11 +99,14 @@ data TAGSentence  =
                   tsDep  :: Dependency (AdjunctionInfo ())}
                 deriving (Show)
 
+
+
 valid (TAGSentence sent dep) head child pos atype = 
     case child of 
       Nothing -> True
       Just child' -> (not $ isRoot child') && (h == twInd head) && (pos == pos') && (atype == atype')
           where (DEdge h (AdjunctionInfo pos' atype' _)) = getHead dep $ twInd child'
+
 
 convertToTree tagsent = head n  
     where

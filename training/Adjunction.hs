@@ -13,7 +13,7 @@ module Adjunction (
                    probAdjunctionDebug, 
                    Distance(..),
                    
-                   Comma(..)
+                   
                   ) where 
 import Data.Function (on)
 import NLP.Probability.ConditionalDistribution
