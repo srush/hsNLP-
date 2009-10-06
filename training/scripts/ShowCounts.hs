@@ -23,6 +23,7 @@ import Text.PrettyPrint.HughesPJClass
 import Text.Printf
 import Data.Array
 import Control.Parallel.Strategies
+import Distance
 
 separate :: (Eq el) => el -> [el] -> [[el]]
 separate el [] = [] 
@@ -95,8 +96,11 @@ parseSent counts spineCounts probs probSpine insent = (dep,
           (Just b, chart) = eisnerParse getFSM symbolConv actualsent (\ wher m -> specialPrune insent wher $  globalThres 1e-400 wher m)
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
-          getFSM i (Just word) =  (initAdj probs ALeft word,
-                                   initAdj probs ARight word)
+          ldiscache = mkDistCacheLeft actualsent
+          rdiscache = mkDistCacheRight actualsent
+
+          getFSM i (Just word) =  (initAdj probs ldiscache ALeft word,
+                                   initAdj probs rdiscache ARight word)
           symbolConv word = Just word 
                           
 specialPrune :: WordInfoSent -> Range -> M.Map (Span (AdjState TAGProbs))  semi -> M.Map (Span (AdjState TAGProbs)) semi

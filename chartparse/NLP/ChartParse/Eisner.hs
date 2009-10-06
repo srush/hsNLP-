@@ -223,14 +223,14 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
 processCell getFSA sentence wordConv (i, k) chart = catMaybes $ map seal $ concat $ 
     -- trace(show (i,k)) $! 
     if k-i == 1 then
-        let seedCells = seed getFSA i 
+        (let seedCells = seed getFSA i 
                         (map wordConv $ getWords sentence i) 
                         (map wordConv  $ getWords sentence (i+1))
         in
         map (\seedCell -> 
         concat $ [[seedCell],
                   optLinkL seedCell,
-                  optLinkR seedCell]) seedCells
+                  optLinkR seedCell]) seedCells)
     else
         concat $ 
         [let s = combine s1 s2 in

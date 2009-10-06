@@ -14,6 +14,7 @@ import qualified Data.ByteString.Char8 as BS
 import POS 
 import Word
 import EnumHelpers
+import Control.Exception
 --import StringTable.Atom
 
 type GWord = (Word, POS)
@@ -42,17 +43,20 @@ instance (Arbitrary word) => Arbitrary (Sentence word) where
       NonEmpty ls <- arbitrary
       return $ mkSentence ls
 
-instance (WordSym word) => SentenceLattice (Sentence word) where  
+instance (WordSym word, Show word) => SentenceLattice (Sentence word) where  
     type Symbol (Sentence word)= word
     sentenceLength = slength
-    getWords (Sentence s) i = if i == n + 1 then [root i] else  [s ! i] 
+    getWords (Sentence s) i = if i <=0 || i > n+1 then 
+                                  throw $ AssertionFailed ("here" ++ show i ++ show s)
+                              else  
+                                  if i == n + 1 then [root i] else  [s ! i] 
         where n = slength (Sentence s)
 
 slength :: Sentence b -> Int
 slength (Sentence s) =  n
         where (1, n) = bounds s 
 
-getWord :: (WordSym word) => Sentence word -> Int -> word 
+getWord :: (WordSym word, Show word) => Sentence word -> Int -> word 
 getWord sent i = w
     where [w] =  getWords sent i
 

@@ -74,8 +74,10 @@ chartParse sent combine prune = Chart chart
               [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ 
                 combine (i,k) (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
                    | d <- [1..n], 
-                     i <- [1..n+1],
-                     let k = i + d] 
+                     i <- [1..n],
+                     let k = i + d,
+                     k <= n+1
+              ] 
 
 
 

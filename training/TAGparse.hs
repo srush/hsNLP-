@@ -31,7 +31,7 @@ import qualified Data.Set as S
 import POS
 import Debug
 import Distance
-
+import Debug.Trace
 type SpineExist = M.Map POS (S.Set Spine)
 
 instance (Pretty d, Monoid d ) => Pretty (Derivation d) where
@@ -208,11 +208,10 @@ generalNext findSemi adjstate child split  =
            [(adjstate {statePos = statePos adjstate + 1}, 
              fromJust $ findSemi adjstate split child Sister)]
         else
-            concatMap (tryEmpties findSemi split) $ do
+            concatMap (tryEmpties findSemi (split+ (if stateSide adjstate == ALeft then (-1) else 1) )) $ do
               atype <- [Sister, Regular]
               let semi = findSemi adjstate split child atype
               guard $ isJust semi 
-              let tagtree = fromJust child
               return $ (adjstate,
                         fromJust semi)
 
@@ -227,7 +226,8 @@ findSemiProbs adjstate split child atype =
                        (AdjunctionInfo pos atype (mkDerivationCell child')), 
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
-          parent = mkParent head pos side (discache (twInd head, split)  ) 
+          
+          parent =  mkParent head pos side (discache (twInd head, split)  ) 
           adj = mkAdjunction parent child atype
           p = probAdjunction adj probs
           AdjState {stateSide  = side, 
@@ -260,7 +260,7 @@ findSemiCounts adjstate split child atype =
     else
         Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child atype
         where
-          parent = mkParent head pos side (discache (twInd head, split) ) 
+          parent = mkParent head pos side (discache (twInd head, split)) 
           AdjState {stateSide  = side, 
                     statePos   = pos,
                     stateHead  = head,

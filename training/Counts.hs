@@ -20,7 +20,7 @@ showCount f = do
 
 countTAG dsent =
     case semi of 
-        Nothing -> trace ("failed to parse" ++ show chart) mempty -- throw $ AssertionFailed $ show dsent
+        Nothing -> trace ("failed to parse") mempty -- throw $ AssertionFailed $ show dsent
         Just s -> fromDerivation s
     where 
       (TAGSentence sent _) = dsent

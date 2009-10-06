@@ -187,11 +187,12 @@ cleanSentence (WordInfoSent wis) =
       combBad = sort $ baddies ++ commies
       baddies = map ind $ filter (isPOSPunc . pos) wisLs
       commies = map ind $ filter (isPOSComma . pos) wisLs
-      annotatedWIS = wis // (filter (validInd) $ 
+      annotatedWIS = wis // (M.toList $ M.fromListWith (\a b -> a{puncRight = puncRight a || puncRight b, 
+                                                                 puncLeft = puncLeft a || puncLeft b}) $ (filter (validInd) $ 
                              concatMap (\comInd -> 
                                         [(comInd - 1, (wis ! (comInd -1)) {puncRight = True}),
                                          (comInd + 1, (wis ! (comInd +1)) {puncLeft = True})
-                                        ]) commies) 
+                                        ]) commies)) 
 --      atSafe arr ind = if ind <l || ind > u then throw $ AssertionFailed "bad comma" else arr ! ind 
 --          where (l,u) = bounds arr
       validInd (i,_) = i < length wisLs && i > 0 
