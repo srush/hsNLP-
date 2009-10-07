@@ -11,9 +11,7 @@ module Adjunction (
                    mkParent,
                    ProbDebug,
                    probAdjunctionDebug, 
-                   Distance(..),
-                   
-                   
+                   Distance(..),                   
                   ) where 
 import Data.Function (on)
 import NLP.Probability.ConditionalDistribution
@@ -40,7 +38,7 @@ import qualified Data.Bimap as BM
 -- Code for dealing with stocastic adjunction 
 import Debug.Trace
 import Control.Exception
-
+import Test.QuickCheck
 
 data EnumCached a = 
     EnumCached { enumVal :: a, 
@@ -62,7 +60,7 @@ instance Show a => Show (EnumCached a) where
     show = show . enumVal
 
 instance Pretty a => Pretty (EnumCached a) where 
-    pPrint = pPrint . enumVal
+    pPrint e = (pPrint $ enumVal e) <+> (pPrint $ enumInd e)
  
 instance (Binary a, Enum a) => Binary (EnumCached a) where 
     put ttc = (put $ enumVal ttc)
@@ -166,11 +164,16 @@ instance Pretty AdjunctionSubContext1 where
 
 
 $( derive makeBinary ''AdjunctionSubContext1 )
+$( derive makeArbitrary ''AdjunctionSubContext1 )
 type AdjContext1 = AdjunctionContext1
 
 
 adjCon1Def = AdjunctionSubContext1 Nothing Nothing Nothing Nothing Nothing
 type AdjunctionContext1 = [EnumCached AdjunctionSubContext1]
+
+prop_context1 a = checkEnum
+    where types = (a::AdjunctionSubContext1) 
+
 
 mkAdjCon1 parentNT headNT delta parentPOS parentWord = 
         map cacheEnum [adjCon1Def {mparentNT   = dec $ parentNT,

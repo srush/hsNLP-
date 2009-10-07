@@ -89,34 +89,38 @@ main = do
 
 parseSent counts spineCounts probs probSpine insent = (dep, 
                                                        (Just b, chart),
-                                                       eisnerParse getFSM symbolConv actualsent (prune probSpine),
-                                                       eisnerParse getFSM symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m))
+                                                       (),
+                                                       eisnerParse (getFSM trivVal) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m))
     where dsent = toTAGDependency insent
           sc1 = getBestScore b
-          (Just b, chart) = eisnerParse getFSM symbolConv actualsent (\ wher m -> specialPrune insent wher $  globalThres 1e-400 wher m)
+          (Just b, chart) = eisnerParse (getFSM prunVal) symbolConv actualsent (\ wher m -> globalThres 1e-400 wher m)
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
           ldiscache = mkDistCacheLeft actualsent
           rdiscache = mkDistCacheRight actualsent
+          trivVal :: Validity
+          trivVal _ _ _ _ = True
+          prunVal :: Validity
+          prunVal = valid dsent
+          getFSM val i (Just word) =  (initAdj (probs, val) ldiscache ALeft word,
+                                       initAdj (probs, val) rdiscache ARight word)
 
-          getFSM i (Just word) =  (initAdj probs ldiscache ALeft word,
-                                   initAdj probs rdiscache ARight word)
           symbolConv word = Just word 
                           
-specialPrune :: WordInfoSent -> Range -> M.Map (Span (AdjState TAGProbs))  semi -> M.Map (Span (AdjState TAGProbs)) semi
-specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
-     M.filterWithKey killNonSeen m 
-         where  killNonSeen sig _ =
-                    case  hasParentPair sig  of 
-                      (True, False) ->  not (simple sig) || (adjoinInd (wisent ! lefty) == 
-                                        endy righty)
-                      (False, True) -> not (simple sig) || endy righty == 0 || (adjoinInd (wisent ! righty) == 
-                                        endy lefty)
-                      _ -> True
-                    where righty = twInd $ fromJustNote "" $ EI.word $ rightEnd $ sig
-                          lefty = twInd $ fromJustNote "" $ EI.word $ leftEnd $ sig
-                (_,n) = bounds wisent
-                endy k' = if k' > n then 0 else k'  
+-- specialPrune :: WordInfoSent -> Range -> M.Map (Span (AdjState TAGProbs))  semi -> M.Map (Span (AdjState TAGProbs)) semi
+-- specialPrune (WordInfoSent wisent) (i,k') m = --trace (show (i, k', n) ) $
+--      M.filterWithKey killNonSeen m 
+--          where  killNonSeen sig _ =
+--                     case  hasParentPair sig  of 
+--                       (True, False) ->  not (simple sig) || ((adjoinInd (wisent ! lefty) == 
+--                                         endy righty) && )
+--                       (False, True) -> not (simple sig) || endy righty == 0 || (adjoinInd (wisent ! righty) == 
+--                                         endy lefty)
+--                       _ -> True
+--                     where righty = twInd $ fromJustNote "" $ EI.word $ rightEnd $ sig
+--                           lefty = twInd $ fromJustNote "" $ EI.word $ leftEnd $ sig
+--                 (_,n) = bounds wisent
+--                 endy k' = if k' > n then 0 else k'  
 
 
 globalThres n wher m =
@@ -129,8 +133,8 @@ prune probs wher m = --trace ((printf "Best for %s is : %s " (show wher ) (show 
  s
      where 
       s = M.filterWithKey (\sig semi -> if (hasAdjoin (sig,semi)) then  
-                                            (getFOM (sig,semi)) > (bestH / 5000)
-                                        else  (getFOM (sig,semi)) > (bestNH / 5000)
+                                            (getFOM (sig,semi)) > (bestH / 10000)
+                                        else  (getFOM (sig,semi)) > (bestNH / 10000)
                           ) m    
 --      p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
 --      p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    

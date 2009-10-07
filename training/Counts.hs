@@ -10,6 +10,7 @@ import Text.PrettyPrint.HughesPJClass
 import Debug.Trace
 import Data.Monoid
 import Distance
+import NLP.Semiring.ViterbiNBestDerivation
 
 readTAG f = toTAGDependency `liftM` readSentence f
 
@@ -31,8 +32,7 @@ countTAG dsent =
                                initAdj dsent rdiscache ARight word)
       symbolConv word = Just word 
       (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) 
-      
-
+     
 
 
 -- Query (for making queries about the counts)

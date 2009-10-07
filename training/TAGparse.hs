@@ -54,20 +54,38 @@ newtype TAGDerivation = TAGDerivation (Dependency (AdjunctionInfo (DerivationCel
 
 tagDerToTree (TAGDerivation (tagdep,_)) = head c
     where
-      Node _ c = convertNewTree (root rpos, rpos)
+      Node _ c = convertNewTree (root rpos, Sister, rpos)
       rpos = rootPos tagdep
       flat = flattenDep $ tagdep
-      convertNewTree (tw, ind)= 
-              convertToTree' tw ((lastOfSpine $ twSpine tw) -1) ind
+      convertNewTree (tw, typ, ind)=
+          convertToTree' tw spos ind 
+          where
+            spos = ((lastOfSpine $ twSpine tw) -1)
       convertToTree' tw (-1) _ = Leaf (twWord tw) 
       convertToTree' tw spos ind = 
-              Node (getNonTerm spos $ twSpine tw) $ 
-                   (reverse $ map convertNewTree $ atSpos left) ++ 
-                   ([convertToTree' tw (spos-1) ind]) ++ 
-                   (map convertNewTree $ atSpos right)
-                  where  (_, (left, right)) = flat !! (ind -1)
-                         atSpos = map (\adj -> (dcWord $ adjInfo adj, adjPos adj) ). catMaybes.  
-                                  fromMaybe [] . lookup spos . alignWithSpine (twSpine tw)
+          buildLeft rightSide leftSide
+          where
+            (_, (left, right)) = flat !! (ind -1)
+            atSpos = map (\adj -> (dcWord $ adjInfo adj, adjType adj, adjPos adj)). catMaybes.  
+                     fromMaybe [] . lookup spos . alignWithSpine (twSpine tw)
+            nt = getNonTerm spos $ twSpine tw
+            leftSide = adjlevels (reverse $ atSpos left) []
+            rightSide =  adjlevels (reverse $ atSpos right) []
+            buildLeft right [last] = buildRight right last 
+            buildLeft right (cur:ls) = Node nt $ (map convertNewTree cur ++ [buildLeft right ls]) 
+            buildRight [last] left = finalConvert (left, last)
+            buildRight (cur:ls) left = Node nt $ (buildRight ls left: (reverse $ map convertNewTree cur))
+            finalConvert (left, right)= Node nt $ 
+                  (map convertNewTree $ left) ++ 
+                  ([convertToTree' tw (spos-1) ind]) ++ 
+                  (map convertNewTree $ reverse $ right)
+ 
+      
+      adjlevels side start = if null rest then [start++rights] else (start ++rights):(adjlevels (tail rest) [head rest] ) 
+          where 
+            rights = takeWhile (\(_,typ,_) -> typ /= Regular) side
+            rest = dropWhile (\(_,typ,_) -> typ /= Regular) side
+                    
 
 
 instance Show TAGDerivation where 
@@ -201,7 +219,8 @@ tryEmpties findSemi split (adjstate, semi) = (adjstate, semi):
           Just semi' -> 
               tryEmpties findSemi split (adjstate {statePos = statePos adjstate + 1, 
                                                    stateHasAdjunction = False,
-                                                   stateAfterComma = False}, semi `times` semi')
+                                                   stateAfterComma = False}, 
+                                         semi `times` semi')
         where
           semi' = findSemi adjstate split Nothing Sister 
           
@@ -213,21 +232,26 @@ generalNext :: (Semiring semi, FSMState (AdjState a) ) =>
                [(AdjState a, semi)] 
 generalNext findSemi adjstate child split  = 
         if isFinal adjstate then [] 
-        else if stateNT adjstate == rootNT then 
-           [(adjstate {statePos = statePos adjstate + 1}, 
-             fromJust $ findSemi adjstate split child Sister)]
+        else if stateNT adjstate == rootNT then
+                 case findSemi adjstate split child Sister of 
+                   Nothing -> []
+                   Just s -> 
+                       [(adjstate {statePos = statePos adjstate + 1}, 
+                         s)]
         else
             concatMap (tryEmpties findSemi (split+ (if stateSide adjstate == ALeft then (-1) else 1) )) $ do
               atype <- [Sister, Regular]
               let semi = findSemi adjstate split child atype
               guard $ isJust semi 
-              return $ (adjstate{stateAfterComma = twIsComma $ fromJustNote "real" child, 
-                                 stateHasAdjunction = True
-                                } ,
-                        fromJust semi)
+              return $ (adjstate{stateAfterComma = (atype ==Sister) && (twIsComma $ fromJustNote "real" child), 
+                                 stateHasAdjunction = (atype ==Sister) && True},
+                        fromJustNote "isjust" semi)
 
 findSemiProbs adjstate split child atype = 
-    Just $ case child of 
+    if not $ valid head child pos atype then 
+        Nothing
+    else 
+        Just $ case child of 
              Nothing -> 
                  viterbiHelp p
                       (Dependency mempty, if debug then [(adj, probAdjunctionDebug adj probs)] else [])
@@ -247,7 +271,7 @@ findSemiProbs adjstate split child atype =
           AdjState {stateSide  = side, 
                     statePos   = pos,
                     stateHead  = head,
-                    stateModel = probs,
+                    stateModel = (probs,valid),
                     stateDisCache = discache,
                     stateHasAdjunction = hasAdj,
                     stateAfterComma = afterComma
@@ -259,13 +283,15 @@ data  TAGTree a =  TAGTree {leftForest :: AdjState a,
                 deriving (Show, Eq, Ord)
 adjStateFinal adjstate = statePos adjstate == (lastOfSpine $ twSpine $ stateHead adjstate) 
 
-instance WFSM (AdjState TAGProbs) where 
-    type State (AdjState TAGProbs) = (AdjState TAGProbs) 
+type Validity = TAGWord -> (Maybe TAGWord) -> Int -> AdjunctionType -> Bool
+
+instance WFSM (AdjState (TAGProbs, Validity)) where 
+    type State (AdjState (TAGProbs, Validity)) = (AdjState (TAGProbs, Validity)) 
     initialState init = tryEmpties findSemiProbs (twInd $ stateHead init)  (init, one)
 
-instance FSMState (AdjState TAGProbs) where
-    type FSMSymbol (AdjState TAGProbs) = Maybe (TAGWord)
-    type FSMSemiring (AdjState TAGProbs) = ViterbiDerivation TAGDerivation
+instance FSMState (AdjState (TAGProbs,Validity)) where
+    type FSMSymbol (AdjState (TAGProbs, Validity)) = Maybe (TAGWord)
+    type FSMSemiring (AdjState (TAGProbs, Validity)) = ViterbiDerivation TAGDerivation
     next = generalNext findSemiProbs
     isFinal = adjStateFinal  
 
