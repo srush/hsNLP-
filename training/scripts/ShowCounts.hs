@@ -24,7 +24,7 @@ import Text.Printf
 import Data.Array
 import Control.Parallel.Strategies
 import Distance
-
+import Data.Algorithm.Diff
 separate :: (Eq el) => el -> [el] -> [[el]]
 separate el [] = [] 
 separate el ls = case elemIndex el ls of
@@ -63,12 +63,18 @@ main = do
            let m2 = M.fromList debug2
            let diff1 = M.difference m1 m2 
            let diff2 = M.difference m2 m1
+           let st1 = (render $ niceParseTree $ tagDerToTree der1)
+           let st2 = (render $ niceParseTree $ tagDerToTree der2)
+           let ldiff  = getDiff (lines st1) (lines st2) 
+
            putStrLn $ "First " ++ (printf "%.3e" sc1) 
            putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
            putStrLn $ "Second" ++ (printf "%.3e" sc2) 
            putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
- 
+           putStrLn $ show ldiff
+           putStrLn $ st1
            putStrLn $ ("G" ++ (show $ tagDerToTree der1))
+           putStrLn $ st2
 --         putStrLn $ show $ getBestDerivation b
            putStrLn $ ("T" ++ (show $ tagDerToTree der2))) results
       --print "The fixed parse answer"
@@ -92,8 +98,8 @@ parseSent counts spineCounts probs probSpine insent = (dep,
                                                        (),
                                                        eisnerParse (getFSM trivVal) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m))
     where dsent = toTAGDependency insent
-          sc1 = getBestScore b
-          (Just b, chart) = eisnerParse (getFSM prunVal) symbolConv actualsent (\ wher m -> globalThres 1e-400 wher m)
+          sc1 =  getBestScore b
+          (Just b, chart) = eisnerParse (getFSM prunVal) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m)
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
           ldiscache = mkDistCacheLeft actualsent
@@ -124,27 +130,31 @@ parseSent counts spineCounts probs probSpine insent = (dep,
 
 
 globalThres n wher m =
-    M.filter (\p -> getBestScore p >= n ) $  m    
+    M.filter (\p -> getBestScore p >= (n / 10000) ) $  m    
 
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
 --                     M.Map sig (ViterbiDerivation TAGDerivation)  
-prune probs wher m = --trace ((printf "Best for %s is : %s " (show wher ) (show best)) ++ ("\nBadies\n" ++ (show $ Cell p)) ++ ("\ngoodies\n" ++(show $ Cell p'))) $ s 
- s
+prune probs wher m = 
+    --(if wher == (1,2) then trace ((printf "Best for %s is : %s " (show wher ) (show bestH)) ++ ("\nBadies\n" ++ (show $ Cell p)) ++ ("\ngoodies\n" ++(show $ Cell p')))  else id)  
+ s 
      where 
-      s = M.filterWithKey (\sig semi -> if (hasAdjoin (sig,semi)) then  
-                                            (getFOM (sig,semi)) > (bestH / 10000)
-                                        else  (getFOM (sig,semi)) > (bestNH / 10000)
+      s = M.filterWithKey (\sig semi -> (getFOM (sig,semi)) > (best / 10000) --if (hasAdjoin (sig,semi)) then  
+                                        --    (getFOM (sig,semi)) > (bestH / 50000)
+                                        --else  (getFOM (sig,semi)) > (bestNH / 50000)
                           ) m    
---      p' = M.filter (\(_,fom) -> fom >= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
---      p = M.filter (\(_,fom) -> fom <= (best / 1000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
+      p' = M.filter (\(_,fom) -> fom >= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
+      p = M.filter (\(_,fom) -> fom <= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       getProb = probSpine probs 
-      getPrior sig = (prior getProb $ EI.word $ leftEnd sig) * 
-                     (prior getProb $ EI.word $ rightEnd sig) 
+      getPrior sig = (if hasParent $ leftEnd sig then 1.0 else (prior getProb $ EI.word $ leftEnd sig)) * 
+                     (if hasParent $ rightEnd sig then 1.0 else (prior getProb $ EI.word $ rightEnd sig)) 
       getInside i  =  p
           where (Prob p) = getBestScore i 
       getFOM (sig, semi) = getPrior sig * getInside semi
       hasAdjoin (sig, semi) = hasParentPair sig /= (False, False) 
+      best = case  map getFOM $ M.toList m of
+               [] -> 0.0
+               ls -> maximum $ ls
       bestH = case  map getFOM $ filter hasAdjoin $ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls

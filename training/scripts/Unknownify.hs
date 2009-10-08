@@ -14,7 +14,8 @@ main = do
   let counts = M.fromListWith (+) $ map (\l -> (getWord l, 1)) $ filter (/= "") $ lines contents
   putStr $ unlines $ 
          map (\l -> if l == "" then l 
-                    else if (isNum (getWord l !! 0)) then putWord l "*NUM*"
+                    else if ((getWord l) == "--") then putWord l "*DDASH*"
+                    else if (isNum ((getWord l) !! 0)) then putWord l "*NUM*"
                     else if ((M.!) counts $ getWord l) > 5 then l 
                      else putWord l "*UNK*" ) $ lines contents
   

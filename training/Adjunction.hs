@@ -60,7 +60,7 @@ instance Show a => Show (EnumCached a) where
     show = show . enumVal
 
 instance Pretty a => Pretty (EnumCached a) where 
-    pPrint e = (pPrint $ enumVal e) <+> (pPrint $ enumInd e)
+    pPrint e = (pPrint $ enumVal e) 
  
 instance (Binary a, Enum a) => Binary (EnumCached a) where 
     put ttc = (put $ enumVal ttc)

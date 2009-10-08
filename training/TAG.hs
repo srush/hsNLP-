@@ -31,9 +31,15 @@ data ParseTree =
     Node NonTerm [ParseTree] | 
     Leaf GWord 
 
+
+niceParseTree (Leaf (w,pos)) = 
+                (text $ show pos) <+> (text $ show w) 
+niceParseTree (Node nt rest) =  
+    hang (text $ show nt) 3 (vcat $ map niceParseTree rest)
+
+
 instance Show ParseTree where 
     show = render.pPrint
-
 
 instance Pretty ParseTree where 
     pPrint (Leaf (w,pos)) = 
@@ -43,6 +49,8 @@ instance Pretty ParseTree where
         (lparen <> (text $ show nt))
         <+>
         (hsep $ map pPrint rest) <> rparen
+
+
 -- | There are two types of adjunction, 
 --   Sister comes from a single position, 
 --   regular duplicates the node in the head tree 

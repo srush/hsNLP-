@@ -81,7 +81,7 @@ tagDerToTree (TAGDerivation (tagdep,_)) = head c
                   (map convertNewTree $ reverse $ right)
  
       
-      adjlevels side start = if null rest then [start++rights] else (start ++rights):(adjlevels (tail rest) [head rest] ) 
+      adjlevels side start = if null rest then [rights] else (rights++[head rest]):(adjlevels (tail rest) [] ) 
           where 
             rights = takeWhile (\(_,typ,_) -> typ /= Regular) side
             rest = dropWhile (\(_,typ,_) -> typ /= Regular) side
@@ -243,8 +243,8 @@ generalNext findSemi adjstate child split  =
               atype <- [Sister, Regular]
               let semi = findSemi adjstate split child atype
               guard $ isJust semi 
-              return $ (adjstate{stateAfterComma = (atype ==Sister) && (twIsComma $ fromJustNote "real" child), 
-                                 stateHasAdjunction = (atype ==Sister) && True},
+              return $ (adjstate{stateAfterComma =  (twIsComma $ fromJustNote "real" child), 
+                                 stateHasAdjunction =  True},
                         fromJustNote "isjust" semi)
 
 findSemiProbs adjstate split child atype = 

@@ -13,6 +13,8 @@ import Text.PrettyPrint.HughesPJClass
 import Debug.Trace
 import Safe (fromJustNote)
 import Data.Maybe (maybe)
+import Control.Exception
+import Control.Monad
 
 type EisnerChart fsa = Chart (Span fsa) (FSMSemiring (State fsa))
 type Semi fsa = FSMSemiring (State fsa)
@@ -208,7 +210,7 @@ accept (span, _) =
     b == (True, False) && f1 && f2 
         where
           b =  hasParentPair span
-          f1 = isSealed (state $ rightEnd span)
+          f1 = isStateFinal (state $ rightEnd span)
           f2 = isStateFinal (state $ leftEnd span)
 
 
@@ -253,5 +255,7 @@ eisnerParse getFSM wordConv sent prune = (semi, chart)
     where chart = chartParse sent (processCell getFSM sent wordConv) prune
           semi = do
             last <- chartLookup (1, sentenceLength sent + 1) chart
-            (_, semi) <- find accept last
-            return semi 
+            let semiresults = map snd $ filter accept last
+            
+            guard (length semiresults > 0)  
+            return $ mconcat semiresults 

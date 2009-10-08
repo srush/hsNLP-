@@ -15,6 +15,7 @@ main = do
   putStr $ unlines $ 
          map (\l -> if l == "" then l 
                     else if (isNum (getWord l !! 0)) then putWord l "*NUM*"
+                    else if ((getWord l) == "--") then putWord l "*DDASH*"
                     else if (M.findWithDefault 0 (getWord l) counts) > 5 then l 
                      else putWord l "*UNK*" ) $ lines contentsTest
   
