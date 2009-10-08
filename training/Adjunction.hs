@@ -136,20 +136,22 @@ data AdjunctionSubContext1 =
     AdjunctionSubContext1 {
       mparentNT   :: Maybe NonTerm, 
       mdelta      :: Maybe Distance,
+      mside       :: Maybe AdjunctionSide,
       mparentPOS  :: Maybe POS, 
       mparentWord :: Maybe Word,
-      mheadNT     :: Maybe NonTerm 
+      mheadNT     :: Maybe NonTerm
     } deriving (Eq, Ord, Show)
 
 instance Enum AdjunctionSubContext1 where 
     {-# INLINE fromEnum #-}
-    fromEnum asc = mkFromEnum5 (mparentNT asc, Just maxBound) 
+    fromEnum asc = mkFromEnum6 (mparentNT asc, Just maxBound) 
                                (mdelta asc, Just maxBound)
                                (mparentPOS asc, Just maxBound)
                                (mparentWord asc, Just maxBound)
                                (mheadNT asc, Just maxBound)
-    toEnum n = AdjunctionSubContext1 a b c d e
-        where (a,b,c,d,e) = mkToEnum5 (Just maxBound, Just maxBound, Just maxBound, Just maxBound, Just maxBound) n
+                               (mside asc, Just maxBound)
+    toEnum n = AdjunctionSubContext1 a b c d e f
+        where (a,b,c,d,e,f) = mkToEnum6 (Just maxBound, Just maxBound, Just maxBound, Just maxBound, Just maxBound, Just maxBound) n
 
 pPrintJust Nothing = empty 
 pPrintJust (Just p) = pPrint p
@@ -168,17 +170,19 @@ $( derive makeArbitrary ''AdjunctionSubContext1 )
 type AdjContext1 = AdjunctionContext1
 
 
-adjCon1Def = AdjunctionSubContext1 Nothing Nothing Nothing Nothing Nothing
+adjCon1Def = AdjunctionSubContext1 Nothing Nothing Nothing Nothing Nothing Nothing
 type AdjunctionContext1 = [EnumCached AdjunctionSubContext1]
 
 prop_context1 a = checkEnum
     where types = (a::AdjunctionSubContext1) 
 
 
-mkAdjCon1 parentNT headNT delta parentPOS parentWord = 
+mkAdjCon1 parentNT headNT delta parentPOS parentWord side = 
         map cacheEnum [adjCon1Def {mparentNT   = dec $ parentNT,
                                    mheadNT     = dec $ headNT ,
-                                   mdelta      = dec $ delta },
+                                   mdelta      = dec $ delta,
+                                   mside        = dec $ side 
+                                  },
                        adjCon1Def {mparentPOS  = dec $ parentPOS },
                        adjCon1Def {mparentWord = dec $ parentWord }]
 
@@ -192,6 +196,7 @@ data AdjunctionContext2 =
     AdjunctionContext2 {
       adjCon1 :: AdjunctionContext1,
       sc2ChildPOS :: Maybe POS, 
+      sc2Side     :: AdjunctionSide,
       sc2ChildNonTerm ::  Maybe NonTerm
     } deriving (Eq, Ord, Show)
 
@@ -201,6 +206,7 @@ data AdjunctionSubContext2 =
     AdjunctionSubContext2 {
       msc2ChildPOS :: Maybe (Maybe POS), 
       msc2ChildNonTerm :: Maybe (Maybe NonTerm),
+      msc2Side :: Maybe AdjunctionSide,
       madjCon1 ::  Maybe AdjunctionSubContext1
     } deriving (Eq, Ord, Show)
 
@@ -208,13 +214,15 @@ instance Pretty AdjunctionContext2 where
     pPrint = pPrint . decompose
 
 instance Pretty AdjunctionSubContext2 where 
-    pPrint s2 = (pPrintJust $ msc2ChildPOS s2) <+>
-                (pPrintJust $ msc2ChildNonTerm s2) <+>
+    pPrint s2 = 
+        (pPrintJust $ msc2Side s2) <+>
+        (pPrintJust $ msc2ChildPOS s2) <+>
+        (pPrintJust $ msc2ChildNonTerm s2) <+>
                 (pPrintJust $ madjCon1 s2)  
 
 
 $( derive makeBinary ''AdjunctionSubContext2 )
-adjCon2Def = AdjunctionSubContext2 Nothing Nothing Nothing
+adjCon2Def = AdjunctionSubContext2 Nothing Nothing Nothing Nothing
 
 type AdjContext2 = AdjunctionContext2
 
@@ -228,6 +236,7 @@ instance Context (AdjunctionContext2 ) where
            msc2ChildPOS  = dec $ sc2ChildPOS adjcon
          },
          adjCon2Def { 
+           msc2Side  = dec $ sc2Side adjcon,
            msc2ChildNonTerm  = dec $ sc2ChildNonTerm adjcon,
            madjCon1 = dec $ (enumVal decon11) {mparentPOS  = mparentPOS $ enumVal $ decon12}
          },
@@ -302,7 +311,7 @@ mkAdjunctionEvents (Just child) sister =
     (TAGWord childSpine (childWord, childPOS) _  _ _) = child
 
 
-mkMainAdjunctionContext (TAGWord headSpine (headWord, headPOS) _ _ _) pos delta = 
+mkMainAdjunctionContext (TAGWord headSpine (headWord, headPOS) _ _ _) pos delta side = 
     mkAdjCon1 
     (getNonTerm pos headSpine)
     (fromJustDef (fromPOS headPOS) $ 
@@ -310,6 +319,7 @@ mkMainAdjunctionContext (TAGWord headSpine (headWord, headPOS) _ _ _) pos delta 
     (delta)
     (headPOS)
     (headWord)
+    side
 
 
     
@@ -318,56 +328,48 @@ mkAdjunctionContexts ::
     (MAdjEvent1,
      MAdjEvent2,
      MAdjEvent3) ->
-    Maybe TAGWord -> 
+    Maybe TAGWord ->
+    AdjunctionSide -> 
     ((MAdjEvent1, AdjContext1),
      (MAdjEvent2, AdjContext2),
      (MAdjEvent3, AdjContext3))
-mkAdjunctionContexts adjcon1 (e1, e2, e3) child =
+mkAdjunctionContexts adjcon1 (e1, e2, e3) child side =
     ((e1, adjcon1),
-     (e2, AdjunctionContext2 adjcon1 (childPOS `liftM` e1) (childTopNT `liftM` e1) ),
+     (e2, AdjunctionContext2 adjcon1 (childPOS `liftM` e1) side (childTopNT `liftM` e1) ),
      (e3, AdjunctionContext3 e1 e2 adjcon1))
                                
 data TAGCounts = 
-    TAGCounts  {
-      leftAdjCounts  :: AdjunctionObservations,
-      rightAdjCounts ::AdjunctionObservations 
-    } 
+    TAGCounts { tagCounts :: AdjunctionObservations}
+    
 
 
 instance Monoid TAGCounts  where 
-    mempty = TAGCounts  mempty mempty
-    mappend (TAGCounts a b ) (TAGCounts a' b' ) = 
-        TAGCounts (mappend a a') (mappend b b')
+    mempty = TAGCounts mempty
+    mappend (TAGCounts a) (TAGCounts a') = 
+        TAGCounts (mappend a a')
 
 
-data TAGProbs = TAGProbs
-    { leftProbs  :: AdjunctionDist,
-      rightProbs  :: AdjunctionDist
-    } 
+data TAGProbs = TAGProbs { tagProbs :: AdjunctionDist}
+    
 
 
 estimateTAGProb :: TAGCounts -> TAGProbs
-estimateTAGProb (TAGCounts (a,b,c) (a', b', c')) = 
+estimateTAGProb (TAGCounts (a,b,c) ) = 
     TAGProbs ( estimateWittenBell a, 
                estimateWittenBell b, 
                estimateWittenBell c)
-             ( estimateWittenBell a', 
-               estimateWittenBell b', 
-               estimateWittenBell c')
 
 instance Pretty TAGCounts where 
-    pPrint (TAGCounts b c) = 
-        vcat [(text "Left:  ") $$  (pPrint b), 
-              (text "Right: ") $$  (pPrint c)]
+    pPrint (TAGCounts b) = 
+        vcat [pPrint b]
 
 
 instance Show TAGCounts where 
     show = render . pPrint 
 
 instance Binary TAGCounts where 
-    put ttc = (put $ leftAdjCounts ttc) >> 
-              (put $ rightAdjCounts ttc)
-    get = return TAGCounts `ap` get `ap` get 
+    put (TAGCounts ttc) = (put $  ttc)
+    get = return TAGCounts `ap` get 
 
 
 
@@ -383,31 +385,25 @@ type Adjunction = (AdjunctionSide,
 
 countAdjunction :: Adjunction  -> TAGCounts 
 countAdjunction (side, ((e1,c1),(e2,c2), (e3,c3))) = 
-    case side of 
-      ARight -> mempty { rightAdjCounts = obs}
-      ALeft  -> mempty { leftAdjCounts = obs}
+    TAGCounts obs 
     where obs = (singletonObservation e1 c1,
                  singletonObservation e2 c2,
                  singletonObservation e3 c3)
                  
 
 probAdjunction :: Adjunction -> TAGProbs -> Prob 
-probAdjunction  (side, ((e1,c1),(e2,c2), (e3,c3))) probs =
+probAdjunction  (_, ((e1,c1),(e2,c2), (e3,c3))) probs =
     res --trace ((show e1) ++ (show c1) ++ (show pr1) ++ (show res)) $ assert (not $ isNaN res) $  res 
-        where (p1,p2,p3) = case side of 
-                          ARight -> rightProbs probs
-                          ALeft -> leftProbs probs
+        where (p1,p2,p3) = tagProbs probs
               pr1 = prob (cond p1 c1) e1 
               pr2 = prob (cond p2 c2) e2 
               pr3 = prob (cond p3 c3) e3 
               res = pr1 * pr2 * pr3 
 
 probAdjunctionDebug :: Adjunction -> TAGProbs -> ProbDebug 
-probAdjunctionDebug  (side, ((e1,c1),(e2,c2), (e3,c3))) probs =
-    ProbDebug side e1 e2 e3 c1 c2 c3 pr1 pr2 pr3 pr1' pr2' pr3' res
-        where (p1,p2,p3) = case side of 
-                          ARight -> rightProbs probs
-                          ALeft -> leftProbs probs
+probAdjunctionDebug  (_, ((e1,c1),(e2,c2), (e3,c3))) probs =
+    ProbDebug e1 e2 e3 c1 c2 c3 pr1 pr2 pr3 pr1' pr2' pr3' res
+        where (p1,p2,p3) = tagProbs probs
               pr1 = ProbsWithSmoothing  $ (condDebug p1 c1) e1 
               pr2 = ProbsWithSmoothing  $ (condDebug p2 c2) e2 
               pr3 = ProbsWithSmoothing  $ (condDebug p3 c3) e3 
@@ -428,7 +424,6 @@ instance Pretty ProbsWithSmoothing where
 
 
 data ProbDebug = ProbDebug {
-      dside :: AdjunctionSide,
       de1 :: MAdjEvent1,
       de2 :: MAdjEvent2,
       de3 :: MAdjEvent3,
@@ -452,7 +447,7 @@ instance Show ProbDebug where
 instance Pretty ProbDebug where 
     pPrint pd = 
         hang (text "Word Prob " <+> text (printf "%.3e" $ dres pd) ) 2 $  
-          (hang ((pPrint $ dside pd) <+> (pPrint $ de1 pd) <+> (pPrint $ dc1 pd)) 2  
+          (hang ((pPrint $ de1 pd) <+> (pPrint $ dc1 pd)) 2  
            ((text $ printf "%.3e" $ dpr1 pd) <+> (text " = ") <+> (pPrint $ dp1 pd)) $$
            hang ((pPrint $ de2 pd) <+> (pPrint $ dc2 pd)) 2  
             ((text $ printf "%.3e" $ dpr2 pd) <+> (text " = ") <+> (pPrint $ dp2 pd)) $$
@@ -465,7 +460,7 @@ mkParent:: TAGWord -> Int -> AdjunctionSide ->
 
             AdjunctionParent
 mkParent head pos side distance = 
-    (side, mkMainAdjunctionContext head pos distance)
+    (side, mkMainAdjunctionContext head pos distance side)
 
 mkAdjunction :: 
     AdjunctionParent ->
@@ -473,7 +468,7 @@ mkAdjunction ::
     AdjunctionType ->
     Adjunction
 mkAdjunction (side, adjcon1) child sister  =
-    (side, mkAdjunctionContexts adjcon1 events child)
+    (side, mkAdjunctionContexts adjcon1 events child side)
     where events = mkAdjunctionEvents child sister
    
 getCounts f = do

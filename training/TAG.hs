@@ -63,6 +63,10 @@ instance Pretty AdjunctionType where
 
 data AdjunctionSide = ALeft | ARight
                     deriving (Eq, Ord, Enum, Bounded)
+
+$( derive makeBinary ''AdjunctionSide)
+$( derive makeArbitrary ''AdjunctionSide)
+
 instance Show AdjunctionSide where 
     show ALeft = "Left"
     show ARight = "Right"
