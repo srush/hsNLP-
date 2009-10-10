@@ -288,9 +288,10 @@ findSemiProbs adjstate split child atype dis =
                     } = adjstate
 
 
-mkDistance adjstate split = Distance verb
-                            (not $ stateHasAdjunction adjstate) 
-                            comma
+mkDistance adjstate split = Distance 
+                            (not $ stateHasAdjunction adjstate)
+                            verb
+                            (stateAfterComma adjstate)
     where (verb, comma) = ((stateDisCache adjstate) (twInd $ stateHead adjstate, split))
                             
 
