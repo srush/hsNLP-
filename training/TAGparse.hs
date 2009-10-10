@@ -243,9 +243,7 @@ generalNext findSemi adjstate child split  =
             (tryEmpties findSemi (split+ (if stateSide adjstate == ALeft then (-1) else 1) )) $ 
             catMaybes $
             [ doOneAdj Sister one (mkDistance adjstate split),
-              do 
-                base <- findSemi adjstate split Reg Sister (mkDistance adjstate split)
-                doOneAdj Regular base ((mkDistance adjstate split))-- {firstAdjunction = True,
+              doOneAdj Regular one ((mkDistance adjstate split))-- {firstAdjunction = True,
                                                                     --afterComma = False})
             ]
               
@@ -278,7 +276,7 @@ findSemiProbs adjstate split child atype dis =
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
           parent =  mkParent head pos side atype dis
-          adj = mkAdjunction parent child
+          adj = mkAdjunction parent child atype 
           p = probAdjunction adj probs
           AdjState {stateSide  = side, 
                     statePos   = pos,
@@ -290,10 +288,10 @@ findSemiProbs adjstate split child atype dis =
                     } = adjstate
 
 
-mkDistance adjstate split = Distance
+mkDistance adjstate split = Distance verb
                             (not $ stateHasAdjunction adjstate) 
-                            ((stateDisCache adjstate) (twInd $ stateHead adjstate, split))
-                            (stateAfterComma adjstate)
+                            comma
+    where (verb, comma) = ((stateDisCache adjstate) (twInd $ stateHead adjstate, split))
                             
 
 data  TAGTree a =  TAGTree {leftForest :: AdjState a, 
@@ -318,7 +316,7 @@ findSemiCounts adjstate split child atype dis =
     if not $ valid model head (maybeAdj child) pos atype then 
         Nothing
     else
-        Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child
+        Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child atype
         where
           parent = mkParent head pos side atype dis 
           AdjState {stateSide  = side, 
