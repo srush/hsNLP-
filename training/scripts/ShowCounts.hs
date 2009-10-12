@@ -49,8 +49,8 @@ main = do
   --print sents
   let results = [  (b', b)
           | (_, (Just b', _) , _, (Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
-
-  --print results
+  
+ -- print $ (head $ results)
 
   mapM_ (\(a,b) ->  do
            let der1 = getBestDerivation a
@@ -66,7 +66,6 @@ main = do
            let st1 = (render $ niceParseTree $ tagDerToTree der1)
            let st2 = (render $ niceParseTree $ tagDerToTree der2)
            let ldiff  = getDiff (lines st1) (lines st2) 
-
            putStrLn $ "First " ++ (printf "%.3e" sc1) 
            putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
            putStrLn $ "Second" ++ (printf "%.3e" sc2) 
@@ -77,6 +76,7 @@ main = do
            putStrLn $ st2
 --         putStrLn $ show $ getBestDerivation b
            putStrLn $ ("T" ++ (show $ tagDerToTree der2))) results
+
       --print "The fixed parse answer"
   --putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation b'''))
   --putStrLn $ ("T" ++ (show $ tagDerToTree  $ getBestDerivation b))

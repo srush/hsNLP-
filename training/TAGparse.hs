@@ -148,7 +148,8 @@ data AdjState model =
       --stateContext :: AdjunctionParent
 
       stateHasAdjunction :: Bool,
-      stateAfterComma :: Bool
+      stateWaitingComma :: Maybe TAGWord,
+      stateIsAfterComma :: Bool
 } 
 
 initAdj :: model ->
@@ -170,8 +171,8 @@ initAdj model discache side tagword =
                     stateDisCache = discache,
                     
                     stateHasAdjunction = False,
-                    stateAfterComma = False
-
+                    stateWaitingComma = Nothing,
+                    stateIsAfterComma = False
                     --stateDistance = mempty{ numComma = case side of 
                     --                                    ALeft  -> if fst $ twNearComma $ tagword then OneComma else NoComma
                     --                                    ARight -> if snd $ twNearComma $ tagword then OneComma else NoComma},
@@ -197,7 +198,7 @@ prior probs (Just adjstate) =  pairLikelihood
        pairLikelihood = probs $ adjstate
 
 {-# INLINE expandAdjState #-}
-expandAdjState as =  (statePos as, stateHasAdjunction as, stateAfterComma as)
+expandAdjState as =  (statePos as, stateHasAdjunction as, stateWaitingComma as, stateIsAfterComma as)
 
 
 instance Eq (AdjState a) where 
@@ -217,20 +218,25 @@ tryEmpties findSemi split (adjstate, semi) = (adjstate, semi):
         case semi' of 
           Nothing -> []
           Just semi' -> 
+              if isJust $ stateWaitingComma adjstate then 
+                  []
+              else
               tryEmpties findSemi split (adjstate {statePos = statePos adjstate + 1, 
                                                    stateHasAdjunction = False,
-                                                   stateAfterComma = False}, 
+                                                   stateWaitingComma = Nothing,
+                                                   stateIsAfterComma = False
+                                                  }, 
                                          semi `times` semi')
         where
           semi' = findSemi adjstate split End Sister (mkDistance adjstate split)
           
-generalNext :: (Semiring semi, FSMState (AdjState a) ) => 
-               (AdjState a -> Int -> AdjunctionAction (TAGWord) -> AdjunctionType -> Distance -> Maybe semi) -> 
-               (AdjState a) ->  
-               (Maybe (TAGWord)) ->
-               Int -> --huge hack!
-               [(AdjState a, semi)] 
-generalNext findSemi adjstate child split  = 
+-- generalNext :: (Semiring semi, FSMState (AdjState a) ) => 
+--                (AdjState a -> Int -> AdjunctionAction (TAGWord) -> AdjunctionType -> Distance -> Maybe semi) -> 
+--                (AdjState a) ->  
+--                (Maybe (TAGWord)) ->
+--                Int -> --huge hack!
+--                [(AdjState a, semi)] 
+generalNext findSemi validComma adjstate child split  = 
         if isFinal adjstate then [] 
         else if stateNT adjstate == rootNT then
                  case findSemi adjstate split (DoAdj $ fromJustNote "its good" child) Sister (mkDistance adjstate split) of 
@@ -238,23 +244,40 @@ generalNext findSemi adjstate child split  =
                    Just s -> 
                        [(adjstate {statePos = statePos adjstate + 1}, 
                          s)]
+                 
         else
+            if (stateIsAfterComma adjstate) && 
+              (not $ snd $ (stateDisCache adjstate) (twInd $ stateHead adjstate, split))  then
+               --collins comma trick
+               --trace ((show split)++ (show $ stateHead adjstate) ++ (show $ child) ) $ []
+                []
+            else 
             concatMap 
             (tryEmpties findSemi (split+ (if stateSide adjstate == ALeft then (-1) else 1) )) $ 
             catMaybes $
-            [ doOneAdj Sister one (mkDistance adjstate split),
-              doOneAdj Regular one ((mkDistance adjstate split))-- {firstAdjunction = True,
+            [ doOneAdj Sister  one $ mkDistance adjstate split,
+              doOneAdj Regular one $ mkDistance adjstate split -- {firstAdjunction = True,
                                                                     --afterComma = False})
-            ]
-              
+            ]              
         
             where doOneAdj atype baseSemi dis = 
-                      case findSemi adjstate split (DoAdj $ fromJust child) atype dis of
-                        Nothing -> Nothing 
-                        Just s -> Just (adjstate{stateAfterComma =  
-                                                twIsComma $ fromJustNote "real" child, 
-                                            stateHasAdjunction =  True},
-                                  baseSemi `times` s)
+                      if twIsComma $ fromJustNote "real" child then 
+                          if validComma adjstate child atype then 
+                              Just (adjstate{stateWaitingComma = child,
+                                             stateIsAfterComma = False,
+                                             stateHasAdjunction = True}, baseSemi)
+                          else Nothing 
+                      else  
+                          case findSemi adjstate split (DoAdj $ fromJust child) atype dis of
+                            Nothing -> Nothing 
+                            Just s -> Just (adjstate{stateWaitingComma = Nothing,
+                                                     stateIsAfterComma = isJust $ stateWaitingComma adjstate,
+                                                     stateHasAdjunction =  True},
+                                            baseSemi `times` s)
+
+validProbsComma adjstate child atype =
+    (snd $ stateModel adjstate) (stateHead adjstate) child (statePos adjstate) atype  
+
 
 findSemiProbs adjstate split child atype dis = 
     if not $ valid head (maybeAdj child) pos atype then 
@@ -263,20 +286,22 @@ findSemiProbs adjstate split child atype dis =
         Just $ case child of 
              End -> 
                  viterbiHelp p
-                      (Dependency mempty, if debug then 
-                                              [(adj, probAdjunctionDebug adj probs)] else [])
-             Reg -> 
-                 viterbiHelp p
-                      (Dependency mempty, if debug then 
-                                              [(adj, probAdjunctionDebug adj probs)] else [])
+                      (Dependency mempty, 
+                       if debug then [(adj, probAdjunctionDebug adj probs)] else [])
              DoAdj child' ->
                  viterbiHelp p
-                      (singletonDep (twInd head) (twInd child') $ 
-                       (AdjunctionInfo pos atype (mkDerivationCell child')), 
+                      (mappend 
+                         (singletonDep (twInd head) (twInd child') $ 
+                          (AdjunctionInfo pos atype (mkDerivationCell child'))) $ 
+                         case waitingComma of
+                           (Just commaWord) ->
+                               singletonDep (twInd head) (twInd commaWord) $ 
+                               (AdjunctionInfo pos Sister (mkDerivationCell commaWord)) 
+                           Nothing -> mempty, 
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
           parent =  mkParent head pos side atype dis
-          adj = mkAdjunction parent child atype 
+          adj = mkAdjunction parent child atype (twWord `liftM` waitingComma) 
           p = probAdjunction adj probs
           AdjState {stateSide  = side, 
                     statePos   = pos,
@@ -284,14 +309,14 @@ findSemiProbs adjstate split child atype dis =
                     stateModel = (probs,valid),
                     stateDisCache = discache,
                     stateHasAdjunction = hasAdj,
-                    stateAfterComma = afterComma
+                    stateWaitingComma = waitingComma
                     } = adjstate
 
 
 mkDistance adjstate split = Distance 
                             (not $ stateHasAdjunction adjstate)
                             verb
-                            (stateAfterComma adjstate)
+                            
     where (verb, comma) = ((stateDisCache adjstate) (twInd $ stateHead adjstate, split))
                             
 
@@ -310,14 +335,17 @@ instance WFSM (AdjState (TAGProbs, Validity)) where
 instance FSMState (AdjState (TAGProbs,Validity)) where
     type FSMSymbol (AdjState (TAGProbs, Validity)) = Maybe (TAGWord)
     type FSMSemiring (AdjState (TAGProbs, Validity)) = ViterbiDerivation TAGDerivation
-    next = generalNext findSemiProbs
+    next = generalNext findSemiProbs validProbsComma
     isFinal = adjStateFinal  
+
+validCountComma adjstate child atype =
+    valid (stateModel adjstate) (stateHead adjstate) child (statePos adjstate) atype  
 
 findSemiCounts adjstate split child atype dis = 
     if not $ valid model head (maybeAdj child) pos atype then 
         Nothing
     else
-        Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child atype
+        Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child atype (twWord `liftM` waitingComma)
         where
           parent = mkParent head pos side atype dis 
           AdjState {stateSide  = side, 
@@ -326,7 +354,7 @@ findSemiCounts adjstate split child atype dis =
                     stateModel = model,
                     stateDisCache = discache,
                     stateHasAdjunction = hasAdj,
-                    stateAfterComma = afterComma
+                    stateWaitingComma = waitingComma
                     } = adjstate
 
 instance WFSM (AdjState TAGSentence) where 
@@ -336,5 +364,5 @@ instance WFSM (AdjState TAGSentence) where
 instance FSMState (AdjState TAGSentence)  where
     type FSMSymbol (AdjState TAGSentence) = Maybe (TAGWord)
     type FSMSemiring (AdjState TAGSentence) = Derivation TAGCounts 
-    next = generalNext findSemiCounts 
+    next = generalNext findSemiCounts validCountComma
     isFinal = adjStateFinal 

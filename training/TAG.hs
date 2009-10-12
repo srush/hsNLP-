@@ -86,6 +86,7 @@ data TAGWord = TAGWord {
       twWord  :: GWord,
       twIsVerb :: Bool,
       twIsComma :: Bool,
+      twIsConj :: Bool,
       twInd ::Int 
     }
                deriving (Ord, Show)
@@ -95,10 +96,10 @@ instance Eq TAGWord where
            where comp a = (twSpine a, twWord a) 
 
 mkTAGWord :: GWord -> Spine -> (Bool, Bool) -> Int -> TAGWord
-mkTAGWord (w,pos) s commas ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) ind
+mkTAGWord (w,pos) s commas ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) (isPOSConj pos) ind
 
 instance Pretty TAGWord where 
-    pPrint (TAGWord word spine _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
+    pPrint (TAGWord word spine _ _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
 
 -- instance Context GWord where 
 --     type Sub (GWord) = String
