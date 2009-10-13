@@ -41,7 +41,7 @@ data SpanEnd fsa =
       hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
       state :: Seal (State fsa), -- q1 and q2
       word  :: Sym fsa
-}  
+}
 
 instance (WFSM fsa) => Show (SpanEnd fsa) where 
     show end = intercalate " " 

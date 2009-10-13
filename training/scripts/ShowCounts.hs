@@ -130,7 +130,7 @@ parseSent counts spineCounts probs probSpine insent = (dep,
 
 
 globalThres n wher m =
-    M.filter (\p -> getBestScore p >= (n / 10000) ) $  m    
+    M.filter (\p -> getBestScore p >= n) $  m    
 
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 

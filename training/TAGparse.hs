@@ -169,7 +169,7 @@ initAdj model discache side tagword =
                     statePos = i,
                     stateDisCache = discache,
                     
-                    stateCurDelta = Start,
+                    stateCurDelta = startDelta,
                     stateIsAfterComma = False
                     --stateDistance = mempty{ numComma = case side of 
                     --                                    ALeft  -> if fst $ twNearComma $ tagword then OneComma else NoComma
@@ -216,11 +216,11 @@ tryEmpties findSemi split (adjstate, semi) = (adjstate, semi):
         case semi' of 
           Nothing -> []
           Just semi' -> 
-              if (stateCurDelta adjstate == PrevComma) then 
+              if (prevComma $ stateCurDelta adjstate) then 
                   []
               else
               tryEmpties findSemi split (adjstate {statePos = statePos adjstate + 1, 
-                                                   stateCurDelta = Start,
+                                                   stateCurDelta = startDelta,
                                                    stateIsAfterComma = False
                                                   }, 
                                          semi `times` semi')
@@ -243,34 +243,37 @@ generalNext findSemi validComma adjstate child split  =
                          s)]
                  
         else
-            if (stateIsAfterComma adjstate) && 
-              (not $ snd $ (stateDisCache adjstate) (twInd $ stateHead adjstate, split))  then
+            --if (stateIsAfterComma adjstate) && 
+            --  (not $ snd $ (stateDisCache adjstate) (twInd $ stateHead adjstate, split))  then
                --collins comma trick
                --trace ((show split)++ (show $ stateHead adjstate) ++ (show $ child) ) $ []
-                []
-            else 
+               -- []
+            --else 
             concatMap 
             (tryEmpties findSemi (split+ (if stateSide adjstate == ALeft then (-1) else 1) )) $ 
             catMaybes $
-            [ doOneAdj Sister  one $ mkDistance adjstate split,
-              doOneAdj Regular one $ mkDistance adjstate split -- {firstAdjunction = True,
+            [ doOneAdj Sister  $ mkDistance adjstate split,
+              doOneAdj Regular $ mkDistance adjstate split -- {firstAdjunction = True,
                                                                     --afterComma = False})
             ]              
         
-            where doOneAdj atype baseSemi dis =                           
+            where doOneAdj atype dis =                           
                           case findSemi adjstate split (DoAdj $ fromJust child) atype dis of
                             Nothing -> Nothing 
                             Just s -> Just (adjstate{stateCurDelta = newDelta,
-                                                     stateIsAfterComma = stateCurDelta adjstate == PrevComma
+                                                     stateIsAfterComma = prevComma oldDelta 
                                                      },
-                                            baseSemi `times` s)
+                                            s)
                               where   
                                 child' = fromJustNote "real" child
+                                oldDelta = stateCurDelta adjstate
                                 newDelta = if twIsComma child' then
-                                               PrevComma 
-                                           else if twIsConj child' then 
-                                               PrevCC
-                                           else PrevOther
+                                               oldDelta {prevComma = True} 
+                                          -- else if twIsConj child' then 
+                                          --     oldDelta {prevConj = True}
+                                           else Delta {prevComma = False,
+                                                      prevConj  = False,
+                                                       adjacent  = False}
 
 validProbsComma adjstate child atype =
     (snd $ stateModel adjstate) (stateHead adjstate) child (statePos adjstate) atype  
