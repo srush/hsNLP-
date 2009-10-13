@@ -1,3 +1,4 @@
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module NLP.Semiring.Viterbi where
 import NLP.Semiring
@@ -11,4 +12,7 @@ instance N One where
 type Viterbi semi = ViterbiNBest One semi
 
 mkViterbi v = ViterbiNBest [v]
+
+fromViterbi :: (Semiring semi) => Viterbi semi -> semi 
+fromViterbi (ViterbiNBest []) = mempty 
 fromViterbi (ViterbiNBest [v]) =  v

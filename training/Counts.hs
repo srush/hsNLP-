@@ -1,4 +1,5 @@
 module Counts where 
+import Prelude hiding (catch)
 import TAG
 import TAGparse 
 import NLP.ChartParse.Eisner
@@ -17,21 +18,23 @@ readTAG f = toTAGDependency `liftM` readSentence f
 showCount f = do
   t <- readTAG f
   let c = countTAG t
-  putStrLn $ render $ pPrint $ countTAG t
+  putStrLn $ render $ pPrint $ c
 
-countTAG dsent =
-    case semi of 
+
+countTAG dsent = case semi of 
         Nothing -> trace ("failed to parse" ++ show dsent) mempty -- throw $ AssertionFailed $ show dsent
         Just s -> fromDerivation s
+      
+    
     where 
       (TAGSentence sent _) = dsent
       ldiscache = mkDistCacheLeft sent
       rdiscache = mkDistCacheRight sent
-  --print sent
+ 
       getFSM i (Just word) =  (initAdj dsent ldiscache ALeft word,
                                initAdj dsent rdiscache ARight word)
       symbolConv word = Just word 
-      (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) 
+      (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i)
      
 
 

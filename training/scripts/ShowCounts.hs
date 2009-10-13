@@ -50,7 +50,7 @@ main = do
   let results = [  (b', b)
           | (_, (Just b', _) , _, (Just b, _)) <- map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
   
- -- print $ (head $ results)
+  --print $ fst $ (head $ results)
 
   mapM_ (\(a,b) ->  do
            let der1 = getBestDerivation a
@@ -96,10 +96,10 @@ main = do
 parseSent counts spineCounts probs probSpine insent = (dep, 
                                                        (Just b, chart),
                                                        (),
-                                                       eisnerParse (getFSM trivVal) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m))
+                                                       eisnerParse (getFSM trivVal True) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m))
     where dsent = toTAGDependency insent
           sc1 =  getBestScore b
-          (Just b, chart) = eisnerParse (getFSM prunVal) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m)
+          (Just b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m)
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
           ldiscache = mkDistCacheLeft actualsent
@@ -108,8 +108,8 @@ parseSent counts spineCounts probs probSpine insent = (dep,
           trivVal _ _ _ _ = True
           prunVal :: Validity
           prunVal = valid dsent
-          getFSM val i (Just word) =  (initAdj (probs, val) ldiscache ALeft word,
-                                       initAdj (probs, val) rdiscache ARight word)
+          getFSM val collins i (Just word) =  (initAdj (probs, val) ldiscache ALeft word collins,
+                                               initAdj (probs, val) rdiscache ARight word collins)
 
           symbolConv word = Just word 
                           

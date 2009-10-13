@@ -23,14 +23,14 @@ main = do
 readAndCount file1 file2 = do
   newsents <- getSentences file1
   print "ending parsing" 
-  let counts = parMap rwhnf countSome $ zip newsents [0..]
+  let counts =  parMap rwhnf countSome $ zip newsents [0..]
   --print counts
   print "count sets done"
   return $! mconcat counts
       where 
-        countSome (ls,n) = 
-            --do 
+        countSome (ls,n) =  
           --return $! 
           trace (show n) $ 
-          mconcat $ map (countTAG . toTAGDependency) ls 
+                mconcat $ map (countTAG . toTAGDependency) ls 
+        
             

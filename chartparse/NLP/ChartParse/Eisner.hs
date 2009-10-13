@@ -40,7 +40,8 @@ data SpanEnd fsa =
     SpanEnd {
       hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
       state :: Seal (State fsa), -- q1 and q2
-      word  :: Sym fsa
+      word  :: Sym fsa,
+      split :: Maybe Int
 }
 
 instance (WFSM fsa) => Show (SpanEnd fsa) where 
@@ -49,7 +50,7 @@ instance (WFSM fsa) => Show (SpanEnd fsa) where
                (show $ state end),
                (show $ word end)] 
 
-expandSpanEnd sp =  (hasParent sp, state sp, word sp)
+expandSpanEnd sp =  (hasParent sp, state sp, word sp, split sp)
 
 instance (WFSM fsa) => Eq (SpanEnd fsa) where 
     (==)  = (==) `on` expandSpanEnd
@@ -62,8 +63,8 @@ data Span fsa =
     Span {
       simple :: Bool, -- s
       leftEnd :: SpanEnd fsa,
-      rightEnd :: SpanEnd fsa,
-      midSplit :: Maybe (Int, Int) -- (currently indexed -fix) the "last" point in the span where this word is the head
+      rightEnd :: SpanEnd fsa
+      -- midSplit :: Maybe (Int, Int) -- (currently indexed -fix) the "last" point in the span where this word is the head
 } deriving (Eq, Ord) 
 
 
@@ -94,10 +95,11 @@ hasParentPair span =
 
 -- Advances an internal WFSM (equivalent in this model to "adjoining" a new
 -- dependency. 
-advance :: (WFSM fsa) => SpanEnd fsa -> Int -> Sym fsa -> 
+advance :: (WFSM fsa) => SpanEnd fsa  -> Sym fsa -> 
            [(SpanEnd fsa, Semi fsa)] 
-advance headSpan split nextWord  = do 
-    (newState, p) <- next (fromSeal $ state headSpan) nextWord split 
+advance headSpan nextWord  = do 
+    let split' = fromJustNote "split" $ split headSpan
+    (newState, p) <- next (fromSeal $ state headSpan) nextWord split' 
     return (headSpan {state = Open newState}, p) 
  
 
@@ -110,46 +112,58 @@ optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkL (span, semi) = do --trace "optLinkL" $ do
       (False, False) <- [hasParentPair span]
       (Open _)  <- [state $ leftEnd span]
-      (leftEnd', p) <- advance (leftEnd span) (fst $ fromJustNote "must be split" $ midSplit span) (word $ rightEnd span) 
+      (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span) 
+      let pfin = finish (fromSeal $ state $ rightEnd span) (fromJustNote "split" $ split $ rightEnd span) 
       return $ (span { simple = True, 
                        leftEnd = leftEnd',
-                       rightEnd = (rightEnd span) {hasParent = True},
-                       midSplit = Nothing
+                       rightEnd = (rightEnd span) {hasParent = True,
+                                                  split = Nothing,
+                                                  state = Sealed}
                      },
-               p `times` semi)
+               p `times` semi `times` pfin)
 
 
 optLinkR :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkR (span, semi) =  do --trace "optLinkR" $ do 
     (False, False) <- [hasParentPair span]
     (Open _)  <- [state $ rightEnd span]
-    (rightEnd', p) <- advance (rightEnd span) (snd $ fromJustNote "must be split" $ midSplit span) (word $ leftEnd span)   
-    return  $ (span {simple = True, 
-                      rightEnd = rightEnd',
-                      leftEnd = (leftEnd span) {hasParent = True},
-                      midSplit = Nothing
+    let pfin = finish (fromSeal $ state $  leftEnd span) (fromJustNote "split" $ split $ leftEnd span) 
+    (rightEnd', p) <- advance (rightEnd span)  (word $ leftEnd span)   
+    return $ (span {simple = True, 
+                    rightEnd = rightEnd',
+                    leftEnd = (leftEnd span) {hasParent = True,
+                                              split = Nothing,
+                                              state = Sealed}
                     },
-                p `times` semi)
+                p `times` pfin `times` semi)
 
 -- Combine rules take a right finished simple span 
 -- and merge it with a a left finished span. Producing a new span 
 -- that is ready for an optlink adjunction  
 combine :: (WFSM fsa) => DoubleDerivationRule (EItem fsa)
 combine (span1, semi1) (span2, semi2) = 
-    if simple span1 && (b2 /= b2') && f1 && f2 && fOuter && w1 == w2 then 
+    if simple span1 && (b2 /= b2') && f1 && f2 &&  w1 == w2 then 
              [(Span {simple = False,
-                    leftEnd = leftEnd span1,
-                    rightEnd = rightEnd span2,
-                    midSplit = --trace ((show $ midSplit span2) ++ (show $ midSplit span1)) $ 
-                               maybe (midSplit span2) Just (midSplit span1)  -- span1 is simple
+                    leftEnd = (leftEnd span1)   {split = leftSp},
+                    rightEnd = (rightEnd span2) {split = rightSp} 
                     },
-             semi1 `times` semi2)]
+             semi1 `times` semi2 `times` pfin )]
     else []
         where
-          ((_, b2), (b2', _)) =  (hasParentPair span1, hasParentPair span2)
-          f1 = isSealed $ state $ rightEnd span1
-          f2 = isSealed $ state $ leftEnd span2
-          fOuter = any (isSealed.state) [leftEnd span1, rightEnd span2] -- for faster O(t) speedup 
+          pfin = if (not b2') then -- _ 1 0 1
+                     finish (fromSeal $ state $ leftEnd  span2) (fromJustNote "fina" $ split $ leftEnd  span2)
+                  else if (not b2) then 
+                     finish (fromSeal $ state $ rightEnd span1) (fromJustNote "finb" $ split $ rightEnd  span1)   
+                  else one
+          (leftSp,rightSp) = if (not b1) && b2 then
+                                 (split $ leftEnd span2,  split $ rightEnd span2)
+                             else if not b3 && b2' then
+                                 (split $ leftEnd span1,  split $ rightEnd span1)
+                             else (Nothing, Nothing)
+          ((b1, b2), (b2', b3)) =  (hasParentPair span1, hasParentPair span2)
+          f1 = isStateFinal $ state $ rightEnd span1
+          f2 = isStateFinal $ state $ leftEnd span2
+          --fOuter = any (isSealed.state) [leftEnd span1, rightEnd span2] -- for faster O(t) speedup 
           w1 = word $ rightEnd span1
           w2 = word $ leftEnd span2
 
@@ -163,7 +177,8 @@ singleEnd i fsa word = do
     return $ (SpanEnd {                  
                  state = Open state,
                  word = word,
-                 hasParent = False
+                 hasParent = False,
+                 split = Just i
               }, 
              semi)
 
@@ -184,8 +199,7 @@ seed getFSA i sym1s sym2s = do
       return (Span {
                 leftEnd = span1,
                 rightEnd = span2,
-                simple = True,
-                midSplit = Just (i, i+1) 
+                simple = True
               }, 
               semi1 `times` semi2) 
     
@@ -201,7 +215,7 @@ seal (span, semi) =
                        rightEnd = trySeal $ rightEnd span} 
       trySeal spanEnd = 
               if isStateFinal $ state $ spanEnd then
-                  spanEnd { state = Sealed }
+                  spanEnd -- { state = Sealed }
               else spanEnd
                  
 
@@ -211,7 +225,7 @@ accept (span, _) =
         where
           b =  hasParentPair span
           f1 = isStateFinal (state $ rightEnd span)
-          f2 = isStateFinal (state $ leftEnd span)
+          f2 = isSealed (state $ leftEnd span)
 
 
 type GetFSM fsa = Int -> Sym fsa -> (fsa, fsa) --todo: fix this 

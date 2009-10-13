@@ -1,11 +1,11 @@
-{-# LANGUAGE TypeSynonymInstances, TypeFamilies, FlexibleInstances, DeriveDataTypeable, GeneralizedNewtypeDeriving, TemplateHaskell, FlexibleContexts #-}  
+{-# LANGUAGE TypeSynonymInstances, TypeFamilies, FlexibleInstances, DeriveDataTypeable, GeneralizedNewtypeDeriving, TemplateHaskell, FlexibleContexts, UndecidableInstances  #-}  
 module TAGparse where 
 
+import Common hiding (Derivation)
 import TAG 
 import Adjunction
 import Data.Monoid
-import Data.Maybe (fromJust, isJust)
-import Control.Monad (guard)
+import Data.Maybe (fromJust)
 import NLP.Semiring
 import NLP.Semiring.Derivation
 import NLP.Semiring.Prob
@@ -16,22 +16,15 @@ import NLP.FSM
 import NLP.ChartParse
 import NLP.ChartParse.Eisner
 import DependencyStructure
-import Data.Maybe (catMaybes, fromMaybe)
 import Control.Exception
-import Data.DeriveTH hiding (Derivation)
-import Data.Binary hiding (Word)
-import Control.Monad (liftM, ap)
-import Safe (fromJustNote, fromJustDef) 
-import Data.Function (on)
 import Sentence
-import Text.PrettyPrint.HughesPJClass
 import NonTerm
 import qualified Data.Map as M
 import qualified Data.Set as S
 import POS
 import Debug
 import Distance
-import Debug.Trace
+
 type SpineExist = M.Map POS (S.Set Spine)
 
 instance (Pretty d, Monoid d ) => Pretty (Derivation d) where
@@ -148,15 +141,18 @@ data AdjState model =
       --stateContext :: AdjunctionParent
 
       stateCurDelta :: Delta,
-      stateIsAfterComma :: Bool
+      stateIsAfterComma :: Bool,
+
+      stateCollinsRule :: Bool
 } 
 
 initAdj :: model ->
            DisCache ->
            AdjunctionSide ->
            TAGWord ->
+           Bool -> 
            AdjState model 
-initAdj model discache side tagword = 
+initAdj model discache side tagword collins = 
     fromJustNote "nonblank" $ mkEmpty 0 $ lastOfSpine $ twSpine tagword
     where 
       mkEmpty i last = 
@@ -170,7 +166,9 @@ initAdj model discache side tagword =
                     stateDisCache = discache,
                     
                     stateCurDelta = startDelta,
-                    stateIsAfterComma = False
+                    stateIsAfterComma = False,
+
+                    stateCollinsRule = collins
                     --stateDistance = mempty{ numComma = case side of 
                     --                                    ALeft  -> if fst $ twNearComma $ tagword then OneComma else NoComma
                     --                                    ARight -> if snd $ twNearComma $ tagword then OneComma else NoComma},
@@ -206,80 +204,87 @@ instance Ord (AdjState a) where
     {-# INLINE compare #-}
     compare = compare `on` expandAdjState
 
-instance Show (AdjState a) where 
-    show = show . statePos
 
 
-tryEmpties findSemi split (adjstate, semi) = (adjstate, semi):
-    if isFinal adjstate then [] 
+tryEmpties findSemi split fin (adjstate, semi) = (adjstate, semi):
+    if (statePos adjstate + (if fin then 0 else 1)) >= (lastOfSpine $ twSpine $ stateHead adjstate) then [] 
     else
         case semi' of 
           Nothing -> []
           Just semi' -> 
-              if (prevComma $ stateCurDelta adjstate) then 
+              if (prevComma $ stateCurDelta adjstate) || 
+                 (stateCollinsRule adjstate &&
+                  ((stateIsAfterComma adjstate) && 
+                   (not $ snd $ (stateDisCache adjstate) (twInd $ stateHead adjstate, split))))
+              then 
                   []
               else
-              tryEmpties findSemi split (adjstate {statePos = statePos adjstate + 1, 
+
+                  tryEmpties findSemi split fin (adjstate {statePos = statePos adjstate + 1, 
                                                    stateCurDelta = startDelta,
                                                    stateIsAfterComma = False
                                                   }, 
                                          semi `times` semi')
         where
-          semi' = findSemi adjstate split End Sister (mkDistance adjstate split)
+          semi' = findSemi adjstate End Sister (mkDistance adjstate split)
           
+
+generalFinish findSemi adjstate split  = --trace (show adjstate) $
+    if curPos == lastPos then semi else mempty
+    where  (endstate, semi) = last $ tryEmpties findSemi split True (adjstate, one)
+           lastPos =  lastOfSpine $ twSpine $ stateHead endstate
+           curPos = statePos endstate
 -- generalNext :: (Semiring semi, FSMState (AdjState a) ) => 
 --                (AdjState a -> Int -> AdjunctionAction (TAGWord) -> AdjunctionType -> Distance -> Maybe semi) -> 
 --                (AdjState a) ->  
 --                (Maybe (TAGWord)) ->
 --                Int -> --huge hack!
 --                [(AdjState a, semi)] 
-generalNext findSemi validComma adjstate child split  = 
-        if isFinal adjstate then [] 
-        else if stateNT adjstate == rootNT then
-                 case findSemi adjstate split (DoAdj $ fromJustNote "its good" child) Sister (mkDistance adjstate split) of 
-                   Nothing -> []
-                   Just s -> 
-                       [(adjstate {statePos = statePos adjstate + 1}, 
-                         s)]
+generalNext findSemi adjstate child split  = 
+    if (statePos adjstate) >= (lastOfSpine $ twSpine $ stateHead adjstate)  then [] 
+       
+    else if stateNT adjstate == rootNT then
+             case findSemi adjstate (DoAdj $ fromJustNote "its good" child) Sister (mkDistance adjstate split) of 
+               Nothing -> []
+               Just s -> 
+                   [(adjstate {statePos = (statePos adjstate) + 1} , s)]
                  
-        else
-            --if (stateIsAfterComma adjstate) && 
-            --  (not $ snd $ (stateDisCache adjstate) (twInd $ stateHead adjstate, split))  then
-               --collins comma trick
-               --trace ((show split)++ (show $ stateHead adjstate) ++ (show $ child) ) $ []
-               -- []
-            --else 
-            concatMap 
-            (tryEmpties findSemi (split+ (if stateSide adjstate == ALeft then (-1) else 1) )) $ 
-            catMaybes $
-            [ doOneAdj Sister  $ mkDistance adjstate split,
-              doOneAdj Regular $ mkDistance adjstate split -- {firstAdjunction = True,
-                                                                    --afterComma = False})
-            ]              
-        
-            where doOneAdj atype dis =                           
-                          case findSemi adjstate split (DoAdj $ fromJust child) atype dis of
-                            Nothing -> Nothing 
-                            Just s -> Just (adjstate{stateCurDelta = newDelta,
-                                                     stateIsAfterComma = prevComma oldDelta 
-                                                     },
-                                            s)
-                              where   
-                                child' = fromJustNote "real" child
-                                oldDelta = stateCurDelta adjstate
-                                newDelta = if twIsComma child' then
-                                               oldDelta {prevComma = True} 
-                                          -- else if twIsConj child' then 
-                                          --     oldDelta {prevConj = True}
-                                           else Delta {prevComma = False,
-                                                      prevConj  = False,
-                                                       adjacent  = False}
+   else
+      if stateCollinsRule adjstate &&
+         stateIsAfterComma adjstate && 
+         (not $ snd $ (stateDisCache adjstate) (twInd $ stateHead adjstate, split))  then
+       --collins comma trick
+       --trace ((show split)++ (show $ stateHead adjstate) ++ (show $ child) ) $ []
+        []
+      else
+           catMaybes $ do 
+             (adjstate',semi) <- tryEmpties findSemi split False (adjstate, one)
+             atype <- [Sister, Regular]
+             return $  doOneAdj findSemi semi  adjstate' child atype $ mkDistance adjstate' split
+            
+
+doOneAdj findSemi baseSemi adjstate child atype dis =                           
+    case findSemi adjstate (DoAdj $ fromJust child) atype dis of
+      Nothing -> Nothing 
+      Just s -> Just (adjstate{stateCurDelta = newDelta,
+                               stateIsAfterComma = prevComma oldDelta 
+                              }, baseSemi `times` s)
+          where   
+            child' = fromJustNote "real" child
+            oldDelta = stateCurDelta adjstate
+            newDelta = if twIsComma child' then
+                           oldDelta {prevComma = True} 
+                       else if twIsConj child' then 
+                            oldDelta {prevConj = True}
+                       else Delta {prevComma = False,
+                                   prevConj  = False,
+                                   adjacent  = False}
 
 validProbsComma adjstate child atype =
     (snd $ stateModel adjstate) (stateHead adjstate) child (statePos adjstate) atype  
 
 
-findSemiProbs adjstate split child atype vdis = 
+findSemiProbs adjstate child atype vdis = 
     if not $ valid head (maybeAdj child) pos atype then 
         Nothing
     else 
@@ -290,10 +295,8 @@ findSemiProbs adjstate split child atype vdis =
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
              DoAdj child' ->
                  viterbiHelp p
-                      (
-                         singletonDep (twInd head) (twInd child') $ 
-                          (AdjunctionInfo pos atype (mkDerivationCell child')),  
-                          
+                      (singletonDep (twInd head) (twInd child') $ 
+                          (AdjunctionInfo pos atype (mkDerivationCell child')),   
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
           parent =  mkParent head pos side atype vdis curDelta 
@@ -319,24 +322,25 @@ data  TAGTree a =  TAGTree {leftForest :: AdjState a,
                             rootWord :: TAGWord, 
                             rightForest :: AdjState a}
                 deriving (Show, Eq, Ord)
-adjStateFinal adjstate = statePos adjstate == (lastOfSpine $ twSpine $ stateHead adjstate) 
+adjStateFinal adjstate = statePos adjstate >= ((lastOfSpine $ twSpine $ stateHead adjstate) - 1) 
 
 type Validity = TAGWord -> (Maybe TAGWord) -> Int -> AdjunctionType -> Bool
 
 instance WFSM (AdjState (TAGProbs, Validity)) where 
     type State (AdjState (TAGProbs, Validity)) = (AdjState (TAGProbs, Validity)) 
-    initialState init = tryEmpties findSemiProbs (twInd $ stateHead init)  (init, one)
+    initialState init = [(init, one)]
 
 instance FSMState (AdjState (TAGProbs,Validity)) where
     type FSMSymbol (AdjState (TAGProbs, Validity)) = Maybe (TAGWord)
     type FSMSemiring (AdjState (TAGProbs, Validity)) = ViterbiDerivation TAGDerivation
-    next = generalNext findSemiProbs validProbsComma
-    isFinal = adjStateFinal  
+    next = generalNext findSemiProbs 
+    finish = generalFinish findSemiProbs       
+    isFinal = const True  
 
 validCountComma adjstate child atype =
     valid (stateModel adjstate) (stateHead adjstate) child (statePos adjstate) atype  
 
-findSemiCounts adjstate split child atype vdis = 
+findSemiCounts adjstate child atype vdis = 
     if not $ valid model head (maybeAdj child) pos atype then 
         Nothing
     else
@@ -353,10 +357,13 @@ findSemiCounts adjstate split child atype vdis =
 
 instance WFSM (AdjState TAGSentence) where 
     type State (AdjState TAGSentence) = (AdjState TAGSentence) 
-    initialState init = tryEmpties findSemiCounts (twInd $ stateHead init) (init, one)
+    initialState init = [(init, one)]
 
 instance FSMState (AdjState TAGSentence)  where
     type FSMSymbol (AdjState TAGSentence) = Maybe (TAGWord)
     type FSMSemiring (AdjState TAGSentence) = Derivation TAGCounts 
-    next = generalNext findSemiCounts validCountComma
-    isFinal = adjStateFinal 
+    next = generalNext findSemiCounts 
+    isFinal = const True
+    finish = generalFinish findSemiCounts 
+instance Show (AdjState a) where 
+    show s = (show $ statePos s) ++ (show $ ((lastOfSpine $ twSpine $ stateHead s) - 1) )

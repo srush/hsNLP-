@@ -7,7 +7,7 @@ import Data.Binary
 import Data.DeriveTH hiding (Derivation)
 import TAG
 import Sentence 
-import Safe (fromJustNote)
+import Safe (fromJustNote, fromJustDef)
 import qualified Data.Map as M
 import Text.PrettyPrint.HughesPJClass
 import Text.Printf
@@ -19,7 +19,7 @@ type DisCache = (Int,Int) -> (Bool,Bool)
 mkDistCacheRight :: (SentenceLattice sent, Symbol sent ~ TAGWord) => sent -> DisCache 
 mkDistCacheRight sent = \i -> case i of
                                 (_, k ) | k == n +1 -> (False,True)
-                                _ -> fromJustNote ("not cached" ++ show i) $ M.lookup i m 
+                                _ -> fromJustDef (False, False)  $ M.lookup i m 
     where m = M.fromList $ do
                 i <- [1..n] 
                 k <- [i..n]
@@ -35,7 +35,7 @@ mkDistCacheRight sent = \i -> case i of
 mkDistCacheLeft :: (SentenceLattice sent, Symbol sent ~ TAGWord) => sent -> DisCache 
 mkDistCacheLeft sent = \i -> case i of
                                 (_, k ) | k == n +1 -> (False,True)
-                                _ -> fromJustNote ("not cached" ++ show i) $ M.lookup i m
+                                _ -> fromJustDef (False, False) $ M.lookup i m
     where m = M.fromList $ do
                 i <- [n,n-1..1] 
                 k <- [i, i-1..1]
@@ -72,7 +72,10 @@ data Delta = Delta {
       prevConj :: Bool,
       adjacent :: Bool
     }  
-   deriving (Show, Eq, Ord, Bounded) 
+   deriving (Eq, Ord, Bounded)
+ 
+instance Show Delta where 
+    show (Delta a b c) = show (a,b,c)
 
 deltaMap = BM.fromList $ zip [0..] [
             Delta a b c | 
