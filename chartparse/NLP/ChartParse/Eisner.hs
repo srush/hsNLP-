@@ -150,9 +150,9 @@ combine (span1, semi1) (span2, semi2) =
              semi1 `times` semi2 `times` pfin )]
     else []
         where
-          pfin = if (not b2') then -- _ 1 0 1
+          pfin = if not b2' then -- _ 1 0 1
                      finish (fromSeal $ state $ leftEnd  span2) (fromJustNote "fina" $ split $ leftEnd  span2)
-                  else if (not b2) then 
+                  else if not b2 then 
                      finish (fromSeal $ state $ rightEnd span1) (fromJustNote "finb" $ split $ rightEnd  span1)   
                   else one
           (leftSp,rightSp) = if (not b1) && b2 then
@@ -237,8 +237,7 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
                Range -> -- Size of the cell 
                (Range -> [EItem fsa]) -> -- function from cell to contenst 
                [EItem fsa] -- contents of the new cell 
-processCell getFSA sentence wordConv (i, k) chart = catMaybes $ map seal $ concat $ 
-    -- trace(show (i,k)) $! 
+processCell getFSA sentence wordConv (i, k) chart = catMaybes $ map seal $ concat $  
     if k-i == 1 then
         (let seedCells = seed getFSA i 
                         (map wordConv $ getWords sentence i) 

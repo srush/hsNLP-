@@ -23,7 +23,9 @@ showCount f = do
 
 countTAG dsent = case semi of 
         Nothing -> trace ("failed to parse" ++ show dsent) mempty -- throw $ AssertionFailed $ show dsent
-        Just s -> fromDerivation s
+        Just s -> case s of 
+                    (Derivation (Just m)) -> m
+                    (Derivation (Nothing)) -> trace ("no derivation" ++ show dsent) mempty
       
     
     where 
@@ -31,8 +33,8 @@ countTAG dsent = case semi of
       ldiscache = mkDistCacheLeft sent
       rdiscache = mkDistCacheRight sent
  
-      getFSM i (Just word) =  (initAdj dsent ldiscache ALeft word,
-                               initAdj dsent rdiscache ARight word)
+      getFSM i (Just word) =  (initAdj dsent ldiscache ALeft  word False,
+                               initAdj dsent rdiscache ARight word False )
       symbolConv word = Just word 
       (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i)
      

@@ -34,9 +34,9 @@ countSpine tagword =
      )
 
 probSpine (udist, cdist) tagword =
-    (prob udist $ twWord tagword) * (prob (cond cdist $ twWord tagword) $ twSpine tagword)
-
-
+    p * (prob (cond cdist $ twWord tagword) $ twSpine tagword)
+        where p' = (prob udist $ twWord tagword)
+              p = if isNaN p' then (1e-19) else max p' (1e-19) 
 estimatePrior :: PriorObs -> PriorProbs
 estimatePrior (ucounts, ccounts) = (estimateMLE ucounts, 
                                     estimateLinear [0.7, 0.3] ccounts) 

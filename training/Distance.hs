@@ -40,11 +40,7 @@ mkDistCacheLeft sent = \i -> case i of
                 i <- [n,n-1..1] 
                 k <- [i, i-1..1]
                 let dis = (or [twIsVerb $ head $ getWords sent j | j<-[i-1, i-2..k]] ,
-                           (k-1 == 0) 
-                           || (twIsConj $ head $ getWords sent (k)) 
-                           || (twIsConj $ head $ getWords sent (k-1)) 
-                           || (twIsComma $ head $ getWords sent (k)) 
-                           || (twIsComma $ head $ getWords sent (k-1)))
+                           True)
                 return $ ((i,k), dis)
           n = sentenceLength sent
 

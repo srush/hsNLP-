@@ -1,5 +1,5 @@
 {-# LANGUAGE  GeneralizedNewtypeDeriving, TemplateHaskell #-}
-module POS (mkPOS, isPOSVerb, isPOSPunc, isPOSComma, isPOSConj, POS)  where 
+module POS (mkPOS, isPOSVerb, isPOSPunc, isPOSComma, isPOSConj, isPOSPossessive, POS)  where 
 import qualified Data.Bimap as BM
 import qualified Data.Set as S
 import Common
@@ -47,3 +47,6 @@ isPOSPunc (POSWrap pos) = S.member pos puncSet
 
 conjSet = S.fromList [CC]
 isPOSConj (POSWrap pos) =  S.member pos conjSet
+
+posSet = S.fromList [POS]
+isPOSPossessive (POSWrap pos) =  S.member pos posSet

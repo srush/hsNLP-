@@ -95,8 +95,8 @@ instance Eq TAGWord where
     (==) = (==) `on` comp
            where comp a = (twSpine a, twWord a) 
 
-mkTAGWord :: GWord -> Spine -> (Bool, Bool) -> Int -> TAGWord
-mkTAGWord (w,pos) s commas ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) (isPOSConj pos && ((lastOfSpine s) == 0)) ind
+mkTAGWord :: GWord -> Spine -> Int -> TAGWord
+mkTAGWord (w,pos) s ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) (isPOSConj pos) ind
 
 instance Pretty TAGWord where 
     pPrint (TAGWord word spine _ _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
@@ -118,7 +118,7 @@ valid (TAGSentence sent dep) head child pos atype =
     case child of 
       Nothing -> True
       Just child' -> (not $ isRoot child') && (h == twInd head) && (pos == pos') && (atype == atype')
-          where (DEdge h (AdjunctionInfo pos' atype' _)) = getHead dep $ twInd child'
+          where (DEdge h (AdjunctionInfo pos' atype' _)) = fromJustNote ("no head" ++ (show sent)) $ getHead dep $ twInd child'
 
 
 convertToTree tagsent = head n  
@@ -138,14 +138,18 @@ convertToTree tagsent = head n
                   where  (_, (left, right)) = flat !! ((twInd tw) -1)
                          atSpos = map (\ainfo -> (getWord sent $ adjPos ainfo)). catMaybes.  
                                   fromMaybe [] . lookup spos . alignWithSpine (twSpine tw)
+
+
+
+
 mkTagWords words = 
     mkSentence $ newWords
-               where newWords = map (\(i, (a,b,c)) -> mkTAGWord a b c i) $ zip [1..] words
+               where newWords = map (\(i, (a,b)) -> mkTAGWord a b i) $ zip [1..] words
 
 
 rootNT = mkNonTerm "ROOT"
 instance WordSym TAGWord where
-    root i = mkTAGWord (root i) (mkSpine [rootNT]) (False, False) i
+    root i = mkTAGWord (root i) (mkSpine [rootNT]) i
     isRoot = isRoot . twWord 
 instance Arbitrary TAGSentence where 
     arbitrary = do

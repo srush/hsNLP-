@@ -1,10 +1,10 @@
 {-# LANGUAGE  GeneralizedNewtypeDeriving, TemplateHaskell #-}
-module NonTerm (NonTerm, mkNonTerm, fromPOS, Spine(..), last, mkSpine, top, lastOfSpine, getNonTerm, lookupNonTerm)  where 
+module NonTerm (NonTerm, mkNonTerm, fromPOS, Spine(..), last, mkSpine, top, lastOfSpine, getNonTerm, lookupNonTerm, hasNP, posNP, addNPB, isNPB, hasNPorNPCC)  where 
 import POS 
 import EnumHelpers
 import Common
-
-data PureNonTerm =  ADJP | ADJP_CC | ADVP | ADVP_CC | CONJP | FRAG | FRAG_CC | INTJ | INTJ_CC | LST | NAC | NAC_CC | NP | NP_CC | NX | NX_CC | PP | PP_CC | PRN | PRN_CC | PRT | PRT_CC | QP | QP_CC | RRC | RRC_CC | S | SBAR | SBARQ | SBARQ_CC | SBAR_CC | SINV | SINV_CC | SQ | SQ_CC | S_CC | UCP | UCP_CC | VP | VP_CC | WHADJP | WHADJP_CC | WHADVP | WHADVP_CC | WHNP | WHNP_CC | WHPP | X | X_CC | ROOT 
+import Data.List (elemIndex)
+data PureNonTerm =  ADJP | ADJP_CC | ADVP | ADVP_CC | CONJP | FRAG | FRAG_CC | INTJ | INTJ_CC | LST | NAC | NAC_CC | NP | NP_CC | NX | NX_CC | PP | PP_CC | PRN | PRN_CC | PRT | PRT_CC | QP | QP_CC | RRC | RRC_CC | S | SBAR | SBARQ | SBARQ_CC | SBAR_CC | SINV | SINV_CC | SQ | SQ_CC | S_CC | UCP | UCP_CC | VP | VP_CC | WHADJP | WHADJP_CC | WHADVP | WHADVP_CC | WHNP | WHNP_CC | WHPP | X | X_CC | NPB | ROOT 
     deriving (Read, Show, Eq, Ord, Enum, Bounded)
 
 data NonTerm = NonTermWrap PureNonTerm | NTPOS POS  
@@ -78,6 +78,17 @@ lastOfSpine (Spine nts _) = length nts
 
 getNonTerm i (Spine nts _) = atNote "getNonTerm" nts i
 
+
+hasNP (Spine spine _) = any ((==) (NonTermWrap NP)) spine
+hasNPorNPCC (Spine spine _) = any (\nt -> (nt == (NonTermWrap NP)) || (nt == (NonTermWrap NP_CC))) spine
+posNP (Spine spine _) = fromJustNote "posnp" $ elemIndex (NonTermWrap NP) spine
+
+
+addNPB s@(Spine spine _) = mkSpine (take pos spine ++ [NonTermWrap NPB] ++ drop pos spine) 
+    where pos = posNP s
+
+isNPB (NonTermWrap NPB) = True
+isNPB _ = False
 
 lookupNonTerm i (Spine nts _) =
     if i >= length nts || i < 0 then Nothing

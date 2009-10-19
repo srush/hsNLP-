@@ -49,7 +49,7 @@ data CondDistribution event context = CondDistribution {
 
 probMLE :: (Enum event) => event -> ExtraObserved event -> Double
 probMLE ev exobs =
-    --assert (total > 0) $  
+    --assert (total > 0) $
     (IM.findWithDefault 0.0 (fromEnum ev) c) / total
     where c = counts $ eoObserved exobs 
           total = eoTotal exobs   
@@ -90,7 +90,7 @@ estimateWittenBell_ cstat =
       
             
   --    wittenBell :: (Enum event) => [ExtraObserved event] -> event -> Double
-      wittenBell [last] event mult =  if eoTotal last > 0 then [(mult, probMLE event last)] else [(0.0,0.0)]  
+      wittenBell [] event mult =  [(mult, 1e-19)]
       wittenBell (cur:ls) event mult =  --trace ((show cur) ++ show l) $  
           if eoTotal cur > 0 then (l*mult, (probMLE  event cur)) : wittenBell ls event ((1-l)*mult) 
           else wittenBell ls event mult  
@@ -112,10 +112,12 @@ estimateLinear_ interpolation cstat =
     where
       --conFun :: (Context context, Enum event) => context -> Distribution event
       conFun context = (Distribution $ \event ->  
-                             sum $ zipWith (*) interpolation $ map (probMLE event) stats  
+                             sum $ zipWith (*) interpolation $ map (probE event) stats  
                        ) 
           where stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat)  $ reverse $  
                         tail $ inits $ decompose context
+                probE event dist = if isNaN p then 0.0 else p
+                    where p = probMLE event dist  
                
 
 

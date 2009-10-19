@@ -56,7 +56,7 @@ covers m i = (minimum children, maximum children)
    
 singletonDep head child info = Dependency $ M.singleton child (DEdge head info)
 
-getHead (Dependency m) i =  fromJustNote "no head" $ M.lookup i m 
+getHead (Dependency m) i =   M.lookup i m 
 
 arbDepMap :: Int -> (Int -> Gen info) -> Gen (Dependency info)      
 arbDepMap n arbInfo = do       

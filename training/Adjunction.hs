@@ -363,18 +363,19 @@ mkAdjunctionEvents End _ = (End, End, End)
 
 
 
-mkMainAdjunctionContext (TAGWord headSpine (headWord, headPOS) _ _ _ _) pos verbDis delta side atype =    mkAdjCon1 
+mkMainAdjunctionContext (TAGWord headSpine (headGWord) _ _ _ _) npblast pos verbDis delta side atype =    mkAdjCon1 
     (getNonTerm pos headSpine)
-    (fromJustDef (fromPOS headPOS) $ 
+    (fromJustDef (fromPOS $ snd headGWord) $ 
       lookupNonTerm (pos-1) headSpine) -- H
     delta    
-    verbDis
-    
-    (headPOS)
-    (headWord)
+    verbDis'
+    headPOS'    
+    headWord'
     side
     atype
-
+        where ((headWord', headPOS'), verbDis') = case npblast of 
+                                      Just a  -> (a, VerbDistance False)
+                                      Nothing -> (headGWord, verbDis)
 
     
 mkAdjunctionContexts ::
@@ -538,12 +539,12 @@ instance Pretty ProbDebug where
 
           ) 
 
-mkParent:: TAGWord -> Int -> AdjunctionSide -> AdjunctionType ->     
+mkParent:: TAGWord -> Maybe GWord -> Int -> AdjunctionSide -> AdjunctionType ->     
            VerbDistance -> Delta ->
 
             AdjunctionParent
-mkParent head pos side atype distance delta   = 
-    (side, mkMainAdjunctionContext head pos distance delta side atype)
+mkParent head npblast pos side atype distance delta   = 
+    (side, mkMainAdjunctionContext head npblast pos distance delta side atype)
 
 mkAdjunction :: 
     AdjunctionParent ->
