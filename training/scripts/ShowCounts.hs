@@ -41,18 +41,20 @@ main = do
   let probSpine = estimatePrior spineCounts2
   --print counts
   let probs = estimateTAGProb (counts::TAGCounts)
+  
   contents <- readFile testFile
   hSetBuffering stdout NoBuffering
   let sents =  map (parseSentence testFile. unlines) $ 
                separate "" $ lines contents
                         --print sents
   --print sents
-  let results = [  ((b', b), n)
-          | (n, (_, (Just b', _) , _, (Just b, _))) <- zip [1..] $ map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
   
-  --print $! fst $ (head $ results)
+  let results = [  ((b', b),chart)
+          | (n, (_, (Just b', _) , _, (Just b, chart))) <- zip [1..] $ map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
+  
+  putStrLn $ chartStats $ snd $ head results
 
-  mapM_ (\((a,b),n) ->  do
+  mapM_ (\((a,b),_) ->  do
            let der1 = getBestDerivation a
            let der2 = getBestDerivation b
            let (Prob sc1) = getBestScore a
@@ -73,10 +75,10 @@ main = do
            putStrLn $ show ldiff
            putStrLn $ st1
            putStrLn $ st2
-           putStrLn $ show $ getBestDerivation b
+           --putStrLn $ show $ getBestDerivation b
 
-           putStrLn $ ("G" ++ show n ++ " " ++ (show $ tagDerToTree der1))
-           putStrLn $ ("T" ++ show n ++ " " ++ (show $ tagDerToTree der2))) results
+           putStrLn $ ("G" ++ " " ++ (show $ tagDerToTree der1))
+           putStrLn $ ("T" ++ " " ++ (show $ tagDerToTree der2))) results
 
       --print "The fixed parse answer"
   --putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation b'''))
@@ -101,8 +103,9 @@ parseSent counts spineCounts probs probSpine insent =
      (Just b', chart'))
     where dsent = toTAGDependency insent
           sc1 =  getBestScore b
-          (Just b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m)
+          (Just b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m) id
           (Just b',chart')= eisnerParse (getFSM trivVal True) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
+                            (globalThresOne probSpine sc1)
           (TAGSentence actualsent dep) = dsent
           sent = toTAGTest spineCounts insent   
           ldiscache = mkDistCacheLeft actualsent
@@ -135,6 +138,24 @@ parseSent counts spineCounts probs probSpine insent =
 globalThres n wher m =
     M.filter (\p -> getBestScore p >= n/100000) $  m    
 
+globalThresOne probs (Prob n) ps =  
+    filter (\p -> score p >= (n/100000) && score p >= (best/10000))  ps  
+        where
+          score p = getFOM probs p 
+          best = case  map (getFOM probs) ps of
+               [] -> 0.0
+               ls -> maximum $ ls
+
+
+
+getFOM probs (sig, semi) = getPrior sig * getInside semi 
+    where
+      getProb = probSpine probs 
+      getPrior sig = (if hasParent $ leftEnd sig then 1.0 else (prior getProb $ EI.word $ leftEnd sig)) * 
+               (if hasParent $ rightEnd sig then 1.0 else (prior getProb $ EI.word $ rightEnd sig)) 
+      getInside i  =  p
+          where (Prob p) = getBestScore i 
+
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 
 --                     M.Map sig (ViterbiDerivation TAGDerivation)  
@@ -144,37 +165,32 @@ prune probs wher m =
      where 
       s = M.filterWithKey (\sig semi -> ( -- getFOM (sig,semi)) > (best / 10000) --
                                          if hasNoAdjoin (sig,semi) then
-                                             getFOM (sig,semi) >= (bestNH / 10000) || isNaN bestNH 
+                                             getFOM probs (sig,semi) >= (bestNH / 10000) || isNaN bestNH 
                                          else if hasAdjoinL (sig,semi) then
-                                             getFOM (sig,semi) >= (bestL / 10000) || isNaN bestL
+                                             getFOM probs (sig,semi) >= (bestL / 10000) || isNaN bestL
                                          else if hasAdjoinR (sig,semi) then
-                                             getFOM (sig,semi) >= (bestR / 10000) || isNaN bestR 
+                                             getFOM probs (sig,semi) >= (bestR / 10000) || isNaN bestR 
                                         else True)
                                         --    (getFOM (sig,semi)) > (bestH / 50000)
                                         --else  (getFOM (sig,semi)) > (bestNH / 50000)
                           ) m    
       --p' = M.filter (\(_,fom) -> fom >= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       --p = M.filter (\(_,fom) -> fom <= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
-      getProb = probSpine probs 
-      getPrior sig = (if hasParent $ leftEnd sig then 1.0 else (prior getProb $ EI.word $ leftEnd sig)) * 
-                     (if hasParent $ rightEnd sig then 1.0 else (prior getProb $ EI.word $ rightEnd sig)) 
-      getInside i  =  p
-          where (Prob p) = getBestScore i 
-      getFOM (sig, semi) = getPrior sig * getInside semi 
+
       hasNoAdjoin (sig, semi) = hasParentPair sig == (False, False) 
       hasAdjoinL (sig, semi) = hasParentPair sig == (True, False) 
       hasAdjoinR (sig, semi) = hasParentPair sig == (False, True) 
-      best = case  map getFOM $ M.toList m of
+      best = case  map (getFOM probs )$ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls
-      bestL = case  map getFOM $ filter hasAdjoinL $ M.toList m of
+      bestL = case  map (getFOM probs) $ filter hasAdjoinL $ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls
-      bestR = case  map getFOM $ filter hasAdjoinR $ M.toList m of
+      bestR = case  map (getFOM probs) $ filter hasAdjoinR $ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls
 
-      bestNH = case  map getFOM $ filter hasNoAdjoin $ M.toList m of
+      bestNH = case  map (getFOM probs) $ filter hasNoAdjoin $ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls
 

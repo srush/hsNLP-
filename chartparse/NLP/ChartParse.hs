@@ -10,6 +10,8 @@ import Text.Printf
 import Safe (fromJustNote)
 import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass
+import Debug.Trace
+
 -- a distance from start to finish. Sometimes called a span 
 -- but use range here to distinguish Eisner's use of span
 type Range = (Int, Int) 
@@ -35,6 +37,12 @@ instance (Pretty sig, Pretty semi) => Pretty (Cell sig semi) where
 
 newtype Chart sig semi = Chart (M.Map (Int, Int) (Cell sig semi))
 type Item sig semi = (sig, semi)
+
+chartStats :: Chart sig semi -> String 
+chartStats (Chart m) = intercalate "\n" $ do
+  (r, Cell cell)<- M.toList m
+  return $ (show r) ++ ": " ++ (show $ M.size cell) 
+   
 
 chartLookup :: Range -> Chart sig semi -> Maybe [(sig, semi)] 
 chartLookup pos (Chart chart) = do 
@@ -63,16 +71,17 @@ class SentenceLattice a  where
 -- A basic mono-lingual chart parser. 
 chartParse :: (Semiring semi, Ord sig, SentenceLattice sent) => 
               sent ->
-              (Range -> (Range -> [Item sig semi]) -> [Item sig semi]) -> 
+              (Range -> (Range -> [Item sig semi]) -> ([Item sig semi] -> [Item sig semi]) -> [Item sig semi]) -> 
               (Range -> M.Map sig semi -> M.Map sig semi) -> 
+              ([Item sig semi] -> [Item sig semi]) -> 
               Chart sig semi 
-chartParse sent combine prune = Chart chart 
+chartParse sent combine prune beam  = Chart chart 
     where 
       n = sentenceLength sent
       chart = M.fromList $
 
               [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ 
-                combine (i,k) (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
+                combine (i,k) (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart) beam)
                    | d <- [1..n], 
                      i <- [1..n],
                      let k = i + d,

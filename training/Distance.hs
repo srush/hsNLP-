@@ -86,8 +86,16 @@ startDelta = Delta {
                adjacent = True
              }
 
-instance Enum Delta where 
-    fromEnum d = fromJustNote "delta" $ BM.lookupR d deltaMap
+instance Enum Delta where
+    {-# INLINE fromEnum #-} 
+    fromEnum (Delta False False False) = 0 
+    fromEnum (Delta False False True)  = 1
+    fromEnum (Delta False True False)  = 2
+    fromEnum (Delta False True True)   = 3
+    fromEnum (Delta True  False False) = 4 
+    fromEnum (Delta True  False True)  = 5 
+    fromEnum (Delta True  True False)  = 6
+    fromEnum (Delta True  True True)   = 7 
     toEnum n =  fromJustNote "delta" $ BM.lookup n deltaMap
 
 instance Pretty Delta where 

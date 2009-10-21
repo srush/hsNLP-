@@ -12,6 +12,8 @@ import NonTerm
 import Word 
 import POS
 import qualified Data.Map as M
+import System.IO.Unsafe
+import Data.IORef
 
 type PriorObs = (Observed GWord,
                  CondObserved Spine GWord)
@@ -33,10 +35,24 @@ countSpine tagword =
      singletonObservation (twSpine tagword) $ twWord tagword 
      )
 
-probSpine (udist, cdist) tagword =
-    p * (prob (cond cdist $ twWord tagword) $ twSpine tagword)
-        where p' = (prob udist $ twWord tagword)
-              p = if isNaN p' then (1e-19) else max p' (1e-19) 
+probSpine (udist, cdist) =
+    subProb'
+
+        where 
+          subProb tagword = p * (prob (cond cdist $ twWord tagword) $ twSpine tagword)
+              where p' = (prob udist $ twWord tagword)
+                    p = if isNaN p' then (1e-19) else max p' (1e-19)
+
+          subProb' tagword = unsafePerformIO $ do
+                       cacheMap <- readIORef cache
+                       case M.lookup tagword cacheMap of
+                         Just a -> return a 
+                         Nothing -> do
+                              let p = subProb tagword
+                              writeIORef cache $ M.insert tagword p cacheMap
+                              return p 
+          cache = unsafePerformIO $ newIORef M.empty
+
 estimatePrior :: PriorObs -> PriorProbs
 estimatePrior (ucounts, ccounts) = (estimateMLE ucounts, 
                                     estimateLinear [0.7, 0.3] ccounts) 

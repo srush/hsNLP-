@@ -1,20 +1,18 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, BangPatterns #-}
 module EnumHelpers where 
 import Data.List
 import Test.QuickCheck
 import Data.DeriveTH
 
+computeMaxBound :: [Int] -> Int
+computeMaxBound ls = (product (map (+ 2) ls)) - 1  
 
 {-# INLINE combineEnum #-}
 combineEnum :: [(Int, Int)] -> Int
 combineEnum enumInt = loop enumInt 1 0
     where 
       loop [] _ result = result
-      loop ((enum, factor): rest) prod result = loop rest (prod * (factor +2)) (result + (enum +1) * prod)
-  
-      --(enum, factors) = unzip enumInt
-      --fact = inits $ map (+2) factors 
-      --push e f = (e+1) * (product $ f) 
+      loop ((!enum, !factor): rest) !prod !result = loop rest (prod * (factor +2)) (result + (enum +1) * prod)
       
 uncombineEnum :: Int -> [Int] -> [Int] 
 uncombineEnum combInt bounds = map (\a -> a - 1) $  uncomb combInt bounds 
@@ -40,6 +38,7 @@ prop_combineEnum a = ((product $ map fromIntegral $ take 8 bounds) < fromIntegra
           (enum, bounds) = unzip b
           comb  = combineEnum $ b
        
+{-# INLINE mkFromEnum2 #-}
 mkFromEnum2 :: (Enum a, Enum b, Bounded a, Bounded b) => (a, a) -> (b,b) -> Int   
 mkFromEnum2 (a, maxA) (b, maxB) = combineEnum [(fromEnum a, fromEnum $ maxA),  
                                                (fromEnum b, fromEnum $ maxB)]
@@ -50,6 +49,7 @@ mkToEnum2 (maxA, maxB) n = (toEnum a, toEnum b)
       [a, b] = uncombineEnum n [fromEnum maxA, 
                                 fromEnum maxB]
 
+{-# INLINE mkFromEnum3 #-}
 mkFromEnum3 :: (Enum a, Enum b, Enum c, Bounded a, Bounded b, Bounded c) => 
                (a, a) -> (b,b) -> (c,c) -> Int
 mkFromEnum3 (a, maxA) (b, maxB) (c,maxC) = combineEnum [(fromEnum a, fromEnum $ maxA),  

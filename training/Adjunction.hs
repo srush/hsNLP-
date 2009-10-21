@@ -55,6 +55,10 @@ instance Enum a => Enum (EnumCached a) where
     fromEnum (EnumCached _ n) = n 
     toEnum n = (EnumCached (toEnum n) n) 
 
+instance (Enum a, Bounded a) => Bounded (EnumCached a) where 
+    maxBound  = cacheEnum maxBound 
+    minBound  = cacheEnum minBound
+
 instance Eq (EnumCached a) where 
     (==) = (==) `on` enumInd
 
@@ -66,22 +70,25 @@ instance Show a => Show (EnumCached a) where
 instance Pretty a => Pretty (EnumCached a) where 
     pPrint e = (pPrint $ enumVal e) 
  
-instance (Binary a, Enum a) => Binary (EnumCached a) where 
-    put ttc = (put $ enumVal ttc)
-    get = do 
-      v <- get 
-      return $ cacheEnum v
+-- instance (Binary a, Enum a) => Binary (EnumCached a) where 
+--     put ttc = (put $ enumVal ttc)
+--     get = do 
+--       v <- get 
+--       return $ cacheEnum v
 
 between a b = [(min a b) +1  .. (max a b) -1] 
 tabSep a b = a <> (text "\t")  <> b
 
 instance (Enum a) => Enum (Maybe a) where 
-    {-# INLINE toEnum #-}
+    {-# INLINE fromEnum #-}
     fromEnum Nothing = 0
     fromEnum (Just a) = 1 + fromEnum a 
     toEnum 0 = Nothing
     toEnum n = Just $ toEnum (n -1)
- 
+
+instance (Bounded a) => Bounded (Maybe a) where 
+    minBound = Nothing
+    maxBound = Just $ maxBound
 data AdjunctionEvent1 = AdjunctionEvent1 {
       childPOS   :: POS,
       childTopNT :: NonTerm,
@@ -100,6 +107,11 @@ instance Enum AdjunctionEvent1 where
     toEnum n = AdjunctionEvent1 a b c
         where (a,b,c) = mkToEnum3 (maxBound, maxBound, maxBound) n
 
+instance Bounded AdjunctionEvent1 where 
+    minBound = toEnum 0 
+    maxBound = toEnum $ computeMaxBound [fromEnum $ (maxBound :: POS),
+                                         fromEnum $ (maxBound :: NonTerm),
+                                         fromEnum $ (maxBound :: AdjunctionType)]
 
 
 data AdjunctionAction a = End | DoAdj a
@@ -121,12 +133,15 @@ $( derive makeArbitrary ''AdjunctionAction)
 
 
 instance (Enum a) => Enum (AdjunctionAction a) where 
-    {-# INLINE toEnum #-}
+    {-# INLINE fromEnum #-}
     fromEnum End = 0
     fromEnum (DoAdj a) = 1 + fromEnum a 
     toEnum 0 = End
     toEnum n = DoAdj $ toEnum (n - 1)
 
+instance (Bounded a) => Bounded (AdjunctionAction a) where 
+    minBound = End
+    maxBound = DoAdj maxBound
 
 type MAdjEvent1 = AdjunctionAction AdjunctionEvent1
                  
@@ -153,16 +168,8 @@ $( derive makeBinary ''AdjunctionEvent3 )
 
 type MAdjEvent3 = AdjunctionAction AdjunctionEvent3
 
+{-# INLINE dec #-}
 dec = Just 
-
---data AdjunctionContext1 = 
---    AdjunctionContext1 {
---      parentNT   :: NonTerm, -- The nonterminal adjoining into 
---      parentWord :: Word, -- the word of the head spine
---      delta      :: Distance, -- The distance between the lexical items 
---      parentPOS  :: POS, -- , -- pos of the word head spine
---      headNT     :: NonTerm -- The nonterminal below where we adjoin
---    } deriving (Eq, Ord, Show)
 
 data AdjunctionSubContext1 = 
     AdjunctionSubContext1 {
@@ -170,7 +177,6 @@ data AdjunctionSubContext1 =
       mverbDis    :: Maybe VerbDistance,
       mdelta      :: Maybe Delta,
       mside       :: Maybe AdjunctionSide,
-      --mtype       :: Maybe AdjunctionType,
       mparentPOS  :: Maybe POS, 
       mparentWord :: Maybe Word,
       mheadNT     :: Maybe NonTerm
@@ -178,17 +184,28 @@ data AdjunctionSubContext1 =
 
 instance Enum AdjunctionSubContext1 where 
     {-# INLINE fromEnum #-}
-    fromEnum asc = mkFromEnum7 (mparentNT asc, Just maxBound)
-                   (mverbDis asc,    Just maxBound) 
-                               (mdelta asc,    Just maxBound)
-                               (mside asc,     Just maxBound)                         
-                               --(mtype asc,     Just maxBound)                         
-                               (mparentPOS asc,  Just maxBound)
-                               (mparentWord asc, Just maxBound)
-                               (mheadNT asc,   Just maxBound)
+    fromEnum asc = combineEnum [(fromEnum $  mparentNT asc, fromEnum $ Just (maxBound::NonTerm)),
+                               (fromEnum $  mverbDis asc,    fromEnum $ Just (maxBound::VerbDistance)), 
+                               (fromEnum $ mdelta asc,    fromEnum $    Just (maxBound:: Delta)),
+                               (fromEnum $  mside asc,     fromEnum $  Just (maxBound::AdjunctionSide)),
+                               (fromEnum $ mparentPOS asc,  fromEnum $  Just (maxBound::POS)),
+                               (fromEnum $ mparentWord asc, fromEnum $ Just (maxBound::Word)),
+                               (fromEnum $ mheadNT asc,   fromEnum $ Just (maxBound:: NonTerm))]
                          
     toEnum n = AdjunctionSubContext1 a b c d e f g
         where (a,b,c,d,e,f,g) = mkToEnum7 (Just maxBound, Just maxBound, Just maxBound, Just maxBound, Just maxBound, Just maxBound, Just maxBound) n
+
+instance Bounded AdjunctionSubContext1 where 
+    minBound = toEnum 0
+    maxBound = toEnum $ computeMaxBound [
+      fromEnum $ (maxBound :: Maybe NonTerm), 
+      fromEnum $ (maxBound :: Maybe VerbDistance),
+      fromEnum $ (maxBound :: Maybe Delta),
+      fromEnum $ (maxBound :: Maybe AdjunctionSide),
+      fromEnum $ (maxBound :: Maybe POS), 
+      fromEnum $ (maxBound :: Maybe Word),
+      fromEnum $ (maxBound :: Maybe NonTerm) ]
+
 
 pPrintJust Nothing = empty 
 pPrintJust (Just p) = pPrint p
@@ -197,19 +214,15 @@ instance Pretty AdjunctionSubContext1 where
     pPrint s1 = 
         (pPrintJust $ mside s1) <+>
         (pPrintJust $ mparentNT s1) <+>
-        --(pPrintJust $ mtype s1) <+>
         (pPrintJust $ mverbDis s1) <+>  
         (pPrintJust $ mdelta s1) <+>
         (pPrintJust $ mparentPOS s1) <+>
         (pPrintJust $ mparentWord s1) <+>
         (pPrintJust $ mheadNT s1) 
                 
-
-
-$( derive makeBinary ''AdjunctionSubContext1 )
 $( derive makeArbitrary ''AdjunctionSubContext1 )
-type AdjContext1 = AdjunctionContext1
 
+type AdjContext1 = AdjunctionContext1
 
 adjCon1Def = AdjunctionSubContext1 Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 type AdjunctionContext1 = [EnumCached AdjunctionSubContext1]
@@ -218,110 +231,113 @@ prop_context1 a = checkEnum
     where types = (a::AdjunctionSubContext1) 
 
 
-mkAdjCon1 parentNT headNT delta verbDis parentPOS parentWord side atype = 
+mkAdjCon1 parentNT headNT delta verbDis parentPOS parentWord side = 
         map cacheEnum [adjCon1Def {mparentNT   = dec $ parentNT,
                                    mheadNT     = dec $ headNT ,
                                    mdelta      = dec $ delta,
                                    mverbDis    = dec $ verbDis,
                                    mside       = dec $ side 
-                                   --mtype        = dec $ atype
                                   },
                        adjCon1Def {mparentPOS  = dec $ parentPOS },
                        adjCon1Def {mparentWord = dec $ parentWord }]
 
 
 instance Context AdjunctionContext1 where
-    type Sub (AdjunctionContext1) = EnumCached AdjunctionSubContext1
+    type Sub (AdjunctionContext1) = Int
     type SubMap (AdjunctionContext1) = LT.WrappedIntMap
-    decompose = id
+    decompose = map enumInd
 
-data AdjunctionContext2 = 
-    AdjunctionContext2 {
-      adjCon1 :: AdjunctionContext1,
-      sc2ChildPOS :: Maybe POS, 
-      sc2Side     :: AdjunctionSide,
-      sc2AdjEvent1 ::  (MAdjEvent1)
 
-    } deriving (Eq, Ord, Show)
 
 data AdjunctionSubContext2 = 
     AdjunctionSubContext2 {
       msc2ChildPOS :: Maybe (Maybe POS), 
       msc2AdjEvent1 :: Maybe (MAdjEvent1),
-      madjCon1 ::  Maybe AdjunctionSubContext1
+      madjCon1 ::  Maybe (EnumCached AdjunctionSubContext1)
     } deriving (Eq, Ord, Show)
-
-instance Pretty AdjunctionContext2 where 
-    pPrint = pPrint . decompose
+type AdjunctionContext2 = [EnumCached AdjunctionSubContext2] 
 
 instance Pretty AdjunctionSubContext2 where 
     pPrint s2 = 
-
         (pPrintJust $ msc2ChildPOS s2) <+>
         (pPrintJust $ msc2AdjEvent1 s2) <+>
-                (pPrintJust $ madjCon1 s2)  
+        (pPrintJust $ madjCon1 s2)  
 
-
-$( derive makeBinary ''AdjunctionSubContext2 )
 adjCon2Def = AdjunctionSubContext2 Nothing Nothing Nothing
-
 type AdjContext2 = AdjunctionContext2
 
+mkAdjCon2 adjCon1 childPOS adjEvent1 = 
+    map cacheEnum [adjCon2Def {
+                     msc2ChildPOS  = dec $ childPOS
+                   },
+                   adjCon2Def { 
+                     msc2AdjEvent1  = dec $ adjEvent1,                    
+                     madjCon1 = dec $ cacheEnum ((enumVal decon11) {mparentPOS  = mparentPOS $ enumVal $ decon12})
+                   },
+                   adjCon2Def {madjCon1 = dec $ decon13}]
+    where [decon11, decon12, decon13] = adjCon1 
 
 
-instance Context (AdjunctionContext2 ) where
-    type Sub (AdjunctionContext2) = AdjunctionSubContext2 
-    type SubMap (AdjunctionContext2) = M.Map 
-    decompose adjcon = 
-        [adjCon2Def {
-           msc2ChildPOS  = dec $ sc2ChildPOS adjcon
-         },
-         adjCon2Def { 
-           msc2AdjEvent1  = dec $ sc2AdjEvent1 adjcon,
-           
-           madjCon1 = dec $ (enumVal decon11) {mparentPOS  = mparentPOS $ enumVal $ decon12}
-         },
-         adjCon2Def {madjCon1 = dec $ enumVal decon13}]
-        where [decon11, decon12, decon13] = decompose $ adjCon1 adjcon
+instance Enum AdjunctionSubContext2 where 
+    {-# INLINE fromEnum #-}
+    fromEnum asc = mkFromEnum3 (msc2ChildPOS asc,  Just maxBound)
+                               (msc2AdjEvent1 asc, Just maxBound) 
+                               (madjCon1 asc,      Just maxBound)
+                               
+    toEnum n = AdjunctionSubContext2 a b c
+        where (a,b,c) = mkToEnum3 (Just maxBound, Just maxBound, Just maxBound) n
 
-data AdjunctionContext3 = 
-    AdjunctionContext3 {
-      adjEvent13 :: MAdjEvent1,
-      adjEvent23 :: MAdjEvent2,
-      adjCon13 :: AdjunctionContext1
-    } deriving (Eq, Ord, Show)
 
-instance Pretty AdjunctionContext3 where 
-    pPrint = pPrint . decompose
+instance Context (AdjunctionContext2) where
+    type Sub (AdjunctionContext2) = Int
+    type SubMap (AdjunctionContext2) = LT.WrappedIntMap
+    decompose = map enumInd 
+
+-- 3
+
+
+
 
 
 data AdjunctionSubContext3 = 
     AdjunctionSubContext3 {
       madjEvent13 :: Maybe MAdjEvent1,
       madjEvent23 :: Maybe MAdjEvent2,
-      madjCon13 :: Maybe (AdjunctionSubContext1)
+      madjCon13 :: Maybe (EnumCached AdjunctionSubContext1)
     } deriving (Eq, Ord, Show)
 
-$( derive makeBinary ''AdjunctionSubContext3 )
+type AdjunctionContext3 = [EnumCached AdjunctionSubContext3]
+
+instance Enum AdjunctionSubContext3 where 
+    {-# INLINE fromEnum #-}
+    fromEnum asc = mkFromEnum3 (madjEvent13 asc,  Just maxBound)
+                               (madjEvent23 asc, Just maxBound) 
+                               (madjCon13 asc,      Just maxBound)
+                               
+    toEnum n = AdjunctionSubContext3 a b c
+        where (a,b,c) = mkToEnum3 (Just maxBound, Just maxBound, Just maxBound) n
+
 
 instance Pretty AdjunctionSubContext3 where 
     pPrint s3 = (pPrintJust $ madjEvent13 s3) <+>
                 (pPrintJust $ madjEvent23 s3)  
 
-
 type AdjContext3 = AdjunctionContext3  
 
 adjCon3Def = AdjunctionSubContext3 Nothing Nothing Nothing
 
+mkAdjCon3 adjEvent13 adjEvent23 adjCon13 = 
+    map cacheEnum [adjCon3Def {madjEvent13 = dec adjEvent13 },
+                   adjCon3Def {madjEvent23 = dec adjEvent23 },         
+                   adjCon3Def {madjCon13 = dec $ decon11}
+                  ]
+    where [decon11, _, decon13] =  adjCon13 
+
 instance Context AdjunctionContext3  where
-    type Sub AdjunctionContext3 = AdjunctionSubContext3
-    type SubMap (AdjunctionContext3) = M.Map 
-    decompose adjcon = 
-        [adjCon3Def {madjEvent13 = dec $ adjEvent13 adjcon},
-         adjCon3Def {madjEvent23 = dec $ adjEvent23 adjcon},         
-         adjCon3Def {madjCon13 = dec $ enumVal $ decon11}
-         ]
-        where [decon11, _, decon13] = decompose $ adjCon13 adjcon
+    type Sub AdjunctionContext3 = Int
+    type SubMap (AdjunctionContext3) = LT.WrappedIntMap
+    decompose = map enumInd
+        
 
 
 
@@ -363,7 +379,8 @@ mkAdjunctionEvents End _ = (End, End, End)
 
 
 
-mkMainAdjunctionContext (TAGWord headSpine (headGWord) _ _ _ _) npblast pos verbDis delta side atype =    mkAdjCon1 
+mkMainAdjunctionContext (TAGWord headSpine (headGWord) _ _ _ _) npblast pos verbDis delta side  = 
+    mkAdjCon1 
     (getNonTerm pos headSpine)
     (fromJustDef (fromPOS $ snd headGWord) $ 
       lookupNonTerm (pos-1) headSpine) -- H
@@ -372,7 +389,6 @@ mkMainAdjunctionContext (TAGWord headSpine (headGWord) _ _ _ _) npblast pos verb
     headPOS'    
     headWord'
     side
-    atype
         where ((headWord', headPOS'), verbDis') = case npblast of 
                                       Just a  -> (a, VerbDistance False)
                                       Nothing -> (headGWord, verbDis)
@@ -392,28 +408,21 @@ mkAdjunctionContexts ::
      --Maybe (P.PunctuationEvent, P.PunctuationContext))
 mkAdjunctionContexts adjcon1 (e1, e2, e3) child side =
     ((e1, adjcon1),
-     (e2, AdjunctionContext2 adjcon1 (childPOS `liftM` (maybeAdj e1)) side e1),
-     (e3, AdjunctionContext3 e1 e2 adjcon1)
+     (e2, mkAdjCon2 adjcon1 (childPOS `liftM` (maybeAdj e1)) e1),
+     (e3, mkAdjCon3 e1 e2 adjcon1)
 --      case mPevent of 
 --        Nothing -> Nothing
 --        (Just pevent) -> Just (pevent, mkPunctuationContext side (isSister $ fromJustNote "punc at top" (maybeAdj e1))  child adjcon1 )
     )
                                
-data TAGCounts = 
+newtype TAGCounts = 
     TAGCounts { tagCounts :: AdjunctionObservations}
-    
+    deriving (Binary, Monoid)
 
-
-instance Monoid TAGCounts  where 
-    mempty = TAGCounts mempty
-    mappend (TAGCounts a) (TAGCounts a') = 
-        TAGCounts (mappend a a')
 
 
 data TAGProbs = TAGProbs { tagProbs :: AdjunctionDist}
     
-
-
 estimateTAGProb :: TAGCounts -> TAGProbs
 estimateTAGProb (TAGCounts (a,b,c) ) = 
     TAGProbs ( estimateWittenBell a, 
@@ -429,14 +438,9 @@ instance Pretty TAGCounts where
 instance Show TAGCounts where 
     show = render . pPrint 
 
-instance Binary TAGCounts where 
-    put (TAGCounts ttc) = (put $  ttc)
-    get = return TAGCounts `ap` get 
-
 
 
 -- exposed methods 
-
 
 type AdjunctionParent = (AdjunctionSide, AdjContext1)
 
@@ -539,12 +543,11 @@ instance Pretty ProbDebug where
 
           ) 
 
-mkParent:: TAGWord -> Maybe GWord -> Int -> AdjunctionSide -> AdjunctionType ->     
+mkParent:: TAGWord -> Maybe GWord -> Int -> AdjunctionSide ->     
            VerbDistance -> Delta ->
-
             AdjunctionParent
-mkParent head npblast pos side atype distance delta   = 
-    (side, mkMainAdjunctionContext head npblast pos distance delta side atype)
+mkParent head npblast pos side distance delta   = 
+    (side, mkMainAdjunctionContext head npblast pos distance delta side )
 
 mkAdjunction :: 
     AdjunctionParent ->

@@ -109,7 +109,7 @@ advance headSpan nextWord  = do
 -- The OptLink Rules take spans with dual head (0,0) and adjoin the head on 
 -- one side to the head on the other. 
 optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
-optLinkL (span, semi) = do --trace "optLinkL" $ do
+optLinkL (span, semi) = do -- trace ("optLinkL" ++ show span )$ do -- $ do
       (False, False) <- [hasParentPair span]
       (Open _)  <- [state $ leftEnd span]
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span) 
@@ -236,36 +236,35 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
                (Symbol sent -> Sym fsa) ->                
                Range -> -- Size of the cell 
                (Range -> [EItem fsa]) -> -- function from cell to contenst 
+               ([EItem fsa] -> [EItem fsa]) -> 
                [EItem fsa] -- contents of the new cell 
-processCell getFSA sentence wordConv (i, k) chart = catMaybes $ map seal $ concat $  
+processCell getFSA sentence wordConv (i, k) chart beam = catMaybes $ map seal $ 
     if k-i == 1 then
-        (let seedCells = seed getFSA i 
+        
+        (let seedCells = beam $ seed getFSA i 
                         (map wordConv $ getWords sentence i) 
                         (map wordConv  $ getWords sentence (i+1))
         in
-        map (\seedCell -> 
-        concat $ [[seedCell],
-                  optLinkL seedCell,
-                  optLinkR seedCell]) seedCells)
+          seedCells ++ left seedCells ++ right seedCells)
     else
-        concat $ 
-        [let s = combine s1 s2 in
-           [s, 
-            s >>= optLinkL ,
-            s >>= optLinkR ]
-               | j  <- [i+1..k-1],
-                s2 <- chart (j,k),
-                s1 <- chart (i,j)]
-         
+        (left starter ++ right starter ++ starter) 
+        where
+          starter = beam $ concat [combine s1 s2
+                            | j  <- [i+1..k-1],
+                              s2 <- chart (j,k),
+                              s1 <- chart (i,j)]
+          left = beam . concatMap (\s -> optLinkL s)  
+          right = beam . concatMap (\s -> optLinkR s )  
 
 eisnerParse :: (WFSM fsa, SentenceLattice sent) => 
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 
-              (Range -> M.Map (Span fsa) (Semi fsa) -> M.Map (Span fsa) (Semi fsa)) -> 
+              (Range -> M.Map (Span fsa) (Semi fsa) -> M.Map (Span fsa) (Semi fsa)) ->
+              ([EItem fsa] -> [EItem fsa]) -> 
                (Maybe (Semi fsa), Chart (Span fsa) (Semi fsa))
-eisnerParse getFSM wordConv sent prune = (semi, chart)  
-    where chart = chartParse sent (processCell getFSM sent wordConv) prune
+eisnerParse getFSM wordConv sent prune beam = (semi, chart)  
+    where chart = chartParse sent (processCell getFSM sent wordConv) prune beam
           semi = do
             last <- chartLookup (1, sentenceLength sent + 1) chart
             let semiresults = map snd $ filter accept last

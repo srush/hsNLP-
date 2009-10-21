@@ -11,7 +11,9 @@ import NLP.Probability.Observation
 import Safe (fromJustNote, fromJustDef)
 import Control.Exception
 import Debug.Trace 
-
+import Data.IORef
+import System.IO.Unsafe
+import qualified Data.HashTable as H
 type CondObserved event context = 
     SumTrie (SubMap context) (Sub context) (Observed event)
 
@@ -44,7 +46,7 @@ type DistributionTree event context =
 
 data CondDistribution event context = CondDistribution {
        cond :: context -> Distribution event,
-       condDebug :: context -> (event -> [(Double, Double)]) 
+       condDebug :: context -> (event -> [(Double, Double)])
 }
 
 probMLE :: (Enum event) => event -> ExtraObserved event -> Double
@@ -68,25 +70,46 @@ lambdaWBC eobs = total / ((5 * distinct) + total)
           distinct = eoUnique eobs
 
 
-estimateWittenBell :: (Enum event, Context context, Show event) =>
+estimateWittenBell :: (Enum event, Context context, Show event, 
+                      Sub context ~ Int,
+                      M.Map (SubMap context) Int  
+                      ) =>
                       CondObserved event context -> 
                       CondDistribution event context 
-estimateWittenBell = estimateWittenBell_ . fmap storeState 
+estimateWittenBell  = estimateWittenBell_ (unsafePerformIO (H.new (==) (H.hashInt . product))) . fmap storeState 
 
-estimateWittenBell_ :: (Enum event, Context context, Show event) => 
+estimateWittenBell_ :: (Enum event, Context context, Show event,
+                        (Sub context)~Int) => 
                       --DistributionTree event context -> 
+                      (H.HashTable [Int] [ExtraObserved event]) ->  
                       DistributionTree event context -> 
                       CondDistribution event context
-estimateWittenBell_ cstat = 
+estimateWittenBell_ cache cstat = 
     CondDistribution (fst . conFun)  (snd . conFun) 
     where
       --conFun :: (Context context, Enum event) => context -> Distribution event
-      conFun context = (Distribution $ (\event -> sum $ (uncurry $ zipWith (*)) $ unzip $ wittenBell stats event 1.0),   
+      conFun context = 
+          (Distribution $ 
+           (\event -> sum $ (uncurry $ zipWith (*)) $ unzip $ wittenBell stats' event 1.0),   
                             -- assert (not $ isNaN $ wittenBell stats event)  $
-                        (\event -> wittenBell stats event 1.0)
-                       ) 
-          where stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat)  $ reverse $  
-                        tail $ inits $ decompose context
+           (\event -> wittenBell stats event 1.0)
+          ) 
+          where
+            stats' = 
+                unsafePerformIO $ do
+                  val <- H.lookup cache dec 
+                  case val of 
+                    Just a -> do 
+                      --putStrLn "Cache Hit"
+                      return $ a 
+                    Nothing -> 
+                       do
+                         --putStrLn ("Cache Size" ++(show $ dec)) 
+                         H.insert cache dec stats 
+                         return stats
+            stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat) $ 
+                    reverse $ tail $ inits $ dec                     
+            dec =  decompose context
       
             
   --    wittenBell :: (Enum event) => [ExtraObserved event] -> event -> Double
@@ -96,7 +119,6 @@ estimateWittenBell_ cstat =
           else wittenBell ls event mult  
           where l = lambdaWBC cur
 
-          
 estimateLinear :: (Enum event, Context context, Show event) =>
                       [Double] ->
                       CondObserved  event context -> 
@@ -108,7 +130,7 @@ estimateLinear_ :: (Enum event, Context context, Show event) =>
                       DistributionTree event context -> 
                       CondDistribution event context
 estimateLinear_ interpolation cstat = 
-    CondDistribution conFun (\_ -> undefined)
+    CondDistribution conFun (\_ -> undefined) 
     where
       --conFun :: (Context context, Enum event) => context -> Distribution event
       conFun context = (Distribution $ \event ->  
@@ -118,7 +140,7 @@ estimateLinear_ interpolation cstat =
                         tail $ inits $ decompose context
                 probE event dist = if isNaN p then 0.0 else p
                     where p = probMLE event dist  
-               
+      --cache = unsafePerformIO $ newIORef mempty 
 
 
 -- estimateConditional est obs =

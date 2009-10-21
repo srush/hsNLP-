@@ -1,8 +1,8 @@
 name:                probdist
 version:             0.1
-synopsis:            Tools for dealing with probability distributions for machine learning
+synopsis:            Tools for dealing with probability distributions
 description:         This provides some tools for using probability distributions 
-                     particularly for conditioning, estimation (EM, MLE), and smoothing
+                     particularly for conditioning and smoothing
 category:            Natural Language Processing
 license:             BSD3
 license-file:        LICENSE
@@ -30,6 +30,7 @@ library
                      binary,
                      safe >= 0.2,
                      list-tries,
+                     logfloat,          
                      pretty,
                      prettyclass 
 

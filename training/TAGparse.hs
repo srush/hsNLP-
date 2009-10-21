@@ -145,7 +145,8 @@ data AdjState model =
 
       stateNPBLast :: Maybe GWord, 
 
-      stateCollinsRule :: Bool
+      stateCollinsRule :: Bool,
+      stateParents :: M.Map (Int, VerbDistance, Delta) AdjunctionParent 
 } 
 
 initAdj :: model ->
@@ -172,11 +173,13 @@ initAdj model discache side tagword collins =
 
                     stateNPBLast = Nothing, 
 
-                    stateCollinsRule = collins
-                    --stateDistance = mempty{ numComma = case side of 
-                    --                                    ALeft  -> if fst $ twNearComma $ tagword then OneComma else NoComma
-                    --                                    ARight -> if snd $ twNearComma $ tagword then OneComma else NoComma},
-                    -- stateContext = undefined
+                    stateCollinsRule = collins,
+                    stateParents = M.fromList [((pos,verb, delta), 
+                                                mkParent tagword Nothing pos side verb delta) | 
+                                    pos <- [0..last-1],
+                                    verb <- [minBound..maxBound ],
+                                    delta <- [minBound.. maxBound]
+                                   ]
                    }
 
 stateNT adjstate = getNonTerm (statePos adjstate) $ twSpine (stateHead adjstate)
@@ -312,7 +315,11 @@ findSemiProbs adjstate child atype vdis =
                           (AdjunctionInfo pos atype (mkDerivationCell child')),   
                        if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
-          parent =  mkParent head npblast pos side atype vdis curDelta 
+          parent = case npblast of
+                     Nothing -> fromJust $ M.lookup (pos, vdis, curDelta) parents
+                     Just _ ->
+                         mkParent head npblast pos side vdis curDelta
+                   
           adj = mkAdjunction parent child atype 
           p = probAdjunction adj probs
           AdjState {stateSide  = side, 
@@ -321,7 +328,8 @@ findSemiProbs adjstate child atype vdis =
                     stateModel = (probs,valid),
                     stateDisCache = discache,
                     stateCurDelta = curDelta,
-                    stateNPBLast = npblast 
+                    stateNPBLast = npblast,
+                    stateParents = parents 
                     } = adjstate
 
 
@@ -360,7 +368,7 @@ findSemiCounts adjstate child atype vdis =
     else
         Just $ mkDerivation $ countAdjunction $ mkAdjunction parent child atype 
         where
-          parent = mkParent head npblast pos side atype vdis curDelta
+          parent = mkParent head npblast pos side vdis curDelta
           AdjState {stateSide  = side, 
                     statePos   = pos,
                     stateHead  = head,
