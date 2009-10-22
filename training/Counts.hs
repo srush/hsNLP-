@@ -36,7 +36,7 @@ countTAG dsent = case semi of
       getFSM i (Just word) =  (initAdj dsent ldiscache ALeft  word False,
                                initAdj dsent rdiscache ARight word False )
       symbolConv word = Just word 
-      (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i)
+      (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) id 
      
 
 

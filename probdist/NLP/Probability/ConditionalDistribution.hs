@@ -1,164 +1,113 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
-module NLP.Probability.ConditionalDistribution where 
-import qualified Data.IntMap as IM
+{-# LANGUAGE GeneralizedNewtypeDeriving, TypeFamilies, Rank2Types, FlexibleContexts #-}
+module NLP.Probability.ConditionalDistribution (  
+  -- * Conditional Distributions
+  --                    
+  -- $CondDistDesc  
+                                                CondObserved(),
+                                                CondDistribution,
+                                                condObservation,
+                                                Context(..), 
+                                                estimateGeneralLinear,
+                                                Weighting,
+                                                wittenBell, 
+                                                simpleLinear 
+                                                ) where 
 import qualified Data.ListTrie.Base.Map as M
 import Data.List (inits)
 import Data.Monoid
-import NLP.Probability.TrieWrap
-import qualified NLP.Probability.TrieWrap as TW
+import qualified NLP.Probability.SmoothTrie as ST
 import NLP.Probability.Distribution
-import NLP.Probability.Observation
-import Safe (fromJustNote, fromJustDef)
-import Control.Exception
-import Debug.Trace 
-import Data.IORef
-import System.IO.Unsafe
-import qualified Data.HashTable as H
-type CondObserved event context = 
-    SumTrie (SubMap context) (Sub context) (Observed event)
+import NLP.Probability.Observation 
+import Data.Binary
+
+-- $CondDistDesc
+-- Say we want to estimate a conditional distribution based on a very large set of observed data.
+-- Naively, we could just collect all the data and estimate a large table, but
+-- our table would have little or no counts for a feasible future observations. 
+--
+-- In practice, we use smoothing to supplement rare contexts with data from similar, more often seen contexts. For instance,
+-- using bigram probabilities when the given trigrams observations are too sparse. 
+-- Most of these smoothing techniques are special cases of general linear interpolation, which chooses the weight of 
+-- each level of smoothing based on the sparsity of the current context. 
+--
+-- In this module, we give an implementation of this process that separates out count collection
+-- from the smoothing model, using  a Trie. The user specifies a Context instance that relates the full conditional context
+-- to a sequences of SubContexts that characterize the levels of smoothing and the transitions in the Trie. We also give a small set of smoothing techniques 
+-- to combine these levels. 
+--
+-- This work is based on Chapter 6 of ''Foundations of Statistical Natural Language Processing'' 
+-- by Chris Manning and Hinrich Schutze. 
+-- 
 
 
-singletonObservation :: (Context context, Enum event) => 
-                        event -> context -> CondObserved event context
-singletonObservation event context = 
-    addColumn decomp observed mempty 
-        where observed = singleton event 
+-- | The set of observations of event conditioned on context. event must be an instance of Event and context of Context 
+type CondObserved event context = (ST.SmoothTrie (SubMap context) (Sub context) (Counts event))
+
+-- | Events are conditioned on Contexts. When Contexts are sparse, we need a way to decompose into simpler SubContexts. 
+--   This class allows us to separate this decomposition from the collection of larger contexts. 
+class (M.Map (SubMap a) (Sub a)) => Context a where 
+    -- | The type of sub contexts
+    type Sub a  
+    -- | A map over subcontexts (for efficiency) 
+    type SubMap a :: * -> * -> * 
+    -- | A function to enumerate subcontexts of a context  
+    decompose ::  a -> [Sub a] 
+
+-- | A CondObserved set for a single event and context. 
+condObservation :: (Context context, Event event) => 
+             event -> context -> CondObserved event context
+condObservation event context = 
+    ST.addColumn decomp observed mempty 
+        where observed = observation event 
               decomp = decompose context 
 
-observedInContext context cond = 
-    maybe [] observedEvents $ TW.lookup (decompose context) cond  
-
-class (M.Map (SubMap a) (Sub a)) => Context a where 
-    type Sub a 
-    type SubMap a :: * -> * -> * 
-    decompose ::  a -> [Sub a]
-
--- newtype SimpleContext = SimpleContext (Int, Int) 
-
--- instance Context SimpleContext where 
---     type SubMap = WrappedInt
---     type Sub SimpleContext = Int
---     decompose (SimpleContext (a,b)) = [a,b]
+type CondDistribution event context = context -> Distribution event
 
 
-type DistributionTree event context = 
-    SumTrie (SubMap context) (Sub context) (ExtraObserved event)
-
-data CondDistribution event context = CondDistribution {
-       cond :: context -> Distribution event,
-       condDebug :: context -> (event -> [(Double, Double)])
-}
-
-probMLE :: (Enum event) => event -> ExtraObserved event -> Double
-probMLE ev exobs =
-    --assert (total > 0) $
-    (IM.findWithDefault 0.0 (fromEnum ev) c) / total
-    where c = counts $ eoObserved exobs 
-          total = eoTotal exobs   
+type Weighting = forall a. [Maybe (Observed a)] -> [Double]
 
 
-lambdaWB :: (Enum a) => ExtraObserved a -> Double
-lambdaWB eobs = nonTrivial / (nonTrivial + total)
-    where total = eoTotal eobs
-          nonTrivial = eoUnique eobs
-
-
--- Page 18 of Collins 2003
-lambdaWBC :: (Enum a) => ExtraObserved a -> Double
-lambdaWBC eobs = total / ((5 * distinct) + total)
-    where total = eoTotal eobs
-          distinct = eoUnique eobs
-
-
-estimateWittenBell :: (Enum event, Context context, Show event, 
-                      Sub context ~ Int,
-                      M.Map (SubMap context) Int  
-                      ) =>
-                      CondObserved event context -> 
-                      CondDistribution event context 
-estimateWittenBell  = estimateWittenBell_ (unsafePerformIO (H.new (==) (H.hashInt . product))) . fmap storeState 
-
-estimateWittenBell_ :: (Enum event, Context context, Show event,
-                        (Sub context)~Int) => 
-                      --DistributionTree event context -> 
-                      (H.HashTable [Int] [ExtraObserved event]) ->  
-                      DistributionTree event context -> 
-                      CondDistribution event context
-estimateWittenBell_ cache cstat = 
-    CondDistribution (fst . conFun)  (snd . conFun) 
+-- | General Linear Interpolation. Produces a Conditional Distribution from observations.
+--   It requires a GeneralLambda function which tells it how to weight each level of smoothing. 
+--   The GeneralLambda function can observe the counts of each level of context. 
+--
+--   Note: We include a final level of backoff where everything is given an epsilon likelihood. To 
+--   ignore this, just give it lambda = 0.
+estimateGeneralLinear :: (Event event, Context context) => 
+                         Weighting -> 
+                         CondObserved event context -> 
+                         CondDistribution event context
+estimateGeneralLinear genLambda cstat = conFun 
     where
-      --conFun :: (Context context, Enum event) => context -> Distribution event
-      conFun context = 
-          (Distribution $ 
-           (\event -> sum $ (uncurry $ zipWith (*)) $ unzip $ wittenBell stats' event 1.0),   
-                            -- assert (not $ isNaN $ wittenBell stats event)  $
-           (\event -> wittenBell stats event 1.0)
-          ) 
-          where
-            stats' = 
-                unsafePerformIO $ do
-                  val <- H.lookup cache dec 
-                  case val of 
-                    Just a -> do 
-                      --putStrLn "Cache Hit"
-                      return $ a 
-                    Nothing -> 
-                       do
-                         --putStrLn ("Cache Size" ++(show $ dec)) 
-                         H.insert cache dec stats 
-                         return stats
-            stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat) $ 
-                    reverse $ tail $ inits $ dec                     
-            dec =  decompose context
-      
-            
-  --    wittenBell :: (Enum event) => [ExtraObserved event] -> event -> Double
-      wittenBell [] event mult =  [(mult, 1e-19)]
-      wittenBell (cur:ls) event mult =  --trace ((show cur) ++ show l) $  
-          if eoTotal cur > 0 then (l*mult, (probMLE  event cur)) : wittenBell ls event ((1-l)*mult) 
-          else wittenBell ls event mult  
-          where l = lambdaWBC cur
+      conFun context = (\event -> sum $ zipWith (*) lambdas $ map (probE event) stats) 
+          where stats = reverse $ 
+                        Nothing : (map (\k -> Just $ ST.lookupWithDefault (finish mempty) k cstat')  $ 
+                                  tail $ inits $ decompose context)
+                probE event (Just dist) = if isNaN p then 0.0 else p
+                    where p = mle dist event
+                probE event Nothing = 1e-19
+                lambdas = genLambda stats                
+      cstat' = fmap finish cstat
 
-estimateLinear :: (Enum event, Context context, Show event) =>
-                      [Double] ->
-                      CondObserved  event context -> 
-                      CondDistribution event context 
-estimateLinear interp = estimateLinear_ interp . fmap storeState 
-
-estimateLinear_ :: (Enum event, Context context, Show event) => 
-                      [Double] ->
-                      DistributionTree event context -> 
-                      CondDistribution event context
-estimateLinear_ interpolation cstat = 
-    CondDistribution conFun (\_ -> undefined) 
-    where
-      --conFun :: (Context context, Enum event) => context -> Distribution event
-      conFun context = (Distribution $ \event ->  
-                             sum $ zipWith (*) interpolation $ map (probE event) stats  
-                       ) 
-          where stats = map (\k -> TW.lookupWithDefault (storeState mempty) k cstat)  $ reverse $  
-                        tail $ inits $ decompose context
-                probE event dist = if isNaN p then 0.0 else p
-                    where p = probMLE event dist  
-      --cache = unsafePerformIO $ newIORef mempty 
+-- | Weight each level by a fixed predefined amount. 
+simpleLinear :: [Double] -> Weighting
+simpleLinear lambdas = const lambdas
 
 
--- estimateConditional est obs =
---     CondDistribution $ \context -> 
---         fromJustNote ("Context not found: " ++ show context) $ 
---         --fromJustDef (uniform 1000000) $
---         M.lookup (decompose context) condMap  
---     where 
---      condMap = M.fromList $ 
---                map (\(letters, holder) -> ( letters, est holder)) $ 
---                expand_ obs 
+lambdaWBC :: Int -> Observed b -> Double
+lambdaWBC n eobs = total' / (((fromIntegral n) * distinct) + total')
+    where total' = total eobs
+          distinct = unique eobs
 
+-- | Weight each level by the likelihood that a new event will be seen at that level. 
+--   t / ((n * d) + t) where t is the total count, d is the number of distinct observations,
+--   and n is a user defined constant.   
+wittenBell :: Int -> Weighting 
+wittenBell n ls = wittenBell' ls 1.0
+    where 
+      wittenBell' [Nothing] mult = [mult]
+      wittenBell' (Just cur:ls) mult = 
+          if total cur > 0 then (l*mult : wittenBell' ls ((1-l)*mult)) 
+          else (0.0: wittenBell' ls mult)  
+              where l = lambdaWBC n cur
 
-
-
--- data Trigram = Trigram String String
--- instance Context Trigram where 
---     type Sub Trigram = String
---     decompose (Trigram w1 w2) = [w2, w1] 
---     --compose [w2, w1] = Trigram w1 w2 
-    

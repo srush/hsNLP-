@@ -307,13 +307,13 @@ findSemiProbs adjstate child atype vdis =
         Just $ case child of 
              End -> 
                  viterbiHelp p
-                      (Dependency mempty, 
-                       if debug then [(adj, probAdjunctionDebug adj probs)] else [])
+                      (Dependency mempty, [])
+--                       if debug then [(adj, probAdjunctionDebug adj probs)] else [])
              DoAdj child' ->
                  viterbiHelp p
                       (singletonDep (twInd head) (twInd child') $ 
-                          (AdjunctionInfo pos atype (mkDerivationCell child')),   
-                       if debug then [(adj, probAdjunctionDebug adj probs)] else [])
+                          (AdjunctionInfo pos atype (mkDerivationCell child')), [])   
+  --                     if debug then [(adj, probAdjunctionDebug adj probs)] else [])
         where
           parent = case npblast of
                      Nothing -> fromJust $ M.lookup (pos, vdis, curDelta) parents

@@ -10,7 +10,6 @@ module Adjunction (
                    estimateTAGProb,
                    mkParent,
                    ProbDebug,
-                   probAdjunctionDebug, 
                    VerbDistance(..),                   
                    AdjunctionAction(..),
                    maybeAdj
@@ -20,6 +19,7 @@ import Data.Maybe (isJust)
 
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 
+import NLP.Probability.Observation
 import TAG
 import Data.DeriveTH hiding (Derivation)
 import Data.Binary hiding (Word)
@@ -43,6 +43,11 @@ import qualified Data.Bimap as BM
 import Debug.Trace
 import Control.Exception
 import Test.QuickCheck
+
+instance (Enum a, Binary a, Binary b) => Binary (LT.WrappedIntMap a b) where
+    put m = put $ LT.toList m  
+    get = LT.fromList `liftM` get 
+
 
 data EnumCached a = 
     EnumCached { enumVal :: a, 
@@ -89,6 +94,7 @@ instance (Enum a) => Enum (Maybe a) where
 instance (Bounded a) => Bounded (Maybe a) where 
     minBound = Nothing
     maxBound = Just $ maxBound
+
 data AdjunctionEvent1 = AdjunctionEvent1 {
       childPOS   :: POS,
       childTopNT :: NonTerm,
@@ -117,6 +123,8 @@ instance Bounded AdjunctionEvent1 where
 data AdjunctionAction a = End | DoAdj a
                         deriving (Eq, Ord, Show)
 
+
+
 maybeAdj End = Nothing 
 maybeAdj (DoAdj a) = Just a 
 
@@ -144,12 +152,16 @@ instance (Bounded a) => Bounded (AdjunctionAction a) where
     maxBound = DoAdj maxBound
 
 type MAdjEvent1 = AdjunctionAction AdjunctionEvent1
+
+instance Event MAdjEvent1 where 
+    type EventMap (MAdjEvent1) = LT.WrappedIntMap
+
                  
 newtype AdjunctionEvent2 = AdjunctionEvent2 {
       childWord :: Word
 } deriving (Eq, Ord, Show, Enum, Bounded)
 
-$( derive makeBinary ''AdjunctionEvent2 )
+$( derive makeBinary ''AdjunctionEvent2)
 
 instance Pretty AdjunctionEvent2 where 
     pPrint e2 = pPrint $ childWord e2 
@@ -157,16 +169,26 @@ instance Pretty AdjunctionEvent2 where
 
 type MAdjEvent2 = AdjunctionAction AdjunctionEvent2
 
+instance Event MAdjEvent2 where 
+    type EventMap (MAdjEvent2) = LT.WrappedIntMap
+
+
 newtype AdjunctionEvent3 = AdjunctionEvent3 {
       spine :: Spine
 } deriving (Eq, Ord, Show, Enum)
 
+$( derive makeBinary ''AdjunctionEvent3)
+
 instance Pretty AdjunctionEvent3 where 
     pPrint e3 = pPrint $ spine e3 
 
-$( derive makeBinary ''AdjunctionEvent3 )
+
+
 
 type MAdjEvent3 = AdjunctionAction AdjunctionEvent3
+
+instance Event MAdjEvent3 where 
+    type EventMap (MAdjEvent3) = LT.WrappedIntMap
 
 {-# INLINE dec #-}
 dec = Just 
@@ -294,11 +316,6 @@ instance Context (AdjunctionContext2) where
     decompose = map enumInd 
 
 -- 3
-
-
-
-
-
 data AdjunctionSubContext3 = 
     AdjunctionSubContext3 {
       madjEvent13 :: Maybe MAdjEvent1,
@@ -345,7 +362,6 @@ type AdjunctionObservations =
     (CondObserved MAdjEvent1 AdjContext1,
      CondObserved MAdjEvent2 AdjContext2,
      CondObserved MAdjEvent3 AdjContext3
-     --P.PunctuationObservations
     )
                   
 
@@ -353,7 +369,6 @@ type AdjunctionDist =
     (CondDistribution MAdjEvent1 AdjContext1,
      CondDistribution MAdjEvent2 AdjContext2,
      CondDistribution MAdjEvent3 AdjContext3
---     P.PunctuationDistribution 
     )
 
 
@@ -419,15 +434,14 @@ newtype TAGCounts =
     TAGCounts { tagCounts :: AdjunctionObservations}
     deriving (Binary, Monoid)
 
-
-
 data TAGProbs = TAGProbs { tagProbs :: AdjunctionDist}
     
+
 estimateTAGProb :: TAGCounts -> TAGProbs
-estimateTAGProb (TAGCounts (a,b,c) ) = 
-    TAGProbs ( estimateWittenBell a, 
-               estimateWittenBell b, 
-               estimateWittenBell c)
+estimateTAGProb (TAGCounts (a,b,c)) = 
+    TAGProbs ( estimateGeneralLinear (wittenBell 5) a, 
+               estimateGeneralLinear (wittenBell 5) b, 
+               estimateGeneralLinear (wittenBell 5) c)
                --estimateWittenBell d)
 
 instance Pretty TAGCounts where 
@@ -438,10 +452,7 @@ instance Pretty TAGCounts where
 instance Show TAGCounts where 
     show = render . pPrint 
 
-
-
 -- exposed methods 
-
 type AdjunctionParent = (AdjunctionSide, AdjContext1)
 
 type Adjunction = (AdjunctionSide,
@@ -453,9 +464,9 @@ type Adjunction = (AdjunctionSide,
 countAdjunction :: Adjunction  -> TAGCounts 
 countAdjunction (side, ((e1,c1),(e2,c2), (e3,c3))) = 
     TAGCounts obs 
-    where obs = (singletonObservation e1 c1,
-                 singletonObservation e2 c2,
-                 singletonObservation e3 c3)
+    where obs = (singletonCondObs e1 c1,
+                 singletonCondObs e2 c2,
+                 singletonCondObs e3 c3)
                 -- ,
 --                  case punc of 
 --                    Nothing -> mempty
@@ -467,32 +478,32 @@ probAdjunction :: Adjunction -> TAGProbs -> Prob
 probAdjunction  (_, ((e1,c1),(e2,c2), (e3,c3))) probs =
     res --trace ((show e1) ++ (show c1) ++ (show pr1) ++ (show res)) $ assert (not $ isNaN res) $  res 
         where (p1,p2,p3) = tagProbs probs
-              pr1 = prob (cond p1 c1) e1 
-              pr2 = prob (cond p2 c2) e2 
-              pr3 = prob (cond p3 c3) e3 
+              pr1 = p1 c1 e1 
+              pr2 = p2 c2 e2 
+              pr3 = p3 c3 e3 
               res = pr1 * pr2 * pr3 
                     -- * 
 --                     case punc of 
 --                       Nothing -> 1.0
 --                       Just (e4, c4) -> prob (cond p4 c4) e4 
 
-probAdjunctionDebug :: Adjunction -> TAGProbs -> ProbDebug 
-probAdjunctionDebug  (_, ((e1,c1),(e2,c2), (e3,c3))) probs =
-    ProbDebug e1 e2 e3 c1 c2 c3 pr1 pr2 pr3  pr1' pr2' pr3'  res
-        where (p1,p2,p3) = tagProbs probs
-              pr1 = ProbsWithSmoothing  $ (condDebug p1 c1) e1 
-              pr2 = ProbsWithSmoothing  $ (condDebug p2 c2) e2 
-              pr3 = ProbsWithSmoothing  $ (condDebug p3 c3) e3
---               pr4 = ProbsWithSmoothing $  case punc of 
---                                            Nothing -> []
---                                            Just (e4, c4) -> (condDebug p4 c4) e4
-              pr1' = prob (cond p1 c1) e1 
-              pr2' = prob (cond p2 c2) e2 
-              pr3' = prob (cond p3 c3) e3
---               pr4' = case punc of 
---                                            Nothing -> 1.0
---                                            Just (e4, c4) -> prob (cond p4 c4) e4
-              res = pr1' * pr2' * pr3'
+-- probAdjunctionDebug :: Adjunction -> TAGProbs -> ProbDebug 
+-- probAdjunctionDebug  (_, ((e1,c1),(e2,c2), (e3,c3))) probs =
+--     ProbDebug e1 e2 e3 c1 c2 c3 pr1 pr2 pr3  pr1' pr2' pr3'  res
+--         where (p1,p2,p3) = tagProbs probs
+--               pr1 = ProbsWithSmoothing  $ (condDebug p1 c1) e1 
+--               pr2 = ProbsWithSmoothing  $ (condDebug p2 c2) e2 
+--               pr3 = ProbsWithSmoothing  $ (condDebug p3 c3) e3
+-- --               pr4 = ProbsWithSmoothing $  case punc of 
+-- --                                            Nothing -> []
+-- --                                            Just (e4, c4) -> (condDebug p4 c4) e4
+--               pr1' = prob (cond p1 c1) e1 
+--               pr2' = prob (cond p2 c2) e2 
+--               pr3' = prob (cond p3 c3) e3
+-- --               pr4' = case punc of 
+-- --                                            Nothing -> 1.0
+-- --                                            Just (e4, c4) -> prob (cond p4 c4) e4
+--               res = pr1' * pr2' * pr3'
 
 
 newtype ProbsWithSmoothing = ProbsWithSmoothing [(Double, Double)]

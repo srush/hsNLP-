@@ -28,19 +28,22 @@ instance Context GWord where
     type SubMap GWord = M.Map
     decompose (word, pos) = [(Nothing, Just pos),
                              (Just word, Nothing)]
-        
+     
+instance Event GWord where type EventMap GWord = M.Map
+instance Event Spine where type EventMap Spine = M.Map
+   
 countSpine :: TAGWord -> PriorObs
 countSpine tagword = 
     (singleton $ twWord tagword,
-     singletonObservation (twSpine tagword) $ twWord tagword 
+     singletonCondObs (twSpine tagword) $ twWord tagword 
      )
 
 probSpine (udist, cdist) =
     subProb'
 
         where 
-          subProb tagword = p * (prob (cond cdist $ twWord tagword) $ twSpine tagword)
-              where p' = (prob udist $ twWord tagword)
+          subProb tagword = p * (cdist  (twWord tagword) $ twSpine tagword)
+              where p' = (udist $ twWord tagword)
                     p = if isNaN p' then (1e-19) else max p' (1e-19)
 
           subProb' tagword = unsafePerformIO $ do
@@ -54,7 +57,7 @@ probSpine (udist, cdist) =
           cache = unsafePerformIO $ newIORef M.empty
 
 estimatePrior :: PriorObs -> PriorProbs
-estimatePrior (ucounts, ccounts) = (estimateMLE ucounts, 
-                                    estimateLinear [0.7, 0.3] ccounts) 
+estimatePrior (ucounts, ccounts) = (mle $ finish ucounts, 
+                                    estimateGeneralLinear (simpleLinear [0.7, 0.2, 0.1]) ccounts) 
     
 

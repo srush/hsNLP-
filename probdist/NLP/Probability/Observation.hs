@@ -1,65 +1,83 @@
-{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, TemplateHaskell, ScopedTypeVariables #-}
-module NLP.Probability.Observation where 
-import qualified Data.IntMap as M 
+{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, ScopedTypeVariables, FlexibleContexts, UndecidableInstances #-}
+module NLP.Probability.Observation (
+  -- * Observation
+  --                    
+  -- $ObsDesc                                      
+  Count,
+  Counts,
+  Event(..), 
+  observation,
+  inc,
+  Observed(..),
+  finish
+
+
+                                   ) where 
 import Data.Monoid
-import Text.Printf
 import Data.List (intercalate)
+import Control.Monad (liftM)
 import Data.Binary
 import Text.PrettyPrint.HughesPJClass
+import qualified Data.ListTrie.Base.Map as M
+
+-- $ObsDesc
+-- This module provides a simple way to collect observations ('counts'), particularly within a monoid.  
+-- Use 'observation' for each observed event and 'mappend' for combining observations. Finally 'finish' before estimating probabilities. 
 
 type Count = Double
 
-newtype Observed event = Observed {
-      counts :: M.IntMap Count 
-} deriving (Eq, Ord, Binary)
+-- | Observations over a set of events. The param event must be an instance of class Event
+newtype Counts event = Counts {
+      counts :: (EventMap event) event Count 
+} 
 
+-- | Trivial type family for events. Just use EventMap = M.Map for most cases. Allows clients to specify the type of map used, when efficiency is important.   
+class (M.Map (EventMap event) event) => Event event where 
+    type EventMap event :: * -> * -> *
 
+instance (Event event, Show event) => Pretty (Counts event) where 
+    pPrint (Counts counts) = 
+        vcat $ map (\(e,count) -> (text $ show $ e) <+> equals <+> double count  ) $ M.toList counts 
 
-
-instance (Show event) => (Show (Observed event)) where 
-    show (Observed counts) = 
-        "[ " ++ (intercalate ","  $ map (\(event, count) -> printf "%s: %s" (show event) (show count)) $ M.toList counts) ++ " ]"
-
-instance (Pretty event, Enum event) => Pretty (Observed event) where 
-    pPrint (Observed counts) = 
-        vcat $ map (\(i,count) -> (pPrint $ (toEnum i::event)) <+> equals <+> double count  ) $ M.toList counts 
+instance (Event event, Show event) => (Show (Counts event)) where 
+    show = render . pPrint        
     
+instance (Event event) => Monoid (Counts event) where 
+    mempty = Counts M.empty 
+    mappend (Counts a) (Counts b) = Counts $ M.unionWith (+) a b 
 
-instance (Enum event) => Monoid (Observed event) where 
-    mempty = Observed mempty 
-    mappend (Observed a) (Observed b) = Observed $ M.unionWith (+) a b 
+instance (Event event, Binary event, Binary ((EventMap event) event Count)) => 
+         Binary (Counts event) where
+    put (Counts m) = put m
+    get = Counts `liftM` get 
 
-singleton :: (Enum event) => event -> Observed event
-singleton event = Observed (M.singleton (fromEnum event) 1)  
+-- | Observation of a single event  
+observation :: (Event event) => event -> Counts event
+observation event = Counts (M.singleton event 1)  
 
-observedEvents :: (Enum event) => Observed event -> [event]
-observedEvents (Observed m) = map (toEnum.fst) $ filter ((> 0) . snd) $ M.toList m  
+-- | Manually increment the count of an event 
+inc :: (Event e) => Counts e -> e -> Count -> Counts e
+inc obs e c = obs {counts = M.insertWith (+) e c $ counts obs} 
 
-inc :: (Enum e) => Observed e -> e -> Count -> Observed e
-inc obs e c = obs {counts = M.insertWith (+) (fromEnum e) c $ counts obs} 
+observedEvents :: (Event event) => Counts event -> [event]
+observedEvents (Counts m) = map fst $ filter ((> 0) . snd) $ M.toList m  
 
-inc1 :: (Enum e) => Observed e -> e -> Observed e 
-inc1 obs e = inc obs e 1.0
+elems :: (M.Map map event) => map event elem -> [elem] 
+elems = map snd . M.toList
 
+calcTotal :: (Event event) => Counts event -> Count
+calcTotal = sum . elems .counts 
 
-data ExtraObserved event = ExtraObserved {
-      eoObserved :: Observed event,
-      eoTotal  :: Double, 
-      eoUnique :: Count
-} deriving Show
+countNonTrivial :: (Event event ) => Counts event -> Count
+countNonTrivial = fromIntegral .length . filter (>0) . elems . counts 
 
+data Observed event = Observed {
+      observed :: (EventMap event) event Count,
+      total  :: Double -- ^ Gives the total number of observations sum_a C(a)
+      , unique :: Count -- ^ Gives the total number of events observed at least once {a | C(a) > 1}
+} 
 
-storeState :: (Enum event) => Observed event -> ExtraObserved event 
-storeState obs = ExtraObserved obs (calcTotal obs) (countNonTrivial obs)
-
--- | Gives the total number of observations
---   sum_a C(a)
-calcTotal :: (Enum e) => Observed e -> Count
-calcTotal = sum . M.elems .counts 
-
-
--- | Gives the total number of events observed at least once
---   |{a | C(a) > 1}|
-countNonTrivial :: (Enum e) => Observed e -> Count
-countNonTrivial = fromIntegral .length . filter (>0) . M.elems .counts 
-
+-- | Finish a set of offline observations so that they can be used to estimate
+--   likelihood  
+finish :: (Event event) => Counts event -> Observed event 
+finish obs = Observed (counts obs) (calcTotal obs) (countNonTrivial obs)
