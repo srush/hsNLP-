@@ -64,7 +64,6 @@ data Span fsa =
       simple :: Bool, -- s
       leftEnd :: SpanEnd fsa,
       rightEnd :: SpanEnd fsa
-      -- midSplit :: Maybe (Int, Int) -- (currently indexed -fix) the "last" point in the span where this word is the head
 } deriving (Eq, Ord) 
 
 
@@ -106,12 +105,23 @@ advance headSpan nextWord  = do
 
 -- implementations of declarative rules
 
+canOptLinkL span =  
+      ((False, False)== hasParentPair span) && 
+      (case state $ leftEnd span of Open _ -> True 
+                                    _ -> False)
+
+canOptLinkR span =  
+      ((False, False)== hasParentPair span) && 
+      (case state $ rightEnd span of Open _ -> True 
+                                     _ -> False)
+
+
+
 -- The OptLink Rules take spans with dual head (0,0) and adjoin the head on 
 -- one side to the head on the other. 
-optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
-optLinkL (span, semi) = do -- trace ("optLinkL" ++ show span )$ do -- $ do
-      (False, False) <- [hasParentPair span]
-      (Open _)  <- [state $ leftEnd span]
+--optLinkL'
+optLinkL' span = do -- trace ("optLinkL" ++ show span )$ do -- $ do
+      guard $ canOptLinkL span
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span) 
       let pfin = finish (fromSeal $ state $ rightEnd span) (fromJustNote "split" $ split $ rightEnd span) 
       return $ (span { simple = True, 
@@ -120,35 +130,53 @@ optLinkL (span, semi) = do -- trace ("optLinkL" ++ show span )$ do -- $ do
                                                   split = Nothing,
                                                   state = Sealed}
                      },
-               p `times` semi `times` pfin)
+               p `times` pfin)
 
+optLinkL :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
+optLinkL (span, semi) =do
+  (span', semi') <- optLinkL' span
+  return (span', semi `times` semi') 
+    
+
+--optLinkR' :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
+optLinkR' span =  do --trace "optLinkR" $ do 
+  guard $ canOptLinkR span
+  let pfin = finish (fromSeal $ state $  leftEnd span) (fromJustNote "split" $ split $ leftEnd span) 
+  (rightEnd', p) <- advance (rightEnd span)  (word $ leftEnd span)   
+  return $ (span {simple = True, 
+                  rightEnd = rightEnd',
+                  leftEnd = (leftEnd span) {hasParent = True,
+                                            split = Nothing,
+                                            state = Sealed}
+                 },
+            p `times` pfin)
 
 optLinkR :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
-optLinkR (span, semi) =  do --trace "optLinkR" $ do 
-    (False, False) <- [hasParentPair span]
-    (Open _)  <- [state $ rightEnd span]
-    let pfin = finish (fromSeal $ state $  leftEnd span) (fromJustNote "split" $ split $ leftEnd span) 
-    (rightEnd', p) <- advance (rightEnd span)  (word $ leftEnd span)   
-    return $ (span {simple = True, 
-                    rightEnd = rightEnd',
-                    leftEnd = (leftEnd span) {hasParent = True,
-                                              split = Nothing,
-                                              state = Sealed}
-                    },
-                p `times` pfin `times` semi)
+optLinkR (span, semi) =do
+  (span', semi') <- optLinkR' span
+  return (span', semi `times` semi') 
+
+canCombine span1 span2 =
+    simple span1 && (b2 /= b2') && f1 && f2 &&  w1 == w2
+        where
+          ((b1, b2), (b2', b3)) =  (hasParentPair span1, hasParentPair span2)
+          f1 = isStateFinal $ state $ rightEnd span1
+          f2 = isStateFinal $ state $ leftEnd span2
+          w1 = word $ rightEnd span1
+          w2 = word $ leftEnd span2
+
 
 -- Combine rules take a right finished simple span 
 -- and merge it with a a left finished span. Producing a new span 
 -- that is ready for an optlink adjunction  
-combine :: (WFSM fsa) => DoubleDerivationRule (EItem fsa)
-combine (span1, semi1) (span2, semi2) = 
-    if simple span1 && (b2 /= b2') && f1 && f2 &&  w1 == w2 then 
-             [(Span {simple = False,
-                    leftEnd = (leftEnd span1)   {split = leftSp},
-                    rightEnd = (rightEnd span2) {split = rightSp} 
-                    },
-             semi1 `times` semi2 `times` pfin )]
-    else []
+
+combine' span1 span2 = do 
+  guard  $ canCombine span1 span2
+  return $ (Span {simple = False,
+                  leftEnd = (leftEnd span1)   {split = leftSp},
+                  rightEnd = (rightEnd span2) {split = rightSp} 
+                 },
+             pfin)
         where
           pfin = if not b2' then -- _ 1 0 1
                      finish (fromSeal $ state $ leftEnd  span2) (fromJustNote "fina" $ split $ leftEnd  span2)
@@ -161,11 +189,11 @@ combine (span1, semi1) (span2, semi2) =
                                  (split $ leftEnd span1,  split $ rightEnd span1)
                              else (Nothing, Nothing)
           ((b1, b2), (b2', b3)) =  (hasParentPair span1, hasParentPair span2)
-          f1 = isStateFinal $ state $ rightEnd span1
-          f2 = isStateFinal $ state $ leftEnd span2
-          --fOuter = any (isSealed.state) [leftEnd span1, rightEnd span2] -- for faster O(t) speedup 
-          w1 = word $ rightEnd span1
-          w2 = word $ leftEnd span2
+
+combine :: (WFSM fsa) => DoubleDerivationRule (EItem fsa)
+combine (span1, semi1) (span2, semi2) = do  
+  (span', semi') <- combine' span1 span2
+  return (span', semi' `times` semi1 `times` semi2) 
 
 singleEnd :: (WFSM fsa) => 
              Int -> 
@@ -239,8 +267,7 @@ processCell :: (WFSM fsa, SentenceLattice sent) =>
                ([EItem fsa] -> [EItem fsa]) -> 
                [EItem fsa] -- contents of the new cell 
 processCell getFSA sentence wordConv (i, k) chart beam = catMaybes $ map seal $ 
-    if k-i == 1 then
-        
+    if k-i == 1 then        
         (let seedCells = beam $ seed getFSA i 
                         (map wordConv $ getWords sentence i) 
                         (map wordConv  $ getWords sentence (i+1))

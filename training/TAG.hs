@@ -89,7 +89,10 @@ data TAGWord = TAGWord {
       twIsConj :: Bool,
       twInd ::Int 
     }
-               deriving (Ord, Show)
+               deriving (Ord)
+
+instance Show TAGWord where 
+    show = render . pPrint
 
 instance Eq TAGWord where 
     (==) = (==) `on` comp

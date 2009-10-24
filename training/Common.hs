@@ -16,6 +16,7 @@ module Common (
                module Text.PrettyPrint.HughesPJClass,
                module Debug.Trace,
                module Debug.Trace.Helpers,
+               module Data.Monoid
               )
     where 
 import Text.PrettyPrint.HughesPJClass
@@ -29,3 +30,4 @@ import Control.Monad (liftM, ap, guard)
 import Data.List (intercalate)
 import Debug.Trace
 import Debug.Trace.Helpers
+import Data.Monoid

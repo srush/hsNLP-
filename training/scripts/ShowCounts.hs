@@ -25,6 +25,8 @@ import Data.Array
 import Control.Parallel.Strategies
 import Distance
 import Data.Algorithm.Diff
+import ExtraParams
+
 separate :: (Eq el) => el -> [el] -> [[el]]
 separate el [] = [] 
 separate el ls = case elemIndex el ls of
@@ -114,8 +116,8 @@ parseSent counts spineCounts probs probSpine insent =
           trivVal _ _ _ _ = True
           prunVal :: Validity
           prunVal = valid dsent
-          getFSM val collins i (Just word) =  (initAdj (probs, val) ldiscache ALeft word collins,
-                                               initAdj (probs, val) rdiscache ARight word collins)
+          getFSM val collins i (Just word) =  (initAdj (ProbModel probs testProbs val) ldiscache ALeft word collins,
+                                               initAdj (ProbModel probs testProbs val) rdiscache ARight word collins)
 
           symbolConv word = Just word 
                           

@@ -11,7 +11,7 @@ import Safe (fromJustNote)
 import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass
 import Debug.Trace
-
+import Data.Maybe
 -- a distance from start to finish. Sometimes called a span 
 -- but use range here to distinguish Eisner's use of span
 type Range = (Int, Int) 
@@ -88,6 +88,19 @@ chartParse sent combine prune beam  = Chart chart
                      k <= n+1
               ] 
 
+
+outsideParse sent (Chart inside) combine  = Chart chart 
+    where 
+      n = sentenceLength sent
+      insideL i = M.toList $ uncell $ fromMaybe (Cell M.empty) $ M.lookup i inside 
+      chart = M.fromList $
+              [((i,k), Cell $ M.fromListWith mappend $ 
+                combine (i,k)  insideL (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
+                   | d <- [n,n-1..1], 
+                     i <- [1..n],
+                     let k = i + d,
+                     k <= n+1
+              ] 
 
 
 

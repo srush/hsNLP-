@@ -1,5 +1,5 @@
 name:                semiring
-version:             0.1.1
+version:             0.2
 synopsis:            Semirings, ring-like structures used for dynamic programming applications 
 description:         This provides a type class for semirings and 
                      implementations of the common semirings used in natural language 

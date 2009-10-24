@@ -24,6 +24,7 @@ import qualified Data.Set as S
 import POS
 import Debug
 import Distance
+import ExtraParams
 
 type SpineExist = M.Map POS (S.Set Spine)
 
@@ -130,7 +131,7 @@ type GetSemi word edge semi =  (Int,word) -> Maybe (Int,word) -> edge -> semi
 
 
 
-data AdjState model = 
+data AdjState model semi = 
     AdjState { 
       stateModel :: model,
       stateHead :: !TAGWord,
@@ -154,7 +155,7 @@ initAdj :: model ->
            AdjunctionSide ->
            TAGWord ->
            Bool -> 
-           AdjState model 
+           AdjState model semi 
 initAdj model discache side tagword collins = 
     fromJustNote "nonblank" $ mkEmpty 0 $ lastOfSpine $ twSpine tagword
     where 
@@ -204,10 +205,10 @@ prior probs (Just adjstate) =  pairLikelihood
 expandAdjState as =  (statePos as, stateCurDelta as, stateIsAfterComma as, stateNPBLast as)
 
 
-instance Eq (AdjState a) where 
+instance Eq (AdjState a b) where 
     (==) = (==) `on` expandAdjState
 
-instance Ord (AdjState a) where
+instance Ord (AdjState a b) where
     {-# INLINE compare #-}
     compare = compare `on` expandAdjState
 
@@ -304,16 +305,7 @@ findSemiProbs adjstate child atype vdis =
     if not $ valid head (maybeAdj child) pos atype then 
         Nothing
     else 
-        Just $ case child of 
-             End -> 
-                 viterbiHelp p
-                      (Dependency mempty, [])
---                       if debug then [(adj, probAdjunctionDebug adj probs)] else [])
-             DoAdj child' ->
-                 viterbiHelp p
-                      (singletonDep (twInd head) (twInd child') $ 
-                          (AdjunctionInfo pos atype (mkDerivationCell child')), [])   
-  --                     if debug then [(adj, probAdjunctionDebug adj probs)] else [])
+        Just $ mkSemi p head child pos atype
         where
           parent = case npblast of
                      Nothing -> fromJust $ M.lookup (pos, vdis, curDelta) parents
@@ -325,7 +317,7 @@ findSemiProbs adjstate child atype vdis =
           AdjState {stateSide  = side, 
                     statePos   = pos,
                     stateHead  = head,
-                    stateModel = (probs,valid),
+                    stateModel = ProbModel probs _ valid,
                     stateDisCache = discache,
                     stateCurDelta = curDelta,
                     stateNPBLast = npblast,
@@ -340,24 +332,59 @@ mkDistance adjstate split = VerbDistance
     where (verb, _) = ((stateDisCache adjstate) (twInd $ stateHead adjstate, split))
                             
 
-data  TAGTree a =  TAGTree {leftForest :: AdjState a, 
-                            rootWord :: TAGWord, 
-                            rightForest :: AdjState a}
-                deriving (Show, Eq, Ord)
 adjStateFinal adjstate = statePos adjstate >= ((lastOfSpine $ twSpine $ stateHead adjstate) - 1) 
 
 type Validity = TAGWord -> (Maybe TAGWord) -> Int -> AdjunctionType -> Bool
 
-instance WFSM (AdjState (TAGProbs, Validity)) where 
-    type State (AdjState (TAGProbs, Validity)) = (AdjState (TAGProbs, Validity)) 
-    initialState init = [(init, one)]
+data ProbModel = ProbModel {
+      probs :: TAGProbs,
+      extra :: FlipProbs,
+      validity :: Validity 
+    }
 
-instance FSMState (AdjState (TAGProbs,Validity)) where
-    type FSMSymbol (AdjState (TAGProbs, Validity)) = Maybe (TAGWord)
-    type FSMSemiring (AdjState (TAGProbs, Validity)) = ViterbiDerivation TAGDerivation
+class CreateableSemi a where 
+    mkSemi :: Double -> TAGWord -> (AdjunctionAction TAGWord) -> Int -> AdjunctionType -> a
+    mkSemiSmall :: Double -> a
+instance CreateableSemi Prob where 
+    mkSemi p head child pos atype  = 
+        Prob p
+    mkSemiSmall p = Prob p 
+
+instance CreateableSemi (ViterbiDerivation TAGDerivation) where 
+    mkSemiSmall p = viterbiHelp p (Dependency mempty, [])
+    mkSemi p head child pos atype  = 
+        case child of 
+             End -> 
+                 viterbiHelp p
+                      (Dependency mempty, [])
+--                       if debug then [(adj, probAdjunctionDebug adj probs)] else [])
+             DoAdj child' ->
+                 
+                 viterbiHelp p
+                      (singletonDep (twInd head) (twInd child') $ 
+                          (AdjunctionInfo pos atype (mkDerivationCell child')), [])   
+  --                     if debug then [(adj, probAdjunctionDebug adj probs)] else []) 
+
+
+
+instance (CreateableSemi semi, Semiring semi) => WFSM (AdjState ProbModel semi) where 
+    type State (AdjState ProbModel semi) = (AdjState ProbModel semi) 
+    initialState init = [(init{stateSide = ALeft }, 
+                          mkSemiSmall (probFlip flipprobs ALeft $ flip)),
+                         (init{stateSide = ARight},
+                          mkSemiSmall (probFlip flipprobs ARight $ flip)
+                          )]
+        where flipprobs = extra $ stateModel init
+              flip = mkFlip (stateHead init) (stateSide init)
+
+    
+instance (CreateableSemi semi, Semiring semi) => FSMState (AdjState ProbModel semi) where
+    type FSMSymbol (AdjState ProbModel semi) = Maybe (TAGWord)
+    type FSMSemiring (AdjState ProbModel semi) = semi -- ViterbiDerivation TAGDerivation
     next = generalNext findSemiProbs 
     finish = generalFinish findSemiProbs       
     isFinal = const True  
+
 
 validCountComma adjstate child atype =
     valid (stateModel adjstate) (stateHead adjstate) child (statePos adjstate) atype  
@@ -378,15 +405,17 @@ findSemiCounts adjstate child atype vdis =
                     stateNPBLast = npblast
                     } = adjstate
 
-instance WFSM (AdjState TAGSentence) where 
-    type State (AdjState TAGSentence) = (AdjState TAGSentence) 
+instance WFSM (AdjState TAGSentence a) where 
+    type State (AdjState TAGSentence a) = (AdjState TAGSentence a) 
     initialState init = [(init, one)]
 
-instance FSMState (AdjState TAGSentence)  where
-    type FSMSymbol (AdjState TAGSentence) = Maybe (TAGWord)
-    type FSMSemiring (AdjState TAGSentence) = Derivation TAGCounts 
+instance FSMState (AdjState TAGSentence a)  where
+    type FSMSymbol (AdjState TAGSentence a) = Maybe (TAGWord)
+    type FSMSemiring (AdjState TAGSentence a) = Derivation TAGCounts 
     next = generalNext findSemiCounts 
     isFinal = const True
     finish = generalFinish findSemiCounts 
-instance Show (AdjState a) where 
+instance Show (AdjState a b) where 
     show s = (show $ statePos s) ++ (show $ ((lastOfSpine $ twSpine $ stateHead s) - 1) )
+
+
