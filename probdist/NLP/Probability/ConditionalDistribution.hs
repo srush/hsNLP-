@@ -6,6 +6,8 @@ module NLP.Probability.ConditionalDistribution (
                                                 CondObserved(),
                                                 CondDistribution,
                                                 condObservation,
+                                                condObservations,
+                                                condObservationCounts,
                                                 Context(..), 
                                                 estimateGeneralLinear,
                                                 Weighting,
@@ -54,12 +56,21 @@ class (M.Map (SubMap a) (Sub a)) => Context a where
     decompose ::  a -> [Sub a] 
 
 -- | A CondObserved set for a single event and context. 
-condObservation :: (Context context, Event event) => 
-             event -> context -> CondObserved event context
-condObservation event context = 
+condObservations :: (Context context, Event event) => 
+             event -> context -> Count -> CondObserved event context
+condObservations event context count = 
     ST.addColumn decomp observed mempty 
-        where observed = observation event 
+        where observed = observations event count 
               decomp = decompose context 
+
+condObservation event context = condObservations event context 1.0
+
+condObservationCounts :: (Context context, Event event) => 
+             context -> Counts event  -> CondObserved event context
+condObservationCounts context counts =
+    ST.addColumn decomp counts mempty 
+        where decomp = decompose context 
+    
 
 type CondDistribution event context = context -> Distribution event
 

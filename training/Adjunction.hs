@@ -464,9 +464,9 @@ type Adjunction = (AdjunctionSide,
 countAdjunction :: Adjunction  -> TAGCounts 
 countAdjunction (side, ((e1,c1),(e2,c2), (e3,c3))) = 
     TAGCounts obs 
-    where obs = (singletonCondObs e1 c1,
-                 singletonCondObs e2 c2,
-                 singletonCondObs e3 c3)
+    where obs = (condObservation e1 c1,
+                 condObservation e2 c2,
+                 condObservation e3 c3)
                 -- ,
 --                  case punc of 
 --                    Nothing -> mempty
@@ -580,20 +580,3 @@ getProbs c =
 
 
 
--- mkPunctuationContext :: 
---     AdjunctionSide -> AdjunctionType -> AdjunctionAction TAGWord -> AdjunctionContext1 -> P.PunctuationContext
--- mkPunctuationContext side atype child [sub1, sub2, sub3]   -- ((headWord, headPOS), parentNT, headNT) 
---                             = 
---     P.PunctuationContext [ P.puncSubDef {P.side      = mside $ enumVal (sub1) , 
---                     P.headNT    = mheadNT $ enumVal (sub1),
---                     P.childNT   = fromJustNote "exists" $ top `liftM` twSpine `liftM` child',
---                     P.parentNT  = mparentNT $ enumVal (sub1),
---                     P.atype     = Just atype
---                                         },
---       P.puncSubDef {P.parentPOS   = mparentPOS $ enumVal (sub2),
---                     P.childPOS  = snd `liftM` twWord `liftM` child'},
---       P.puncSubDef {P.parentWord  = mparentWord $ enumVal (sub3),
---                     P.childWord  =fst `liftM` twWord `liftM` child'}
---     ]
-
---     where child' = maybeAdj child <

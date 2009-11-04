@@ -102,6 +102,23 @@ outsideParse sent (Chart inside) combine  = Chart chart
                      k <= n+1
               ] 
 
+alignCharts :: (SentenceLattice sent, Semiring semi, Ord sig) =>
+               sent -> 
+               Chart sig semi ->
+               Chart sig semi ->
+               [(sig, (semi,semi))]
+alignCharts sent (Chart inside) (Chart outside) =
+    concatMap (M.toList . (uncurry $ M.intersectionWithKey (\k a b-> (a, b)))) pairs
+    where
+      pairs =
+              [( uncell $ fromJustNote "lookup fail" $ M.lookup (i,k) inside,
+                 uncell $ fromJustNote "lookup fail" $ M.lookup (i,k) outside)
+                   | d <- [1..n], 
+                     i <- [1..n],
+                     let k = i + d,
+                     k <= n+1
+              ] 
+      n = sentenceLength sent    
 
 
 type InitialDerivationRule item = [item]

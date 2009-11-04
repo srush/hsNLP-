@@ -1,40 +1,34 @@
 {-# LANGUAGE  GeneralizedNewtypeDeriving, TemplateHaskell #-}
 module NonTerm (NonTerm, mkNonTerm, fromPOS, Spine(..), last, mkSpine, top, lastOfSpine, getNonTerm, lookupNonTerm, hasNP, posNP, addNPB, isNPB, hasNPorNPCC)  where 
-import POS 
+import NLP.Language. 
 import EnumHelpers
 import Common
 import Data.List (elemIndex)
-data PureNonTerm =  ADJP | ADJP_CC | ADVP | ADVP_CC | CONJP | FRAG | FRAG_CC | INTJ | INTJ_CC | LST | NAC | NAC_CC | NP | NP_CC | NX | NX_CC | PP | PP_CC | PRN | PRN_CC | PRT | PRT_CC | QP | QP_CC | RRC | RRC_CC | S | SBAR | SBARQ | SBARQ_CC | SBAR_CC | SINV | SINV_CC | SQ | SQ_CC | S_CC | UCP | UCP_CC | VP | VP_CC | WHADJP | WHADJP_CC | WHADVP | WHADVP_CC | WHNP | WHNP_CC | WHPP | X | X_CC | NPB | ROOT 
-    deriving (Read, Show, Eq, Ord, Enum, Bounded)
+import Test.QuickCheck
 
-data NonTerm = NonTermWrap PureNonTerm | NTPOS POS  
+data NonTermWrap l = NonTermWrap PureNonTerm | NTPOS (POS l)  
              deriving (Read, Eq, Ord)
 
-instance Show NonTerm where
+instance Show NonTermWrap where
     show (NonTermWrap nt) = show nt
     show (NTPOS nt) = show nt
 
-instance Pretty NonTerm where pPrint = text . show  
+instance Pretty NonTermWrap where pPrint = text . show  
 
-$( derive makeBinary ''PureNonTerm )
-$( derive makeArbitrary ''PureNonTerm )
-
-$( derive makeBinary ''NonTerm )
-instance Arbitrary NonTerm where
+$( derive makeBinary ''NonTermWrap )
+instance Arbitrary NonTermWrap where
     arbitrary = NonTermWrap `liftM` arbitrary
 
-
-mkNonTerm :: String -> NonTerm
+mkNonTerm :: String -> NonTermWrap
 mkNonTerm nt = NonTermWrap $ readNote ("NonTerm" ++ nt) nt
 
 fromPOS = NTPOS
 
-instance Bounded NonTerm where
+instance Bounded NonTermWrap where
     minBound = NonTermWrap $ minBound
     maxBound = NTPOS $ maxBound 
 
-
-instance Enum NonTerm where 
+instance Enum NonTermWrap where 
     fromEnum (NonTermWrap nt) = fromEnum nt
     fromEnum (NTPOS pos) = fromEnum (maxBound :: PureNonTerm) + 1 + fromEnum pos
     toEnum n = if n > fromEnum (maxBound :: PureNonTerm) then 
@@ -42,10 +36,10 @@ instance Enum NonTerm where
                  else NonTermWrap $ toEnum (n ) 
 
 prop_enumNonTerm a = checkEnum
-    where types = (a::NonTerm) 
+    where types = (a::NonTermWrap) 
 
 
-data Spine = Spine { nts   :: [NonTerm],
+data Spine = Spine { nts   :: [NonTermWrap],
                      ienum :: Int} 
     
 mkSpine nts = Spine nts ienum
@@ -54,6 +48,18 @@ mkSpine nts = Spine nts ienum
 instance Enum Spine where 
     fromEnum (Spine s i) = i  
     toEnum n = Spine (mkToEnumList maxBound n) n
+
+-- WARNING, assumes that spines are size <= 4
+instance Bounded Spine where 
+    minBound = toEnum 0 
+    maxBound = toEnum $ computeMaxBound $ map fromEnum (replicate 4 (maxBound ::NonTermWrap))
+
+instance Arbitrary Spine where
+    arbitrary = do
+      i <- choose (0,3)
+      nts <- vectorOf i arbitrary 
+      return $ mkSpine nts
+
 
 instance Eq Spine where 
     (==) (Spine _ i) (Spine _ i') = i == i' 
@@ -97,7 +103,3 @@ lookupNonTerm i (Spine nts _) =
 instance Show Spine where 
     show (Spine nts _) = intercalate "+" $ ["*"] ++ map show nts
 
-instance Arbitrary Spine where 
-    arbitrary = do 
-      nts <- arbitrary 
-      return $ mkSpine nts

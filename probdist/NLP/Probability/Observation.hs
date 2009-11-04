@@ -7,6 +7,7 @@ module NLP.Probability.Observation (
   Counts,
   Event(..), 
   observation,
+  observations,
   inc,
   Observed(..),
   finish
@@ -53,7 +54,9 @@ instance (Event event, Binary event, Binary ((EventMap event) event Count)) =>
 
 -- | Observation of a single event  
 observation :: (Event event) => event -> Counts event
-observation event = Counts (M.singleton event 1)  
+observation event = observations event 1.0
+
+observations event count = Counts (M.singleton event count)  
 
 -- | Manually increment the count of an event 
 inc :: (Event e) => Counts e -> e -> Count -> Counts e

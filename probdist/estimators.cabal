@@ -17,6 +17,7 @@ library
     exposed-modules:     NLP.Probability.Distribution
                          NLP.Probability.Observation
                          NLP.Probability.ConditionalDistribution
+                         NLP.Probability.EM
                          NLP.Probability.Example.Trigram 
 
     other-modules:       NLP.Probability.SmoothTrie
@@ -27,7 +28,9 @@ library
                      list-tries,
                      pretty,
                      prettyclass, 
-                     text 
+                     text,
+                     MonadRandom,
+                     QuickCheck >= 2.0 
 
                     
                   

@@ -202,7 +202,7 @@ prior probs (Just adjstate) =  pairLikelihood
        pairLikelihood = probs $ adjstate
 
 {-# INLINE expandAdjState #-}
-expandAdjState as =  (statePos as, stateCurDelta as, stateIsAfterComma as, stateNPBLast as)
+expandAdjState as =  (statePos as, stateCurDelta as, stateIsAfterComma as, stateNPBLast as, stateSide as)
 
 
 instance Eq (AdjState a b) where 
@@ -254,10 +254,13 @@ generalNext findSemi adjstate child split  =
     if (statePos adjstate) >= (lastOfSpine $ twSpine $ stateHead adjstate)  then [] 
        
     else if stateNT adjstate == rootNT then
-             case findSemi adjstate (DoAdj $ fromJustNote "its good" child) Sister (mkDistance adjstate split) of 
-               Nothing -> []
-               Just s -> 
-                   [(adjstate {statePos = (statePos adjstate) + 1} , s)]
+             if stateSide adjstate == ARight then
+                 []
+             else
+                 case findSemi adjstate (DoAdj $ fromJustNote "its good" child) Sister (mkDistance adjstate split) of 
+                   Nothing -> []
+                   Just s -> 
+                       [(adjstate {statePos = (statePos adjstate) + 1} , s)]
                  
    else
       if stateCollinsRule adjstate &&
@@ -369,7 +372,9 @@ instance CreateableSemi (ViterbiDerivation TAGDerivation) where
 
 instance (CreateableSemi semi, Semiring semi) => WFSM (AdjState ProbModel semi) where 
     type State (AdjState ProbModel semi) = (AdjState ProbModel semi) 
-    initialState init = [(init{stateSide = ALeft }, 
+    initialState init = if (lastOfSpine $ twSpine $ stateHead init) == 0 then [(init, one)]
+                        else
+                            [(init{stateSide = ALeft }, 
                           mkSemiSmall (probFlip flipprobs ALeft $ flip)),
                          (init{stateSide = ARight},
                           mkSemiSmall (probFlip flipprobs ARight $ flip)
@@ -416,6 +421,6 @@ instance FSMState (AdjState TAGSentence a)  where
     isFinal = const True
     finish = generalFinish findSemiCounts 
 instance Show (AdjState a b) where 
-    show s = (show $ statePos s) ++ (show $ ((lastOfSpine $ twSpine $ stateHead s) - 1) )
+    show s = (show $ statePos s) ++ (show $ ((lastOfSpine $ twSpine $ stateHead s) - 1) ) ++ (show $ stateSide s)
 
 

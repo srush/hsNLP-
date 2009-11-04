@@ -1,0 +1,36 @@
+name:                multilanguage
+version:             0.1
+synopsis:            
+description:         
+category:            Natural Language Processing
+license:             BSD3
+license-file:        LICENSE
+author:              Sasha Rush
+maintainer:          <srush at mit dot edu>
+build-Type:          Simple
+cabal-version:       >= 1.2
+
+library
+    exposed-modules:     NLP.Language
+                         NLP.Language.English
+                         NLP.Language.German
+                         NLP.Language.Word
+
+    other-modules:       NLP.Language.Common
+                         NLP.Language.English.POS
+                         NLP.Language.English.NonTerm
+                         NLP.Language.German.POS
+                         NLP.Language.German.NonTerm
+                         
+    build-Depends:   base       >= 3   && < 4,
+                     containers >= 0.1 && < 0.3,
+                     derive,
+                     binary,
+                     bytestring,
+                     bytestring-trie,
+                     safe,
+                     QuickCheck,
+                     prettyclass,
+                     pretty,
+                     bimap
+

@@ -15,7 +15,7 @@ import qualified Data.Map as M
 import System.IO.Unsafe
 import Data.IORef
 
-type PriorObs = (Observed GWord,
+type PriorObs = (Counts GWord,
                  CondObserved Spine GWord)
 
 type PriorProbs = (Distribution GWord,
@@ -34,8 +34,8 @@ instance Event Spine where type EventMap Spine = M.Map
    
 countSpine :: TAGWord -> PriorObs
 countSpine tagword = 
-    (singleton $ twWord tagword,
-     singletonCondObs (twSpine tagword) $ twWord tagword 
+    (observation $ twWord tagword,
+     condObservation (twSpine tagword) $ twWord tagword 
      )
 
 probSpine (udist, cdist) =
