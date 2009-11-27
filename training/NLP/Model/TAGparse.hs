@@ -2,7 +2,6 @@
 module TAGparse where 
 
 import Common hiding (Derivation)
-import TAG 
 import Adjunction
 import Data.Monoid
 import Data.Maybe (fromJust)
@@ -17,16 +16,16 @@ import NLP.ChartParse
 import NLP.ChartParse.Eisner
 import DependencyStructure
 import Control.Exception
-import Sentence
+import NLP.Language.WordLattice
 import NonTerm
 import qualified Data.Map as M
 import qualified Data.Set as S
-import POS
+import NLP.Grammar.TAG 
+import NLP.Language.POS
 import Debug
 import Distance
 import ExtraParams
 
-type SpineExist = M.Map POS (S.Set Spine)
 
 instance (Pretty d, Monoid d ) => Pretty (Derivation d) where
     pPrint = pPrint . fromDerivation 
@@ -40,8 +39,6 @@ data DerivationCell = DerivationCell {
 
 mkDerivationCell word = 
     DerivationCell word 
-
-
 
 newtype TAGDerivation = TAGDerivation (Dependency (AdjunctionInfo (DerivationCell)), [(Adjunction, ProbDebug)]) 
     deriving (Eq, Monoid)
@@ -89,46 +86,11 @@ instance Pretty TAGDerivation where
     pPrint (TAGDerivation der) = 
         (text $ show der)
              
-
-mkTestTAGWord :: SpineExist -> (Int, GWord) -> [TAGWord]
-mkTestTAGWord counts (ind, (word,pos)) = 
-     map (\sp -> mkTAGWord (word,pos) sp ind) $ S.toList $ 
-     fromJustDef mempty $ M.lookup pos counts
-
 viterbiHelp prob td = 
     mkViterbi $ Weighted (Prob prob, mkDerivation $ TAGDerivation td)
 
 type TAGFSM semi = GraphWFSM Int (Maybe TAGWord) semi
 type GetSemi word edge semi =  (Int,word) -> Maybe (Int,word) -> edge -> semi
-
--- tagSentenceFSMs (TAGSentence sent dep)  = 
---     map (\(i, e) -> makeTagFSM (getWord sent) dep i e) $
---     flattenDep dep
-
--- -- | Assert- left is reverse order, right is in order
--- makeTagFSM getWordInfo dep headi (left, right)  = 
---     (makeDirFSM ALeft left, makeDirFSM ARight right)
---     where  makeDirFSM side expObs= 
---                       expectFSMTag $
---                                     [((getWordInfo.adjPos) `liftM` childInd,
---                                        mkDerivation $ countAdjunction $ 
---                                        mkAdjunction getWordInfo tword
---                                              (fmap (getWordInfo.adjPos) childInd) 
---                                              pos (maybe Sister adjType childInd) side
---                                              isAdjacent 
---                                      ) 
---                                      | (pos, adjs)  <- aligned,
---                                        childInd <- adjs
---                                     ]
---                       where aligned = alignWithSpine (twSpine tword) expObs 
---            tword = getWordInfo headi
-
--- expectFSMTag transitions = 
---     makeWFSM 0 n (Just Nothing) ((n, []):
---            [ (i-1, [(trans, (i, semi))])
---             | ((trans,semi), i) <- zip transitions [1..]])  
---         where n = length transitions
-
 
 
 data AdjState model semi = 
