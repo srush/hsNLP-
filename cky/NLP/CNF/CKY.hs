@@ -7,6 +7,7 @@ import NLP.CNF
 import NLP.Semiring.Viterbi
 import NLP.Semiring.Derivation
 import NLP.Semiring.Prob
+import NLP.Semiring.LogProb
 import NLP.Language.WordLattice
 import Control.Monad.Identity
 import qualified NLP.ChartParse.CKY.Inside as P 
@@ -22,13 +23,18 @@ import Debug.Trace
 import NLP.Format.TreeBank
 import NLP.Semiring
 import NLP.Semiring.ViterbiNBestDerivation          
-
+import System.IO.Unsafe (unsafePerformIO)
 import LP.DualDecomp
 import NLP.Probability.Observation
 import NLP.Probability.Distribution hiding (Prob)
-
+import NLP.CNF.Coordinate
+import Debug.Trace.Helpers
+import System.IO
+import System.Process
 --}}}
 
+
+type CKYChart semi = CP.Chart (P.CKYSig NT) semi
 
 toParseGrammar :: (WordLattice sent, Symbol sent ~ POS) => 
                   (CP.Span -> Maybe Int -> Production -> semi) -> 
@@ -50,7 +56,7 @@ toViterbiGrammar :: (WordLattice sent, Symbol sent ~ POS) =>
                    (POS -> [NT]) -> 
                    (M.Map (NT,NT) (S.Set NT)) ->
                    Maybe (CP.Span -> Maybe NT) ->
-                   P.Grammar NT (ViterbiDerivation (S.Set EdgeVar)) sent  
+                   P.Grammar NT (ViterbiDerivation LogProb (S.Set EdgeVar)) sent  
 toViterbiGrammar theta nts bnts correct = toParseGrammar mkSemi
                                     (case correct of  
                                              Nothing -> (\_ -> nts)
@@ -63,11 +69,11 @@ toViterbiGrammar theta nts bnts correct = toParseGrammar mkSemi
               case (rule,mj) of 
                 (BinaryRule a b c, Just j) -> 
                     let edgevar = toEdgeVar (a,b,c, i, j ,k) in 
-                    mkViterbi $  Weighted (Prob $ theta edgevar  , 
+                    mkViterbi $  Weighted (LogProb $ theta edgevar  , 
                                            mkDerivation $ S.singleton edgevar) 
                 (TerminalRule a p, Nothing) -> 
                     let edgevar = TermVar a p i in 
-                    mkViterbi $  Weighted (Prob $ theta edgevar , 
+                    mkViterbi $  Weighted (LogProb $ theta edgevar , 
                                            mkDerivation $ S.singleton edgevar) 
                 _ -> undefined
 
@@ -128,7 +134,7 @@ prune ps =
                 ls -> maximum $ ls
 
 pruneV ps =
-     filter (\(_,p) -> (getWeight $ fromViterbi p) >= Prob 1e-110 &&  (getWeight $ fromViterbi p) >= (best/10000)) ps  
+     filter (\(_,p) -> (getWeight $ fromViterbi p) >= LogProb (log 1e-110) &&  (getWeight $ fromViterbi p) >= (best-(log 10000))) ps  
          where
            best = case map (getWeight . fromViterbi . snd) ps of
                 [] -> 0.0
@@ -138,7 +144,8 @@ pruneV ps =
 doParse sent grammar nts bnts = P.ckyParse sent grammar prune
 --doLPParse sent grammar nts bnts = P.ckyParse sent (toLPGrammar grammar nts bnts) pruneLP
 
-doViterbiParse sent theta nts bnts correct = P.ckyParse sent (toViterbiGrammar theta nts bnts correct) pruneV 
+doViterbiParse sent theta nts bnts correct = 
+    P.ckyParse sent (toViterbiGrammar theta nts bnts correct) pruneV 
 
 instance (Monoid a) => Monoid (Identity a) where 
     mempty = Identity mempty
@@ -168,38 +175,53 @@ readNT file = do
   return $ map mkNT $ lines ntcon
 
 
+viterbi sent (bnts, bpos, nts, _) theta =  ret  
+    where 
+      ret = doViterbiParse (mkSentence $ map mkPOS sent) theta (\p -> maybe [] S.toList $ M.lookup p bpos) bnts Nothing -- (Just (\sp -> M.lookup sp spanMap))
+
+extractInside :: (s -> Double) -> CKYChart s -> M.Map (CP.Span, NT) Double  
+extractInside getWeight chart = M.fromList $ do 
+  (span, (nt, semi)) <- CP.extractItems chart 
+  return ((span, nt), getWeight semi) 
+
+-- Coordinate 
+mrfEdgePenalty :: Theta EdgeVar -> M.Map (CP.Span, NT) Double -> EdgeVar -> Double 
+mrfEdgePenalty theta ntcost edge@(EdgeVar a b c i j k) =
+     rho (a, i, k) - rho (b, i, j) - rho (c, j, k) - theta edge    
+        where rho (nt, i,j) = fromJustDef 0.0 $ M.lookup ((i,j), nt) ntcost
+
+genericPenalty :: M.Map EdgeVar Double -> EdgeVar -> Double
+genericPenalty m edgevar =  fromJustDef 0.0 $ M.lookup edgevar m
+          
+justEdges (Just a, _) = getBestDerivation  a  
+
 testViterbi = do 
   [(sent, spanMap)] <- readSentenceBunch "onetree"
-  p <- decodeFile "model/outmodel"
-  bnts <- decodeFile "ntpairs"
-  bpos <- decodeFile "ntpos"
-  --nts <- readNT "nonterm"
-  let gram = Grammar $ estimate p
-  let (Just a, chart) = doViterbiParse (mkSentence $ map mkPOS sent) (mkTheta gram) (\p -> maybe [] S.toList $ M.lookup p bpos) bnts Nothing -- (Just (\sp -> M.lookup sp spanMap))
-  return $ a
+  ip@(_,_,_,g)<- readInsideParams
+  let theta = mkTheta g
+  return $ fst $ viterbi sent ip theta
 
 testLPParse = do 
   [(sent,_)] <- readSentenceBunch "onetree"
-  p <- decodeFile "model/outmodel"
-  bnts <- decodeFile "ntpairs"
-  bpos <- decodeFile "ntpos"
-  nts <- readNT "nonterm"
-  let gram = Grammar $ estimate p
-  let g2 = toInsideGrammar gram (\l -> nts) bnts
-  let (Just a, chart) = doParse (mkSentence $ map mkPOS sent) g2 (\l -> nts) bnts 
+  ip@(bnts, bpos, nts, gram) <- readInsideParams
+  let (edges, g2) = getEdges sent ip
+  let lexedges =do (i, pos) <- zip [1..] $ map mkPOS sent
+                   nt <- S.toList $ fromJustDef mempty $ M.lookup pos bpos
+                   return $ TermVar nt pos i 
+  return $ renderCplex $ mkLP $ edgeSetToInfo gram (length sent + 1) $ map fst edges
   
+writeLP = do 
+  lp <- testLPParse
+  h <- openFile ("/tmp/tmp.cplex") WriteMode 
+  hPutStr h (lp++"\n")
+  hFlush h
+  hClose h
 
-  let (outchart, extras) = trace (show a) $ O.ckyOutside (mkSentence $ map mkPOS sent) chart g2 (\semi -> (semi/ a) > 1e-5) 
-  
-  let lexedges = trace (show (S.toList $ S.fromList $ map toEdgeVar $ concat extras)   ++ show extras) $ do 
-                (i, pos) <- zip [1..] $ map mkPOS sent
-                nt <- S.toList $ fromJustDef mempty $ M.lookup pos bpos
-                return $ TermVar nt pos i 
-  return $ writeCplex $ mkLP $ edgeSetToInfo gram (length sent) $ (S.toList $ S.fromList $ map toEdgeVar $ concat extras) 
-  --return chart 
--- testLPparse = do 
---   [sent] <- readSentenceBunch "onetree"
---   return $ writeCplex $ mkLP $ fromDerivation $ doLPParse 5 sent
+  system ("glpsol --cpxlp --max --wfreemps /tmp/tmp.mps /tmp/tmp.cplex") 
+  system ("lp_solve -ia -max -fmps /tmp/tmp.mps > /tmp/tmp.sol")
+  contents <- readFile "/tmp/tmp.sol"
+  return contents
+
 
 readInsideParams = do
   p <- decodeFile "model/outmodel"
@@ -214,23 +236,24 @@ readGraphParams = do
   mip <- decodeFile "model/outMIP"
   return (ntobs :: Counts NonTermEvent, ami::Counts AdjacentEvent, mip:: Counts ParentEvent)
  
-getEdges sent (bnts, bpos, nts, gram) = 
-    trace (show outchart) $ (S.toList $ S.fromList $ map toEdgeVar $ concat extras, gram) 
+getEdges sent (bnts, bpos, nts, gram) =
+    (S.toList $ S.fromList $ map (\(ed,w)-> (toEdgeVar ed, w/a)) $ concat extras, gram) 
     where 
       g2 = toInsideGrammar gram (\l -> nts) bnts
       (Just a, chart) = doParse (mkSentence $ map mkPOS sent) g2 (\l -> nts) bnts 
-      (outchart, extras) = O.ckyOutside (mkSentence $ map mkPOS sent) chart g2 (\semi -> True )--(semi/ a) > 1e-5)   
-      
+      (outchart, extras) = O.ckyOutside (mkSentence $ map mkPOS sent) chart g2 (\semi -> (semi / a) > 1e-5)         
 
 constructGraph = do 
   [(sent,_)] <- readSentenceBunch "onetree"  
   (ntobs, adjobs, parobs) <- readGraphParams
   ip <- readInsideParams
   let (edges,g2) = getEdges sent ip
-  let infAdj = trace (show edges) $ informationAdj (finish ntobs,finish adjobs) 
+  let infAdj =  informationAdj (finish ntobs,finish adjobs) -- trace (show edges) $ 
+  let infPar =  informationParent (finish ntobs,finish parobs)
+  let mrfEdges = cacheEdges infAdj (mkTheta g2) edges
   --return $ mkGraphFromEdges infAdj g2 edges
   -- putStr $ render $ writeGraph $ mkGraphFromEdges infAdj g2 edges
-  solveGraph $ mkGraphFromEdges infAdj g2 edges
+  return $ solveGraph 0 $ mkGraphFromEdges infAdj infPar mrfEdges (mkTheta g2) edges
 
 testModels = do 
   (a,b):: (Counts NonTermEvent, Counts AdjacentEvent) <- decodeFile "model/outMI"
@@ -248,3 +271,50 @@ testInfor = do
         guard $ inf > 1.0
         return (nta, ntb, inf)
   return p
+
+testDualDecomp = do 
+  [(sent,_)] <- readSentenceBunch "onetree"  
+  (ntobs, adjobs, parobs) <- readGraphParams
+  ip@(_,_,_,g) <- readInsideParams
+  let (edges,g2) = getEdges sent ip
+  let infAdj = informationAdj (finish ntobs,finish adjobs)
+  let infPar = informationParent (finish ntobs,finish parobs)
+  let theta = mkTheta g 
+  let mrfEdges = cacheEdges infAdj theta edges
+  let original = justEdges $ viterbi sent ip theta
+
+
+  let bbox1 = Slave (\lambda i -> return $ S.filter isFullEdge $ justEdges $ viterbi sent ip (combine theta lambda (+) 1.0))
+  let bbox2 = Slave (\lambda i -> trace (show i) $ S.fromList `liftM` (solveGraph i $ mkGraphFromEdges infAdj infPar mrfEdges (\e -> fromJustDef 0.0 $ M.lookup e lambda) edges))
+  master <- run original takeStep 500 $ initialize theta (bbox1, bbox2)
+  finalMAP master 
+    where
+      run original fn n start = foldM doOne start [1..n]
+          where doOne a i = trace (show $ m1 ) $ 
+                            trace (show $ m2) $ fn a
+                    where (m1, m2) = unsafePerformIO $ bothMAP a
+
+-- testCoordinate = do 
+--   [(sent,_)] <- readSentenceBunch "onetree"  
+--   (ntobs, adjobs, parobs) <- readGraphParams
+--   ip@(_,_,_,g) <- readInsideParams
+--   let (edges,g2) = getEdges sent ip
+--   let infAdj = informationAdj (finish ntobs, finish adjobs)
+--   let infPar = informationParent (finish ntobs, finish parobs)
+--   let theta = mkTheta g 
+--   let mrfEdges = cacheEdges infAdj theta edges
+  
+--   let original = justEdges $ viterbi sent ip theta
+
+--   let bbox1 = Updater (\lambda _ -> return $ mrfEdgePenalty theta $ extractInside (convertToDouble . getBestScore) $ snd $ viterbi sent ip $ penalize theta lambda)
+--   let bbox2 = Updater (\lambda i -> do 
+--                          (on,res) <- solveGraph i $ mkGraphFromEdges infAdj infPar mrfEdges lambda edges
+                         
+--                          return $ trace (show on) $ genericPenalty $ M.fromList res)
+                                    
+                                    
+--   master <- run 5 $ initCoordinate (bbox1, bbox2)
+--   master `seq` return () 
+--     where
+--       run n start = foldM doOne start [1..n]          
+--           where doOne a i = runCoordOne a

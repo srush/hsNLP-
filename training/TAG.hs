@@ -51,77 +51,9 @@ instance Pretty ParseTree where
         (hsep $ map pPrint rest) <> rparen
 
 
--- | There are two types of adjunction, 
---   Sister comes from a single position, 
---   regular duplicates the node in the head tree 
-data AdjunctionType = Sister | Regular
-    deriving  (Eq, Ord, Enum, Bounded)
 
-instance Pretty AdjunctionType where 
-    pPrint Sister = text "SIS" 
-    pPrint Regular = text "REG" 
-
-data AdjunctionSide = ALeft | ARight
-                    deriving (Eq, Ord, Enum, Bounded)
-
-$( derive makeBinary ''AdjunctionSide)
-$( derive makeArbitrary ''AdjunctionSide)
-
-instance Show AdjunctionSide where 
-    show ALeft = "Left"
-    show ARight = "Right"
-
-instance Pretty AdjunctionSide where pPrint = text . show
-
-instance Show AdjunctionType where 
-    show Sister = "s"
-    show Regular = "a"
-
-$( derive makeBinary ''AdjunctionType ) 
-$( derive makeArbitrary ''AdjunctionType ) 
 
   
-data TAGWord = TAGWord {
-      twSpine :: Spine,
-      twWord  :: GWord,
-      twIsVerb :: Bool,
-      twIsComma :: Bool,
-      twIsConj :: Bool,
-      twInd ::Int 
-    }
-               deriving (Ord)
-
-instance Show TAGWord where 
-    show = render . pPrint
-
-instance Eq TAGWord where 
-    (==) = (==) `on` comp
-           where comp a = (twSpine a, twWord a) 
-
-mkTAGWord :: GWord -> Spine -> Int -> TAGWord
-mkTAGWord (w,pos) s ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) (isPOSConj pos) ind
-
-instance Pretty TAGWord where 
-    pPrint (TAGWord word spine _ _ _ ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
-
--- instance Context GWord where 
---     type Sub (GWord) = String
---     decompose (S.Word word, POS pos) = [pos, word] 
---     compose [pos, word] = (S.Word word, POS pos)
-
-
-data TAGSentence  = 
-    TAGSentence { tsSent :: Sentence TAGWord,
-                  tsDep  :: Dependency (AdjunctionInfo ())}
-                deriving (Show)
-
-
-
-valid (TAGSentence sent dep) head child pos atype = 
-    case child of 
-      Nothing -> True
-      Just child' -> (not $ isRoot child') && (h == twInd head) && (pos == pos') && (atype == atype')
-          where (DEdge h (AdjunctionInfo pos' atype' _)) = fromJustNote ("no head" ++ (show sent)) $ getHead dep $ twInd child'
 
 
 convertToTree tagsent = head n  

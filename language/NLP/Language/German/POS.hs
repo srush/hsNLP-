@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving #-}
 module NLP.Language.German.POS  where 
-import NLP.Language.Common
+import Helpers.Common
 import qualified NLP.Language.English.POS as J
 import qualified Data.Bimap as BM
  
@@ -14,14 +14,18 @@ data POSCore = ADJA | ADJD | ADV | APPR | APPRART | APPO | APZR | ART | CARD | F
 
 $( derive makeBinary ''POSCore )
 $( derive makeArbitrary ''POSCore )
+             
 
 newtype POS = POSWrap POSCore 
     deriving (Eq, Ord, Enum, Bounded, Binary, Arbitrary, Read)
-             
+
+
+--{ POS Classes 
 instance Show POS where 
     show (POSWrap pcore) = fromMaybe (show pcore) $ BM.lookup pcore posMap
 
 instance Pretty POS where pPrint = text . show  
+--}
 
 mkPOS :: String -> POS
 mkPOS str = POSWrap $ fromMaybe ( readNote ("POS " ++ str) str) $ 

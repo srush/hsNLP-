@@ -1,25 +1,22 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleContexts #-}
 module NLP.ChartParse.Eisner where 
+
+--{{{  Imports
 import NLP.ChartParse
-import Data.Function (on)
-import Data.List (intercalate, find)
+import Helpers.Common
+import Data.List (find)
 import NLP.FSM
 import NLP.Semiring
 import qualified Data.Map as M
 import Data.Monoid.Multiplicative (times, one) 
-import Data.Maybe (catMaybes)
-import Text.Printf
-import Text.PrettyPrint.HughesPJClass
-import Debug.Trace
-import Safe (fromJustNote)
-import Data.Maybe (maybe)
 import Control.Exception
-import Control.Monad
+import NLP.Language.WordLattice
+--}}}
 
-type EisnerChart fsa = Chart (Span fsa) (FSMSemiring (State fsa))
+type EisnerChart fsa = Chart (ESpan fsa) (FSMSemiring (State fsa))
 type Semi fsa = FSMSemiring (State fsa)
 type Sym fsa = FSMSymbol (State fsa)
-type EItem fsa = Item (Span fsa) (Semi fsa) 
+type EItem fsa = Item (ESpan fsa) (Semi fsa) 
 
 
 data Seal a = Sealed | Open a
@@ -36,39 +33,42 @@ fromSeal (Open a) = a
 
  
 -- Data structure from p. 12 declarative structure  
-data SpanEnd fsa =
-    SpanEnd {
+data ESpanEnd fsa =
+    ESpanEnd {
       hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
       state :: Seal (State fsa), -- q1 and q2
       word  :: Sym fsa,
       split :: Maybe Int
 }
 
-instance (WFSM fsa) => Show (SpanEnd fsa) where 
+
+--{{{  ESpanEnd Classes
+
+instance (WFSM fsa) => Show (ESpanEnd fsa) where 
     show end = intercalate " " 
                [(show $ hasParent end),
                (show $ state end),
                (show $ word end)] 
 
-expandSpanEnd sp =  (hasParent sp, state sp, word sp, split sp)
+expandESpanEnd sp =  (hasParent sp, state sp, word sp, split sp)
 
-instance (WFSM fsa) => Eq (SpanEnd fsa) where 
-    (==)  = (==) `on` expandSpanEnd
+instance (WFSM fsa) => Eq (ESpanEnd fsa) where 
+    (==)  = (==) `on` expandESpanEnd
 
-instance (WFSM fsa) => Ord (SpanEnd fsa) where 
-    compare = compare `on` expandSpanEnd 
+instance (WFSM fsa) => Ord (ESpanEnd fsa) where 
+    compare = compare `on` expandESpanEnd 
+--}}}
 
 
-data Span fsa =
-    Span {
+data ESpan fsa =
+    ESpan {
       simple :: Bool, -- s
-      leftEnd :: SpanEnd fsa,
-      rightEnd :: SpanEnd fsa
+      leftEnd :: ESpanEnd fsa,
+      rightEnd :: ESpanEnd fsa
 } deriving (Eq, Ord) 
 
-
-
-instance (WFSM fsa) => Show (Span fsa) where
+--{{{  ESpan Classes
+instance (WFSM fsa) => Show (ESpan fsa) where
     show span = printf "s = %s b = %s s = %s wl = %s wr = %s" (showBool $ simple span) (showBoolPair $ hasParentPair span) (show (state $ leftEnd span, state $ rightEnd span)) (show $ word $ leftEnd span) (show $ word $ rightEnd span)
         where showBool True = "1"
               showBool False = "0"
@@ -76,7 +76,7 @@ instance (WFSM fsa) => Show (Span fsa) where
               showBoolPair (a,b) = printf "(%s %s)" (showBool a) (showBool b) 
               
 
-instance (WFSM fsa) => Pretty (Span fsa) where
+instance (WFSM fsa) => Pretty (ESpan fsa) where
     pPrint span = text $ printf "wl = %s wr = %s s = %s b = %s sim = %s" 
                 (show $ word $ leftEnd span) 
                 (show $ word $ rightEnd span)
@@ -87,24 +87,22 @@ instance (WFSM fsa) => Pretty (Span fsa) where
               showBool False = "0"
               showBoolPair :: (Bool, Bool) -> String
               showBoolPair (a,b) = printf "(%s %s)" (showBool a) (showBool b) 
-
+--}}}
                                
 hasParentPair span = 
     (hasParent $ leftEnd span , hasParent $ rightEnd span) 
 
 -- Advances an internal WFSM (equivalent in this model to "adjoining" a new
 -- dependency. 
-advance :: (WFSM fsa) => SpanEnd fsa  -> Sym fsa -> 
-           [(SpanEnd fsa, Semi fsa)] 
-advance headSpan nextWord  = do 
-    let split' = fromJustNote "split" $ split headSpan
-    (newState, p) <- next (fromSeal $ state headSpan) nextWord split' 
-    return (headSpan {state = Open newState}, p) 
+advance :: (WFSM fsa) => ESpanEnd fsa  -> Sym fsa -> 
+           [(ESpanEnd fsa, Semi fsa)] 
+advance headESpan nextWord  = do 
+    let split' = fromJustNote "split" $ split headESpan
+    (newState, p) <- next (fromSeal $ state headESpan) nextWord split' 
+    return (headESpan {state = Open newState}, p) 
  
 
-
 -- implementations of declarative rules
-
 canOptLinkL span =  
       ((False, False)== hasParentPair span) && 
       (case state $ leftEnd span of Open _ -> True 
@@ -172,7 +170,7 @@ canCombine span1 span2 =
 
 combine' span1 span2 = do 
   guard  $ canCombine span1 span2
-  return $ (Span {simple = False,
+  return $ (ESpan {simple = False,
                   leftEnd = (leftEnd span1)   {split = leftSp},
                   rightEnd = (rightEnd span2) {split = rightSp} 
                  },
@@ -199,10 +197,10 @@ singleEnd :: (WFSM fsa) =>
              Int -> 
              fsa -> 
              Sym fsa ->
-            [(SpanEnd fsa, Semi fsa)]
+            [(ESpanEnd fsa, Semi fsa)]
 singleEnd i fsa word = do 
     (state, semi)  <- initialState $ fsa
-    return $ (SpanEnd {                  
+    return $ (ESpanEnd {                  
                  state = Open state,
                  word = word,
                  hasParent = False,
@@ -224,7 +222,7 @@ seed getFSA i sym1s sym2s = do
       let (leftFSA, _) = getFSA (i+1) sym2
       (span1, semi1) <- singleEnd i rightFSA $ sym1
       (span2, semi2) <- singleEnd (i+1) leftFSA $  sym2
-      return (Span {
+      return (ESpan {
                 leftEnd = span1,
                 rightEnd = span2,
                 simple = True
@@ -237,9 +235,9 @@ seal (span, semi) =
     if not $ any (isStateFinal.state) [leftEnd span, rightEnd span] then
         Nothing
     else 
-        Just (newSpan, semi)
+        Just (newESpan, semi)
     where
-      newSpan = span{ leftEnd = trySeal $ leftEnd span,
+      newESpan = span{ leftEnd = trySeal $ leftEnd span,
                        rightEnd = trySeal $ rightEnd span} 
       trySeal spanEnd = 
               if isStateFinal $ state $ spanEnd then
@@ -255,15 +253,14 @@ accept (span, _) =
           f1 = isStateFinal (state $ rightEnd span)
           f2 = isSealed (state $ leftEnd span)
 
-
 type GetFSM fsa = Int -> Sym fsa -> (fsa, fsa) --todo: fix this 
 
-processCell :: (WFSM fsa, SentenceLattice sent) => 
+processCell :: (WFSM fsa, WordLattice sent) => 
                GetFSM fsa -> 
                sent ->  
                (Symbol sent -> Sym fsa) ->                
-               Range -> -- Size of the cell 
-               (Range -> [EItem fsa]) -> -- function from cell to contenst 
+               Span -> -- Size of the cell 
+               (Span -> [EItem fsa]) -> -- function from cell to contenst 
                ([EItem fsa] -> [EItem fsa]) -> 
                [EItem fsa] -- contents of the new cell 
 processCell getFSA sentence wordConv (i, k) chart beam = catMaybes $ map seal $ 
@@ -283,17 +280,17 @@ processCell getFSA sentence wordConv (i, k) chart beam = catMaybes $ map seal $
           left = beam . concatMap (\s -> optLinkL s)  
           right = beam . concatMap (\s -> optLinkR s )  
 
-eisnerParse :: (WFSM fsa, SentenceLattice sent) => 
+eisnerParse :: (WFSM fsa, WordLattice sent) => 
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 
-              (Range -> M.Map (Span fsa) (Semi fsa) -> M.Map (Span fsa) (Semi fsa)) ->
+              (Span -> M.Map (ESpan fsa) (Semi fsa) -> M.Map (ESpan fsa) (Semi fsa)) ->
               ([EItem fsa] -> [EItem fsa]) -> 
-               (Maybe (Semi fsa), Chart (Span fsa) (Semi fsa))
+               (Maybe (Semi fsa), Chart (ESpan fsa) (Semi fsa))
 eisnerParse getFSM wordConv sent prune beam = (semi, chart)  
     where chart = chartParse sent (processCell getFSM sent wordConv) prune beam
           semi = do
-            last <- chartLookup (1, sentenceLength sent + 1) chart
+            last <- chartLookup (1, latticeLength sent + 1) chart
             let semiresults = map snd $ filter accept last
             
             guard (length semiresults > 0)  

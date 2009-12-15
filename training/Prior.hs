@@ -1,6 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-
+{-# LANGUAGE TypeFamilies, TypeSynonymInstances #-}
 module Prior where
 
 import NLP.Probability.Distribution

@@ -21,6 +21,7 @@ library
     exposed-modules:     NLP.Semiring
                          NLP.Semiring.Boolean
                          NLP.Semiring.Prob
+                         NLP.Semiring.LogProb
                          NLP.Semiring.Viterbi
                          NLP.Semiring.ViterbiNBest
                          NLP.Semiring.Counting

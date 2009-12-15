@@ -1,22 +1,19 @@
 {-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell #-}
-module Distance where 
+module NLP.Model.Distance where 
 
-import Data.Monoid
+--{{{  Imports 
+import Helpers.Common
 import qualified Data.Bimap as BM
-import Data.Binary
-import Data.DeriveTH hiding (Derivation)
-import TAG
-import Sentence 
-import Safe (fromJustNote, fromJustDef)
+import NLP.Grammar.TAG
+import NLP.Language.WordLattice
+import NLP.Language
 import qualified Data.Map as M
-import Text.PrettyPrint.HughesPJClass
-import Text.Printf
 import NLP.ChartParse
-import Debug.Trace
-import Test.QuickCheck
+--}}}
+
 type DisCache = (Int,Int) -> (Bool,Bool) 
 
-mkDistCacheRight :: (SentenceLattice sent, Symbol sent ~ TAGWord) => sent -> DisCache 
+mkDistCacheRight :: (Language l, WordLattice sent, Symbol sent ~ (TAGWord l)) => sent -> DisCache 
 mkDistCacheRight sent = \i -> case i of
                                 (_, k ) | k == n +1 -> (False,True)
                                 _ -> fromJustDef (False, False)  $ M.lookup i m 
@@ -30,9 +27,9 @@ mkDistCacheRight sent = \i -> case i of
                            || (twIsComma $ head $ getWords sent (k)) 
                            || (twIsComma $ head $ getWords sent (k+1)) )
                 return $ ((i,k), dis)
-          n = sentenceLength sent
+          n = latticeLength sent
 
-mkDistCacheLeft :: (SentenceLattice sent, Symbol sent ~ TAGWord) => sent -> DisCache 
+mkDistCacheLeft :: (Language l, WordLattice sent, Symbol sent ~ (TAGWord l)) => sent -> DisCache 
 mkDistCacheLeft sent = \i -> case i of
                                 (_, k ) | k == n +1 -> (False,True)
                                 _ -> fromJustDef (False, False) $ M.lookup i m
@@ -42,23 +39,10 @@ mkDistCacheLeft sent = \i -> case i of
                 let dis = (or [twIsVerb $ head $ getWords sent j | j<-[i-1, i-2..k]] ,
                            True)
                 return $ ((i,k), dis)
-          n = sentenceLength sent
-
-
--- data Comma = NoComma | OneComma | TwoComma | ManyComma
---            deriving (Eq, Ord, Show, Enum, Bounded) 
-
--- toComma 0 = NoComma 
--- toComma 1 = OneComma 
--- toComma 2 = TwoComma 
--- toComma _ = ManyComma 
-
--- instance Monoid Comma where 
---     mempty = NoComma 
---     mappend a b = toComma (fromEnum a + fromEnum b)  
+          n = latticeLength sent
 
 newtype VerbDistance = VerbDistance { spansVerb  :: Bool -- Is there a verb in the surface string between
-                         } 
+                                    } 
     deriving (Show, Eq, Ord, Enum, Bounded)
 
 $( derive makeArbitrary ''VerbDistance )
@@ -69,7 +53,7 @@ data Delta = Delta {
       adjacent :: Bool
     }  
    deriving (Eq, Ord, Bounded)
- 
+
 instance Show Delta where 
     show (Delta a b c) = show (a,b,c)
 
@@ -101,22 +85,12 @@ instance Enum Delta where
 instance Pretty Delta where 
     pPrint = text . show 
 
---wordToDistance w = Distance {zeroLength = False,
---                             spansVerb  = twIsVerb w,
---                             numComma   = NoComma}
+resetDelta = Delta False False False
 
--- instance Monoid Distance  where 
---     mempty = Distance True False NoComma
---     mappend a b = Distance { zeroLength = zeroLength a && zeroLength b,
---                              spansVerb  = spansVerb a || spansVerb b,
---                              numComma = mappend (numComma a) (numComma b)
---                            } 
-
-
--- $( derive makeBinary ''Comma )
 $( derive makeBinary ''VerbDistance )
 $( derive makeBinary ''Delta )
 $( derive makeArbitrary ''Delta )
+
 instance Pretty VerbDistance where 
     pPrint d = text $ showBool (spansVerb d)
         where

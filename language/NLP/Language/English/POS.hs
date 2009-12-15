@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving #-}
 module NLP.Language.English.POS where 
-import NLP.Language.Common
+import Helpers.Common
 import qualified Data.Bimap as BM
 import qualified Data.Set as S
 
@@ -33,7 +33,8 @@ instance Show POS where
 
 instance Pretty POS where pPrint = text . show  
 
-mkPOS :: String -> POS
+
+--instance Read POS where 
 mkPOS str = POSWrap $ fromMaybe ( readNote ("POS " ++ str) str) $ BM.lookupR str posMap
 
 verbSet = S.fromList [VB, VBD, VBG, VBN, VBP, VBZ]

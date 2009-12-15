@@ -1,9 +1,14 @@
+{-# LANGUAGE TemplateHaskell #-}
 module NLP.Language.German.NonTerm where 
 
 import qualified NLP.Language.English.NonTerm as J
-
+import Helpers.Common
 data NonTerm = AA | AP | AVP | CAC | CAP | CAVP | CCP | CH | CNP | CO | CPP | CS | CVP | CVZ | DL | ISU | MTA | NM | NP | PN | PP | QL | S | VP | VZ | NPB
                deriving (Read, Show, Eq, Ord, Enum, Bounded)
+
+$( derive makeBinary ''NonTerm )
+$( derive makeArbitrary ''NonTerm )
+
 
 toJoint nt = case nt of 
                AA -> J.ADJP

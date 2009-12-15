@@ -4,8 +4,8 @@ import NLP.Semiring
 import NLP.ChartParse.Eisner
 import NLP.ChartParse
 import Data.Monoid.Multiplicative (times, one) 
-import Control.Monad
-import Debug.Trace
+import NLP.Language.WordLattice
+import Helpers.Common
 wordPair span = 
     (word $ leftEnd span , word $ rightEnd span) 
 
@@ -39,7 +39,7 @@ unCombineR (inspan1,semi1) (inspan2, semi2) (outspan, osemi) = do
     guard $ incombineSpan == outspan  
     --let newState = flip $ state $ leftEnd inspan2
     return $ 
-         (Span {simple = simple inspan2,
+         (ESpan {simple = simple inspan2,
                 leftEnd = leftEnd inspan2,    
                 rightEnd = rightEnd outspan
                } 
@@ -50,10 +50,10 @@ unCombineR (inspan1,semi1) (inspan2, semi2) (outspan, osemi) = do
 
 unCombineL deb (inspan1,_) (inspan2, semi2) (outspan, osemi) = do 
     guard $ not $ simple outspan &&  wm
-    (incombineSpan, pcomb) <- (if deb then trace (show inspan1) $ trace (show inspan2) $ trace (show outspan) else id)  combine' inspan1 inspan2
+    (incombineSpan, pcomb) <- combine' inspan1 inspan2
     guard $ incombineSpan == outspan  
     return $ 
-        (Span {simple = True,  
+        (ESpan {simple = True,  
                 leftEnd = leftEnd outspan,
                 rightEnd = rightEnd inspan1
                },
@@ -62,11 +62,11 @@ unCombineL deb (inspan1,_) (inspan2, semi2) (outspan, osemi) = do
 
 
 
-unprocessCell :: (WFSM fsa, SentenceLattice sent) => 
+unprocessCell :: (WFSM fsa, WordLattice sent) => 
                sent -> 
-               Range -> -- Size of the cell 
-               (Range -> [EItem fsa]) -> -- function from cell to contenst
-               (Range -> [EItem fsa]) -> 
+               Span -> -- Size of the cell 
+               (Span -> [EItem fsa]) -> -- function from cell to contenst
+               (Span -> [EItem fsa]) -> 
                [EItem fsa] -- contents of the new cell 
 unprocessCell sentence (i, j) inChart outChart = seeds
      ++  concat [unOptR s1 o | s1 <- inChart(i,j), o <- seeds] 
@@ -79,7 +79,6 @@ unprocessCell sentence (i, j) inChart outChart = seeds
                    guard $ hasParentPair inspan == (True, False) 
                    return $ (inspan, one) 
              else if (i,j) == (1,1) then
-                      trace "1 3" $ 
                       let b = concat $ concat $ (
                                          [uncomb (unCombineL True) i j k | k <- [j+1..n+1]] ++ 
                                          [uncomb unCombineR h i j | h <- [1..i-1]])
@@ -94,7 +93,7 @@ unprocessCell sentence (i, j) inChart outChart = seeds
             s2 <- inChart (j, k),
             o <- outChart (i, k)
           ]
-      n = sentenceLength sentence
+      n = latticeLength sentence
 
 eisnerOutside sent inside = 
     outsideParse sent inside (unprocessCell sent)

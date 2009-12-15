@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module NLP.Semiring.Derivation (Derivation(..), MultiDerivation(..), mkDerivation, fromDerivation) where
+{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleContexts, UndecidableInstances #-}
+module NLP.Semiring.Derivation (Derivation(..), MultiDerivation(..), DualDerivation(..), mkDerivation, fromDerivation, mkDualDerivation, fromDualDerivation) where
 import NLP.Semiring
 import NLP.Semiring.Helpers
 import qualified Data.Set as S 
@@ -67,4 +67,29 @@ instance (Ord m) => Monoid (MultiDerivation m) where
     mappend (MultiDerivation s1) (MultiDerivation s2) = MultiDerivation $ S.union s1 s2
 
 instance (Ord m, Monoid m, Eq m) => Semiring (MultiDerivation m)
+
+
+
+newtype DualDerivation m1 m2 = DualDerivation (m1 m2)
+    deriving (Eq, Show, Ord) 
+
+instance (Monad m1, Monoid (m1 m2), Monoid m2) => Multiplicative (DualDerivation m1 m2) where
+    one = DualDerivation $ return mempty
+    times (DualDerivation d1) (DualDerivation d2) = 
+        DualDerivation $ do
+          d1' <- d1
+          d2' <- d2
+          return $ mappend d1' d2'
+
+instance (Monoid (m1 m2), Monoid m2) => Monoid (DualDerivation m1 m2) where 
+    mempty = DualDerivation mempty
+    mappend (DualDerivation s1) (DualDerivation s2) = DualDerivation $ s1 `mappend` s2
+
+instance (Monad m1, Monoid (m1 m2), Monoid m2) => Semiring (DualDerivation m1 m2)
+
+
+
+mkDualDerivation = DualDerivation   
+
+fromDualDerivation (DualDerivation m) = m  
 

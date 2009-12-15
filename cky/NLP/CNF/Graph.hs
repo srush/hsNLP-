@@ -15,11 +15,12 @@ import Debug.Trace
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 
 import NLP.Probability.Observation
-
+import NLP.Semiring.Prob
 --}}}
 
 
 inf = 1e5
+tiny = 1e-10
 
 data GraphNode = NodeEdge EdgeVar | NodeNode NodeVar
                deriving (Eq, Ord, Show)
@@ -47,21 +48,37 @@ data GraphNode = NodeEdge EdgeVar | NodeNode NodeVar
 --           uniqueNodeNode =  mconcat $ nodeNodeBunch
 
 
-mkGraphFromEdges informationAdj grammar edges = trace (show edges) $  
-    mkGraph (M.toList $ newEdgeBunch) extraEdges 
-    where edgeBunch = mconcat $ do 
-                          edge@(EdgeVar a b c i j k) <- edges
-                          let nodeEdge = (edge, (-(log $ 1 - getProb (backToRule edge) grammar),0))
-                          return $ uncurry M.singleton nodeEdge 
-          extraEdges = do
+makeEdgeBunch theta edges = mconcat $ do
+  (edge, Prob p) <- edges
+  let EdgeVar a b c i j k = edge
+  let th = theta edge
+  let nodeEdge = (edge, (0, th + tiny))
+  return $ uncurry M.singleton nodeEdge 
+
+cacheEdges informationAdj theta edges= ret --trace (show ret) $  ret 
+    where ret = do
+            let edgeBunch = makeEdgeBunch theta edges
             e1@(EdgeVar a b c i j k, _) <- M.toList edgeBunch
             e2@(EdgeVar x y z i' j' k', _) <- M.toList edgeBunch 
             guard $ k == i'
             let mi = filter (> 1.0) $ map (uncurry informationAdj) [(a, x), (c, x), (a, y), (c, y)]
             guard $ sum mi > 0
-            return (fst e1, fst e2, sum mi)
-          informative (a,b) = informationAdj a b > 1.0
-          newEdgeBunch = foldl (\m (n1,n2,w) -> M.update (\(a,b) -> Just (a,b+ w)) n2 m) edgeBunch extraEdges
+            return (fst e2, fst e1, sum mi)
+
+mkGraphFromEdges informationAdj informationPar extraEdges theta edges = --trace (show extraEdges) $  
+    mkGraph (M.toList $ newEdgeBunch) extraEdges 
+    where 
+         edgeBunch = makeEdgeBunch theta edges 
+         newEdgeBunch = foldl (\m (n1,n2,w) -> M.update (\(a,b) -> Just (a+w, b)) n1 m) edgeBunch extraEdges
+--edgeBunch = 
+--           extraEdges2 = do
+--             e1@(EdgeVar a b c i j k, _) <- M.toList edgeBunch
+--             e2@(EdgeVar x _ _ i' _ k', _) <- M.toList edgeBunch 
+--             guard $ ((i == i' && j == k' && b == x) || (j == i' && k ==k' && c == x)) 
+--             let mi = informationPar a x
+--             guard $ mi > 1.0
+--             return (fst e1, fst e2, mi)
+         
 
 
 
@@ -87,8 +104,12 @@ instance Event ParentEvent where type EventMap ParentEvent = M.Map
 type Information = NT -> NT -> Double
 
 informationAdj (fobsNT, fobsAdj) nt1 nt2  = 
-    log  ((mle fobsAdj $ AdjacentEvent (nt1, nt2)) / ((mle fobsNT (NonTermEvent nt1) * mle fobsNT (NonTermEvent nt2))) )
-
+    if pnt1 < 0.01 || pnt2 < 0.01 then 0.0
+    else
+    log  ((mle fobsAdj $ AdjacentEvent (nt1, nt2)) / 
+          (pnt1 * pnt2))
+        where  pnt1 = mle fobsNT (NonTermEvent nt1) 
+               pnt2 = mle fobsNT (NonTermEvent nt2)
 informationParent (fobsNT, fobsParent) nt1 nt2  = 
     log  ((mle fobsParent $ ParentEvent (nt1, nt2)) / ((mle fobsNT (NonTermEvent nt1) * mle fobsNT (NonTermEvent nt2))) )
 

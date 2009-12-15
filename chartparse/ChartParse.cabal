@@ -19,6 +19,9 @@ flag testing
 library
     exposed-modules:     NLP.ChartParse
                          NLP.ChartParse.Eisner
+                         NLP.ChartParse.CKY.Inside
+                         NLP.ChartParse.CKY.Outside
+    other-modules:      Helpers.Common
 
     if flag(testing)
         buildable: False
@@ -46,8 +49,10 @@ executable hstestsemi
                      HUnit,
                      test-framework,
                      test-framework-hunit,
-                     test-framework-quickcheck2
-                    
+                     test-framework-quickcheck2,
+                     derive,  
+                     binary,
+                     multilanguage
                      
     if !flag(testing)
         buildable: False

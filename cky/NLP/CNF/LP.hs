@@ -14,10 +14,10 @@ data EdgeVar = EdgeVar NT NT NT Int Int Int |
                TermVar NT POS Int 
                deriving (Eq, Ord, Show)
 
-
-
-
 toEdgeVar (a,b,c,i,j,k)= EdgeVar a b c i j k 
+
+isFullEdge (EdgeVar _ _ _ _ _ _) = True 
+isFullEdge _ = False 
 
 mkEdgeVar (EdgeVar a b c i j k) = Var $ printf "rul(%s,%s,%s,%d,%d,%d) " (show a) (show b) (show c) i j k
 mkEdgeVar (TermVar a p i ) = Var $ printf "trm(%s,%s,%d) " (show a) (show p) i 
@@ -38,7 +38,7 @@ edgeSetToInfo grammar n s = mconcat $ map (\edge -> singleEdgeInfo (edge, log $ 
 
 
 -- TODO - add log
-mkTheta grammar edgevar = getProb (backToRule edgevar) grammar 
+mkTheta grammar edgevar = log $ getProb (backToRule edgevar) grammar 
 
 backToRule (EdgeVar a b c i j k) = BinaryRule a b c
 backToRule (TermVar a p i) = TerminalRule a p

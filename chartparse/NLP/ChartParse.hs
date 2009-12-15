@@ -1,21 +1,16 @@
 {-# LANGUAGE TypeFamilies #-}
 module NLP.ChartParse where
  
+--{{{  Imports
 import NLP.Semiring
-import Data.Monoid
+import NLP.Language.WordLattice
+import Helpers.Common
 import qualified Data.Map as M
 import Data.Array
-import Data.List (intercalate)
 import Text.Printf
-import Safe (fromJustNote)
-import Text.PrettyPrint.HughesPJ
-import Text.PrettyPrint.HughesPJClass
-import Debug.Trace
-import Data.Maybe
--- a distance from start to finish. Sometimes called a span 
--- but use range here to distinguish Eisner's use of span
-type Range = (Int, Int) 
+--}}}
 
+type Span = (Int, Int) 
 
 -- TODO: It must be possible to O(n) enumerations and O(1) duplicate check.
 -- (for now just use Set and eat the extra log) 
@@ -23,6 +18,7 @@ type Range = (Int, Int)
 -- S bounds the number of items per cell, must be O(1) 
 newtype Cell sig semi = Cell (M.Map sig semi)
 
+--{{{  Cell Classes 
 uncell (Cell cell) = cell
 
 instance (Show sig, Show semi) => Show (Cell sig semi) where  
@@ -32,23 +28,29 @@ instance (Show sig, Show semi) => Show (Cell sig semi) where
 instance (Pretty sig, Pretty semi) => Pretty (Cell sig semi) where  
     pPrint (Cell m) = 
         vcat $                   
-        map (\(sig,semi) -> pPrint sig {- $$ nest 4 (pPrint  semi) -} ) $                
+        map (\(sig,semi) -> pPrint sig) $                
         M.toList m
+--}}}
 
-newtype Chart sig semi = Chart (M.Map (Int, Int) (Cell sig semi))
-type Item sig semi = (sig, semi)
+newtype Chart sig semi = Chart (M.Map Span (Cell sig semi))
 
 chartStats :: Chart sig semi -> String 
 chartStats (Chart m) = intercalate "\n" $ do
   (r, Cell cell)<- M.toList m
   return $ (show r) ++ ": " ++ (show $ M.size cell) 
-   
 
-chartLookup :: Range -> Chart sig semi -> Maybe [(sig, semi)] 
+chartLookup :: Span -> Chart sig semi -> Maybe [(sig, semi)] 
 chartLookup pos (Chart chart) = do 
   Cell cell <- M.lookup pos chart  
   return $ M.toList $ cell
 
+extractItems :: Chart sig semi -> [(Span, Item sig semi)] 
+extractItems (Chart m) = do 
+  (span, Cell cell) <- M.toList m  
+  (sig, semi) <- M.toList cell
+  return (span, (sig, semi))
+         
+--{{{  Chart Classes
 instance (Show sig, Show semi) => Show (Chart sig semi)where  
     show (Chart m) =
         intercalate "\n" $
@@ -61,48 +63,45 @@ instance (Pretty sig, Pretty semi) => Pretty (Chart sig semi) where
         map (\((i,j),v) -> 
              text (printf "[%d:%d]" i j) $+$  nest 4 (pPrint v)) $    
         filter (\(ok, Cell v) -> not $ M.null v) $ M.toList m
+--}}}
 
-class SentenceLattice a  where
-    type Symbol a 
-    getWords :: a -> Int -> [Symbol a]   
-    sentenceLength :: a -> Int
-
+type Item sig semi = (sig, semi)
 
 -- A basic mono-lingual chart parser. 
-chartParse :: (Semiring semi, Ord sig, SentenceLattice sent) => 
+chartParse :: (Semiring semi, Ord sig, WordLattice sent) => 
               sent ->
-              (Range -> (Range -> [Item sig semi]) -> ([Item sig semi] -> [Item sig semi]) -> [Item sig semi]) -> 
-              (Range -> M.Map sig semi -> M.Map sig semi) -> 
+              (Span -> (Span -> [Item sig semi]) -> ([Item sig semi] -> [Item sig semi]) -> [Item sig semi]) -> 
+              (Span -> M.Map sig semi -> M.Map sig semi) -> 
               ([Item sig semi] -> [Item sig semi]) -> 
               Chart sig semi 
 chartParse sent combine prune beam  = Chart chart 
     where 
-      n = sentenceLength sent
+      n = latticeLength sent
       chart = M.fromList $
-
               [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ 
-                combine (i,k) (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart) beam)
+                combine (i,k) (\i-> M.toList $ uncell $ 
+                               fromJustNote "lookup fail" $ M.lookup i chart) beam)
                    | d <- [1..n], 
                      i <- [1..n],
                      let k = i + d,
-                     k <= n+1
-              ] 
+                     k <= n+1]
 
-
-outsideParse sent (Chart inside) combine  = Chart chart 
+outsideParse sent (Chart inside) combine  = (Chart chart, mconcat extras) 
     where 
-      n = sentenceLength sent
+      n = latticeLength sent
       insideL i = M.toList $ uncell $ fromMaybe (Cell M.empty) $ M.lookup i inside 
-      chart = M.fromList $
-              [((i,k), Cell $ M.fromListWith mappend $ 
-                combine (i,k)  insideL (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart))
-                   | d <- [n,n-1..1], 
-                     i <- [1..n],
-                     let k = i + d,
-                     k <= n+1
-              ] 
+      chart = M.fromList $ chartdata
+      (chartdata, extras) = unzip $ do 
+        d <- [n,n-1..1] 
+        i <- [1..n]
+        let k = i + d
+        guard $ k <= n +1
+        let (cell, extra) = combine (i,k)  insideL (\i-> M.toList $ uncell $ fromJustNote "lookup fail" $ M.lookup i chart)
+        return (((i,k), Cell $ M.fromListWith mappend $ cell), extra) 
+              
 
-alignCharts :: (SentenceLattice sent, Semiring semi, Ord sig) =>
+
+alignCharts :: (WordLattice sent, Semiring semi, Ord sig) =>
                sent -> 
                Chart sig semi ->
                Chart sig semi ->
@@ -118,8 +117,7 @@ alignCharts sent (Chart inside) (Chart outside) =
                      let k = i + d,
                      k <= n+1
               ] 
-      n = sentenceLength sent    
-
+      n = latticeLength sent    
 
 type InitialDerivationRule item = [item]
 type SingleDerivationRule item = item -> [item] 

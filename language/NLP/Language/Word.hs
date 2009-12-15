@@ -1,8 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, ScopedTypeVariables #-} 
-
 module NLP.Language.Word where 
 
-import NLP.Language.Common
+import Helpers.Common
 import qualified Data.Trie as T 
 import qualified Data.IntMap as IM
 import qualified Data.ByteString.Char8 as BS

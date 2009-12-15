@@ -15,13 +15,16 @@ library
                          NLP.Language.English
                          NLP.Language.German
                          NLP.Language.Word
+                         NLP.Language.WordLattice
+                         
 
-    other-modules:       NLP.Language.Common
+    other-modules:       
                          NLP.Language.English.POS
                          NLP.Language.English.NonTerm
                          NLP.Language.German.POS
                          NLP.Language.German.NonTerm
-                         
+                         Helpers.Common
+                         Helpers.MkEnum
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
                      derive,
@@ -29,8 +32,8 @@ library
                      bytestring,
                      bytestring-trie,
                      safe,
-                     QuickCheck,
+                     QuickCheck > 2.0,
                      prettyclass,
                      pretty,
-                     bimap
-
+                     bimap,
+                     array

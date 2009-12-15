@@ -14,6 +14,7 @@ cabal-version:       >= 1.2
 library
     exposed-modules:     LP.Format.CPLEX
                          LP.Format.Graph
+                         LP.DualDecomp
     other-modules: Helpers.Common
                          
     build-Depends:   base       >= 3   && < 4,                     
@@ -37,6 +38,7 @@ library
                      TAG,
                      multilanguage,
                      monoids,
-                     bimap
+                     bimap,
+                     bytestring
                                 
 

@@ -36,7 +36,7 @@ writeObjective (Objective dir formula) =
     nest 2 (text "optimize:" <+> writeFormula formula)
     
 writeConstraint (Constraint name formula operator n) = 
-    text (name ++ ":") <+>
+    text ((clean name) ++ ":") <+>
     writeFormula formula <+> 
     writeOperator operator <+>
     (text $ show n)
@@ -52,11 +52,13 @@ writeCplex (LP obj cons bounds) =
     (text "Bounds") $$ 
     nest 2 (vcat $ map writeBound bounds) $$
     (text "End") 
+
+renderCplex =  render . writeCplex
                      
 testLP = LP (Objective Max (Formula [(1, Var "A")])) [Constraint "c1" (Formula [(1, Var "A"),(2, Var "C")]) OEQ 10] [Bound 0 (Var "A") 100]
 
 trans = BM.fromList                 
-        [(',' , "_COMMA_"), 
+        [ -- (',' , "_COMMA_"), 
          ( '$' , "_DOLLAR_"),
          ( '`' , "_BQUOTE_"),
          ( '\'' , "_QUOTE_"),
