@@ -65,6 +65,34 @@ cacheEdges informationAdj theta edges= ret --trace (show ret) $  ret
             guard $ sum mi > 0
             return (fst e2, fst e1, sum mi)
 
+
+makeNodeBunch theta nodes = mconcat $ do
+  node <- nodes
+  let NodeVar a i k = node
+  let th = case theta of 
+             Just theta -> theta node
+             Nothing -> 0.0
+  let nodeNode = (node, (0, th + tiny))
+  return $ uncurry M.singleton nodeNode 
+
+cacheNodes n informationAdj nodes = do 
+  let nodeBunch = makeNodeBunch Nothing nodes
+  n1@(NodeVar a i j, _) <- M.toList nodeBunch
+  n2@(NodeVar b j' k, _) <- M.toList nodeBunch 
+  guard $ j == j'
+  let mi = informationAdj a b
+  guard $ mi > 1.0
+  return (fst n2, fst n1, mi) -- / (fromIntegral(n - j)) )
+
+
+mkGraphFromNodes extraEdges theta nodes = 
+    mkGraph (M.toList $ newEdgeBunch) extraEdges 
+    where 
+         nodeBunch = makeNodeBunch (Just theta) nodes 
+         newEdgeBunch = foldl (\m (n1,n2,w) -> M.update (\(a,b) -> Just (a+w, b)) n1 m) nodeBunch extraEdges
+
+
+
 mkGraphFromEdges informationAdj informationPar extraEdges theta edges = --trace (show extraEdges) $  
     mkGraph (M.toList $ newEdgeBunch) extraEdges 
     where 
@@ -124,3 +152,15 @@ collectStats spanMap = (mconcat $ map observation nte,
         guard $ j == j'
         return $ AdjacentEvent (y,z)
 
+computeRealObj mrf lambda sol = single + double
+     --trace ("SINGLE:" ++ show single) $ 
+      where 
+        single = sum $ map (\(k,v) -> if S.member k all then -v else v) $ M.toList lambda
+        double = sum $ do
+                   n1 <- sol
+                   n2 <- sol
+                   return $ M.findWithDefault 0.0 (n1,n2) corCost
+
+        all = S.fromList sol
+        corCost = M.fromList $ map (\(n1, n2, e) -> ((n1, n2), e)) mrf
+        theta = (\e -> fromJustDef 0.0 $ M.lookup e lambda)

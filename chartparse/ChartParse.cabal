@@ -33,6 +33,7 @@ library
                      fsm,
                      pretty,
                      prettyclass,
+                     text,
                      safe
 executable hstestsemi
     main-is:            Tests.hs

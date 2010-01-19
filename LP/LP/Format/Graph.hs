@@ -81,16 +81,17 @@ writeEdges graph =
     (vcat $ map (\ (i,el) -> if null el then empty else (vcat $  map (\(j,w) -> int i <+> int (j-1) <+> double w <+> double 0.0) el)) $ zip [0..] $ elems $ adj graph)
 
 
-parseSolution nodeCount str = (ons, residual)
+parseSolution nodeCount str = (read $ head allL , (ons, residual))
     where 
-      l = lines str
+      allL = lines str
+      l = tail allL
       ons = map read $ take nodeCount l
       residual = map readRes $ drop nodeCount l 
       readRes s = (read a, read b)
           where (a, b) = break (== ' ') s
 
 
-solveGraph :: (Ord node, Show node) =>   Int -> Graph node -> IO ([node])
+solveGraph :: (Ord node, Show node) =>   Int -> Graph node -> IO ((Double,[node]))
 solveGraph i graph = do 
   h <- openFile ("/tmp/tmp.graph"++show i) WriteMode 
   hPutStr h $ render $ writeGraph graph
@@ -112,6 +113,7 @@ solveGraph i graph = do
   hFlush h
   hClose h
          
-  return $ getOn2 (parseSolution (nodeCount graph) $ S.unpack contents) graph
+  let (obj, sol) = (parseSolution (nodeCount graph) $ S.unpack contents)
+  return $ (obj, getOn2 sol graph)
 
 

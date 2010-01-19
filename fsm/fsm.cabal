@@ -28,7 +28,8 @@ library
                      fgl,
                      semiring
 
-executable hsfsm
+
+ executable hsfsm
     main-is:            Tests.hs
     hs-source-dirs: . tests/
 

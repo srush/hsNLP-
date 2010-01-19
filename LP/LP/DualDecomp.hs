@@ -5,17 +5,17 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Debug.Trace
 
-alpha = 0.5
+alpha = 0.2
 
 type Lambda a = M.Map a Double 
 type Result a = S.Set a 
 
 update :: (Ord a, Show a) => Int -> Result a -> Result a -> Lambda a -> Lambda a 
-update i y1 y2 lambda = trace ("Adds: " ++ show adds) $ trace ("Subs:" ++ show subs) $ 
-    insertManyWith (+) (alpha) (S.toList adds) $   
-    insertManyWith (+) (-alpha) (S.toList subs) lambda  
+update i y1 y2 lambda = --trace ("Adds: " ++ show adds) $ trace ("Subs:" ++ show subs) $ 
+    insertManyWith (+) ( alpha/(1 + (fromIntegral $ round ((fromIntegral i)/10)))) (S.toList adds) $   
+    insertManyWith (+) (-alpha/(1 + (fromIntegral $ round ((fromIntegral i)/10)))) (S.toList subs) lambda  
     where 
-      ratio= (fromIntegral $ S.size y1) / (fromIntegral $ S.size y2)
+      --ratio= (fromIntegral $ S.size y1) / (fromIntegral $ S.size y2)
       adds = S.difference y2 y1
       subs = S.difference y1 y2
       insertManyWith fn v ls m = foldl (\m k -> M.insertWith fn k v m) m ls 
@@ -28,41 +28,44 @@ combine theta lambda dif scale node =
           
 data Slave node =
     Slave {
-      getMAP :: Lambda node -> Int -> IO (S.Set node)
+      getMAP :: Lambda node -> Int -> IO (Double, S.Set node)
     }
                
-data Master theta node = 
+data Master  node = 
     Master {
       slaves :: (Slave node,
                  Slave node),
-      theta :: Theta node,
+      --theta :: Theta node,
       lambda :: Lambda node,
-      step :: Int 
+      step :: Int,
+      obj :: [(Double,Double)]
     } 
 
-instance (Show node) => Show (Master theta node) where  
+instance (Show node) => Show (Master  node) where  
     show master = 
         show (step master) ++ " " ++  show (lambda master) 
 
-initialize theta slaves = 
+initialize  slaves = 
      Master {slaves = slaves, 
-             theta  = theta,
+--             theta  = theta ,
              lambda = M.empty,
-             step   = 0 
+             step   = 0, 
+             obj    = []
             } 
 
 takeStep master = do 
-  (map1, map2) <- maps
+  ((obj1, obj2) ,(map1, map2)) <- maps
   return $ master {
     lambda = update i map1 map2 (lambda master),
-    step = i + 1
+    step = i + 1,
+    obj = (obj1, obj2):(obj master)
   } 
     where
       (slave1, slave2) = slaves master
       maps = do 
-        map1 <- (getMAP slave1)  (lambda master) i 
-        map2 <- (getMAP slave2)  (lambda master) i
-        return $ (map1, map2) 
+        (obj1, map1) <- (getMAP slave1)  (lambda master) i 
+        (obj2, map2) <- (getMAP slave2)  (lambda master) i
+        return $ ((obj1,obj2), (map1, map2)) 
       i = step master
       
 

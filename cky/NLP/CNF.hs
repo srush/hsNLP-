@@ -13,51 +13,64 @@ import NLP.Probability.Observation
 
 --}}}
 
-newtype NT = NT String
+data NT = NT String | TOP | TermTOP
     deriving (Eq,Ord) 
 
 --{{{  NT Classes
-trans = BM.fromList                 
-        [(',' , "_COMMA_"), 
-         ( '$' , "_DOLLAR_"),
-         ( '`' , "_BQUOTE_"),
-         ( '\'' , "_QUOTE_"),
-         ( '&' , "_AMP_"),
-         ( ':' , "_COLON_"),
-         ( '\\' , "_SLASH_"),
-         ( '/' , "_FSLASH_"),
-         ( '%' , "_PERCENT_"),
-         ( '@' , "_AT_"),
-         ( '=' , "_EQ_"),
-         ( '|' , "_PIPE_"),
-         ( '^' , "_CARAT_"),
-         ( ';' , "_SEMI_"),
-         ( '#' , "_POUND_")]
+mkNT "*TOP*" = TOP 
+mkNT "*TermTOP*" = TermTOP 
+mkNT "**TOP**" = TOP 
+mkNT "**TermTOP**" = TermTOP 
+mkNT e = NT e 
 
-clean = 
-    concatMap (\c -> case BM.lookup c trans of
-                                   Just n -> n
-                                   Nothing -> [c]) 
-mkNT = NT -- . clean
+termTop = TermTOP
+top = TOP
 
 instance Show NT where 
     show (NT n) = n  
+    show TOP = "TOP"  
+    show TermTOP = "**TERMTOP**"  
 --}}}
 
 
+newtype UnkWord = UnkWord String 
+    deriving (Binary)
 
-newtype POS = POS String
-    deriving (Eq,Ord) 
+instance Eq UnkWord where 
+     (==) a b = True 
 
---{{{  POS Classes
-mkPOS = POS . clean
-instance Show POS where 
-    show (POS n) = n  
+instance Ord UnkWord where 
+     compare a b = EQ 
+
+data Word = KnownWord String | 
+            UnknownWord UnkWord |
+            EndWord
+   deriving  (Eq, Ord)
+
+--{{{  Word Classes
+newtype WordTable = WordTable (M.Map String Int)
+    deriving (Binary, Show)
+
+mkWordTable words = WordTable $ 
+  M.filter (> 5) $ 
+  M.unionsWith (+) $ 
+  [M.singleton word 1 | word <- words]
+   
+mkWord _ "*END*" = EndWord 
+mkWord (WordTable m) w = 
+    case M.lookup w m of 
+      Just _ -> KnownWord w
+      Nothing -> UnknownWord $ UnkWord w
+    
+instance Show Word where 
+    show (KnownWord n) = n  
+    show (UnknownWord (UnkWord a)) = a  
+    show (EndWord) = "**END**"  
 --}}}
 
 data Production = 
     BinaryRule NT NT NT | 
-    TerminalRule NT POS
+    TerminalRule NT Word
     deriving (Eq, Ord)
 
 instance Show Production where 
@@ -65,7 +78,7 @@ instance Show Production where
     show (TerminalRule x p ) = printf "%s -> %s" (show x) (show p) 
 
 $(derive makeBinary ''NT )
-$(derive makeBinary ''POS )
+$(derive makeBinary ''Word )
 $(derive makeBinary ''Production )
  
 
@@ -87,7 +100,7 @@ instance Context RuleContext where
     type Sub RuleContext = RuleContext
     decompose a = [a] 
 
-newtype TermEvent = TermEvent POS
+newtype TermEvent = TermEvent Word
     deriving (Eq, Ord, Binary, Show)
 
 instance Event TermEvent where type EventMap TermEvent = M.Map
@@ -146,7 +159,7 @@ getProb nt (Grammar (terms, rules)) =
 --         where  process (BinaryRule p _ _, _) = p 
 --                process (TerminalRule p _, _) = p 
 
--- uniquePOS (Grammar g) = 
+-- uniqueWord (Grammar g) = 
 --     S.toList $ S.fromList $ concatMap process $ M.toList g
 --         where  process (BinaryRule _ _ _, _) = []
 --                process (TerminalRule _ pos, _) = [pos]
