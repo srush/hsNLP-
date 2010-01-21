@@ -15,8 +15,6 @@ library
                          NLP.Language.English
                          NLP.Language.German
                          NLP.Language.Word
-                         NLP.Language.WordLattice
-                         
 
     other-modules:       
                          NLP.Language.English.POS

@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances, TypeSynonymInstances #-}
 module NLP.Model.Adjunction where 
 
 --{{{  Imports
@@ -18,6 +18,7 @@ import NLP.Grammar.Spine
 import NLP.Grammar.NonTerm
 import Text.Printf
 import NLP.Model.Chain
+import NLP.Model.TAGWrap
 --}}}
 
 emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing
@@ -51,17 +52,22 @@ instance (Language l) => Context (AC1 l) where
 
 -- Adjunction Event1 
 type AdjunctionEvent1 l = (Maybe (POS l), Maybe AdjunctionType)
+newtype AE1 l = AE1 (AdjunctionEvent1 l)
+   
 
 --{{{  AdjunctionEvent1 Classes
-newtype AE1 l = AE1 (AdjunctionEvent1 l)
 
 
 mkEvent1 event = AE1 (childPOS event, adjType event) 
 
 instance (Language l) => Event (AE1 l) where type EventMap (AE1 l) = M.Map
-deriving instance (Language l) => Show(AE1 l) 
 deriving instance (Language l) => Eq(AE1 l) 
 deriving instance (Language l) => Ord(AE1 l)
+deriving instance (Language l) => Show(AE1 l)
+deriving instance (Language l) => Binary(AE1 l)
+
+instance (Language l) => Pretty(AE1 l) where 
+    pPrint (AE1 (p, at)) = csep [hPretty p, hPretty at] 
 
 --}}}
 
@@ -103,6 +109,11 @@ instance (Language l) => Event (AE2 l) where type EventMap (AE2 l) = M.Map
 deriving instance (Language l) => Show(AE2 l) 
 deriving instance (Language l) => Eq(AE2 l)
 deriving instance (Language l) => Ord(AE2 l) 
+deriving instance (Language l) => Binary(AE2 l)
+
+instance (Language l) => Pretty (AE2 l) where 
+    pPrint (AE2 a) = hPretty a 
+
 --}}}
 
 -- AdjunctionContext 3
@@ -131,7 +142,7 @@ instance (Language l) => Context (AC3 l) where
             where [_, _, d3] = decompose $ AC1 $ runIdentity c 
 --}}}
 
-newtype AE3 l = AE3 (Maybe (Spine l))
+newtype AE3 l = AE3 (Maybe (TSpine l))
 
 --{{{  AdjunctionEvent2 Classes
 mkEvent3 event = AE3 (childSpine event) 
@@ -139,21 +150,27 @@ mkEvent3 event = AE3 (childSpine event)
 deriving instance (Language l) => Show(AE3 l) 
 deriving instance (Language l) => Eq(AE3 l) 
 deriving instance (Language l) => Ord(AE3 l) 
+deriving instance (Language l) => Binary(AE3 l)
+
 instance (Language l) => Event (AE3 l) where type EventMap (AE3 l) = M.Map
+
+instance (Language l) => Pretty (AE3 l) where 
+    pPrint (AE3 a) = hPretty a 
 
 
 --}}}
 
 data Collins l = Collins
+
 instance (Language l) => JointModel (Collins l) where 
      data Pairs (Collins l) =  Pairs ((AE1 l, AC1 l),
-                                (AE2 l, AC2 l),
-                                (AE3 l, AC3 l))
+                                      (AE2 l, AC2 l),
+                                      (AE3 l, AC3 l))
      
      newtype Observation (Collins l) = Observation (CondObserved (AE1 l) (AC1 l),
                                      CondObserved (AE2 l) (AC2 l),
                                      CondObserved (AE3 l) (AC3 l))
-         deriving (Monoid, Show)
+         deriving (Monoid, Show, Pretty, Binary)
 
      data Probs (Collins l) = Probs (CondDistribution (AE1 l) (AC1 l),
                                CondDistribution (AE2 l) (AC2 l),
@@ -163,7 +180,7 @@ instance (Language l) => JointModel (Collins l) where
      data FullEvent (Collins l)   = AdjunctionFullEvent {
       childWord :: Maybe (Word l),
       childPOS :: Maybe (POS l),
-      childSpine :: Maybe (Spine l), 
+      childSpine :: Maybe (TSpine l), 
       adjType :: Maybe AdjunctionType
     }
  
@@ -192,4 +209,5 @@ instance (Language l) => JointModel (Collins l) where
          where  
            est :: (Event a, Context b) => CondObserved a b -> CondDistribution a b 
            est = estimateGeneralLinear (wittenBell 5)
+
 

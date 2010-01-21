@@ -1,12 +1,12 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, ScopedTypeVariables, StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, ScopedTypeVariables, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 module NLP.Language where 
 import Helpers.Common
 import Helpers.MkEnum
 
     
-class (Read (POS a), Show (POS a), Enum (POS a), Eq (POS a), Ord (POS a), Arbitrary (POS a), Bounded (POS a), 
-       Show (NonTerm a), Enum (NonTerm a), Read (NonTerm a), Eq (NonTerm a), Ord (NonTerm a), Arbitrary (NonTerm a), Bounded (NonTerm a), 
-       Show (Word a), Enum (Word a), Eq (Word a), Ord (Word a), Arbitrary (Word a), Bounded (Word a)
+class (Binary (POS a), Read (POS a), Show (POS a), Enum (POS a), Eq (POS a), Ord (POS a), Arbitrary (POS a), Bounded (POS a), Pretty (POS a), 
+       Binary (NonTerm a), Show (NonTerm a), Enum (NonTerm a), Read (NonTerm a), Eq (NonTerm a), Ord (NonTerm a), Arbitrary (NonTerm a), Bounded (NonTerm a), Pretty (NonTerm a) , 
+       Binary (Word a), Show (Word a), Enum (Word a), Eq (Word a), Ord (Word a), Arbitrary (Word a), Bounded (Word a), Pretty (Word a)
        )  
     => Language a where 
     data POS a
@@ -32,6 +32,7 @@ getPOS (GWord (_,p)) = p
 deriving instance (Language l) => Show (GWord l) 
 deriving instance (Language l) => Eq (GWord l)
 deriving instance (Language l) => Ord (GWord l) 
+deriving instance (Language l) => Binary (GWord l) 
 
 instance (Language l) => Enum (GWord l) where 
     fromEnum (GWord (a,b)) = mkFromEnum2 (a, maxBound) (b, maxBound)

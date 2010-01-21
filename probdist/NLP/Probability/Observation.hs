@@ -36,12 +36,13 @@ newtype Counts event = Counts {
 class (M.Map (EventMap event) event) => Event event where 
     type EventMap event :: * -> * -> *
 
-instance (Event event, Show event) => Pretty (Counts event) where 
-    pPrint (Counts counts) = 
-        vcat $ map (\(e,count) -> (text $ show $ e) <+> equals <+> double count  ) $ M.toList counts 
+pShow fn (Counts counts) = vcat $ map (\(e,count) -> (fn e) <+> equals <+> double count ) $ M.toList counts 
 
+instance (Event event, Pretty event) => Pretty (Counts event) where 
+    pPrint = pShow pPrint
+        
 instance (Event event, Show event) => (Show (Counts event)) where 
-    show = render . pPrint        
+    show = render . pShow (text. show)       
     
 instance (Event event) => Monoid (Counts event) where 
     mempty = Counts M.empty 

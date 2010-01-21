@@ -1,31 +1,33 @@
-import TreeBank 
-import Control.Exception
-import Prior
-import TAG 
-import TAGparse
-import Adjunction
+
+import NLP.TreeBank.TAG 
+import NLP.TreeBank.TreeBank
+import NLP.Model.ChainPrior
+import NLP.Model.TAGparse
 import System (getArgs) 
-import System.IO
-import Data.Monoid
-import Data.Binary
-import Data.List
 import qualified Data.Map as M
-import Sentence 
 import NLP.ChartParse
 import NLP.Semiring
 import NLP.Semiring.Prob
-import NLP.ChartParse.Eisner as EI
+import NLP.ChartParse.Eisner.Inside as EI
 import NLP.Semiring.ViterbiNBestDerivation
 import Safe (fromJustDef, fromJustNote, at)
-import DependencyStructure
 import Debug.Trace
 import Text.PrettyPrint.HughesPJClass
 import Text.Printf
 import Data.Array
 import Control.Parallel.Strategies
-import Distance
 import Data.Algorithm.Diff
-import ExtraParams
+import Data.List
+import NLP.Model.Distance
+import Data.Binary
+import NLP.Grammar.TAG
+import System.IO
+import NLP.Model.Chain
+import NLP.Model.Adjunction
+import NLP.Language.English
+import NLP.Model.CreateableSemi
+import NLP.Model.Derivation
+import NLP.Model.TAGWrap
 
 separate :: (Eq el) => el -> [el] -> [[el]]
 separate el [] = [] 
@@ -40,47 +42,50 @@ main = do
   counts <- decodeFile adjCountFile
   spineCounts <- decodeFile spineCountFile
   spineCounts2 <- decodeFile spineProbFile
-  let probSpine = estimatePrior spineCounts2
+  let probSpine = estimate (spineCounts2 :: (Observation (CollinsPrior English) )) 
   --print counts
-  let probs = estimateTAGProb (counts::TAGCounts)
+  let probs = estimate (counts::(Observation (Collins English)))
   
   contents <- readFile testFile
   hSetBuffering stdout NoBuffering
   let sents =  map (parseSentence testFile. unlines) $ 
                separate "" $ lines contents
-                        --print sents
+  --print sents
   --print sents
   
-  let results = [  ((b', b),chart)
-          | (n, (_, (Just b', _) , _, (Just b, chart))) <- zip [1..] $ map (parseSent counts (spineCounts::SpineExist) probs probSpine) sents]
+  let results = [ ((b', b),chart)
+                      | (n, (_, (Just b', _) , _, (Just b, chart))) <- 
+                          zip [1..] $ map (parseSent counts (spineCounts:: SpineExist English) probs probSpine) sents]
   
-  putStrLn $ chartStats $ snd $ head results
+  
+  -- putStrLn $ chartStats $ snd $ head results
 
   mapM_ (\((a,b),_) ->  do
-           let der1 = getBestDerivation a
-           let der2 = getBestDerivation b
-           let (Prob sc1) = getBestScore a
-           let (Prob sc2) = getBestScore b
-           let TAGDerivation (_, debug1) = der1  
-           let TAGDerivation (_, debug2) = der2
-           let m1 = M.fromList debug1
-           let m2 = M.fromList debug2
-           let diff1 = M.difference m1 m2 
-           let diff2 = M.difference m2 m1
+           let der1 = getCVDBestDerivation a
+           let der2 = getCVDBestDerivation b
+           let (Prob sc1) = getCVDBestScore a
+           let (Prob sc2) = getCVDBestScore b
+           --let TAGDerivation (_, debug1) = der1  
+           --let TAGDerivation (_, debug2) = der2
+           --let m1 = M.fromList debug1
+           --let m2 = M.fromList debug2
+           --let diff1 = M.difference m1 m2 
+           --let diff2 = M.difference m2 m1
            let st1 = (render $ niceParseTree $ tagDerToTree der1)
            let st2 = (render $ niceParseTree $ tagDerToTree der2)
-           let ldiff  = getDiff (lines st1) (lines st2) 
+           --let ldiff  = getDiff (lines st1) (lines st2) 
            putStrLn $ "First " ++ (printf "%.3e" sc1) 
-           putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
+           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
            putStrLn $ "Second" ++ (printf "%.3e" sc2) 
-           putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
-           putStrLn $ show ldiff
+           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
+           --putStrLn $ show ldiff
            putStrLn $ st1
            putStrLn $ st2
-           --putStrLn $ show $ getBestDerivation b
+           putStrLn $ show $ getCVDBestDerivation b
 
            putStrLn $ ("G" ++ " " ++ (show $ tagDerToTree der1))
            putStrLn $ ("T" ++ " " ++ (show $ tagDerToTree der2))) results
+
 
       --print "The fixed parse answer"
   --putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation b'''))
@@ -96,28 +101,34 @@ main = do
   --if length wrong == 0 then putStrLn "Perfect."
    --else putStrLn $ render $ vcat $ map (text.show) wrong
           
-       
-
+      
 parseSent counts spineCounts probs probSpine insent = 
-    (dep, 
-     (Just b, chart),
+--    trace (show sent) $ 
+--    trace (show actualsent) $ 
+    trace (maybe (show chart') (const "") b')  $   
+    (dep,                                                                                   
+     (b, chart),
      (),
-     (Just b', chart'))
+     (b', chart'))
     where dsent = toTAGDependency insent
-          sc1 =  getBestScore b
-          (Just b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m) id
-          (Just b',chart')= eisnerParse (getFSM trivVal True) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
+          sc1 =  getCVDBestScore $ fromJustNote "blah" b
+          (b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m) id
+          (b',chart')= eisnerParse (getFSM trivVal True) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
                             (globalThresOne probSpine sc1)
-          (TAGSentence actualsent dep) = dsent
+          
+          (TAGSentence _ dep) = dsent
+          actualsent = tSentence dsent
           sent = toTAGTest spineCounts insent   
           ldiscache = mkDistCacheLeft actualsent
           rdiscache = mkDistCacheRight actualsent
-          trivVal :: Validity
+          trivVal :: Validity English
           trivVal _ _ _ _ = True
-          prunVal :: Validity
+          prunVal :: Validity English
           prunVal = valid dsent
-          getFSM val collins i (Just word) =  (initAdj (ProbModel probs testProbs val) ldiscache ALeft word collins,
-                                               initAdj (ProbModel probs testProbs val) rdiscache ARight word collins)
+         
+          mkSemi pairs = (prob probs pairs) :: (Counter CVD)   
+          getFSM val collins i (Just word) =  (initState (ParseOpts collins ldiscache (ProbModel mkSemi  val)) ALeft word,
+                                               initState (ParseOpts collins rdiscache (ProbModel mkSemi  val)) ARight word )
 
           symbolConv word = Just word 
                           
@@ -138,7 +149,7 @@ parseSent counts spineCounts probs probSpine insent =
 
 
 globalThres n wher m =
-    M.filter (\p -> getBestScore p >= n/100000) $  m    
+    M.filter (\p -> getCVDBestScore p >= n/100000) $  m    
 
 globalThresOne probs (Prob n) ps =  
     filter (\p -> score p >= (n/100000) && score p >= (best/10000))  ps  
@@ -152,11 +163,11 @@ globalThresOne probs (Prob n) ps =
 
 getFOM probs (sig, semi) = getPrior sig * getInside semi 
     where
-      getProb = probSpine probs 
+      getProb = (\a  -> prob probs $  PrPair a ) 
       getPrior sig = (if hasParent $ leftEnd sig then 1.0 else (prior getProb $ EI.word $ leftEnd sig)) * 
                (if hasParent $ rightEnd sig then 1.0 else (prior getProb $ EI.word $ rightEnd sig)) 
       getInside i  =  p
-          where (Prob p) = getBestScore i 
+          where (Prob p) = getCVDBestScore i 
 
   --print $ show (counts::TAGTrainingCounts) 
 --prune :: (Ord sig) => M.Map sig (ViterbiDerivation TAGDerivation) -> 

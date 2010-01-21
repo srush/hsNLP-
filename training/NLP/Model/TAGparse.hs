@@ -7,7 +7,7 @@ import NLP.FSM
 import NLP.ChartParse
 -- import NLP.ChartParse.Eisner
 import NLP.Grammar.Dependency
-import NLP.Language.WordLattice
+import NLP.WordLattice
 import qualified Data.Map as M
 import qualified Data.Set as S
 import NLP.Grammar.TAG hiding (adjType)
@@ -21,6 +21,7 @@ import NLP.Model.Distance
 import NLP.Model.Adjunction
 import NLP.Model.Chain
 import Debug.Trace
+import NLP.Model.TAGWrap
 --}}}
 
 -- | Sentence level run-time options
@@ -34,20 +35,19 @@ data AdjState m semi l =
     AdjState { 
       opts :: ParseOpts m semi l,
       
-      word :: TAGWord l,
+      word :: TWord l,
       curPos :: !Int, 
       side :: !AdjunctionSide,
       curDelta :: !Delta,
       isAfterComma :: !Bool,
       lastInNPB :: Maybe (GWord l) 
-
       -- stateParents :: M.Map (Int, VerbDistance, Delta) AdjunctionParent 
 } 
 
 initState :: (Language l) =>
            ParseOpts model semi l ->
            AdjunctionSide ->
-           TAGWord l ->
+           TWord l ->
            AdjState model semi l 
 initState parseOpts side tagword = AdjState {
                                      opts = parseOpts,
@@ -159,7 +159,7 @@ doOneAdj baseSemi adjstate child atype dis = do
 
 
 findSemi :: (Language l, CreateableSemi semi) => 
-            AdjState (Collins l) semi l -> Maybe (TAGWord l) -> 
+            AdjState (Collins l) semi l -> Maybe (TWord l) -> 
             AdjunctionType -> VerbDistance -> [semi l]
 findSemi adjstate child atype vdis = do 
     guard $ (validity $ model opts) headWord child pos atype
@@ -208,7 +208,7 @@ shouldPrune adjstate split isTryingEmpty =
 mkDistance adjstate split = VerbDistance verb
     where (verb, _) = (distanceCache $ opts adjstate) (twInd $ word adjstate, split)
 
-type Validity l = TAGWord l -> (Maybe (TAGWord l)) -> Int -> AdjunctionType -> Bool
+type Validity l = TWord l -> (Maybe (TWord l)) -> Int -> AdjunctionType -> Bool
 data ProbModel m s l = ProbModel {
       probs :: (Pairs m -> Counter s),
 --      extra :: FlipProbs,
@@ -222,7 +222,7 @@ instance (Language l, CreateableSemi semi, Semiring (semi l)) =>
     
 instance (Language l, CreateableSemi semi, Semiring (semi l)) => 
     FSMState (AdjState (Collins l) semi l) where 
-    type FSMSymbol (AdjState (Collins l) semi l) = Maybe (TAGWord l)
+    type FSMSymbol (AdjState (Collins l) semi l) = Maybe (TWord l)
     type FSMSemiring (AdjState (Collins l) semi l) = semi l
     next = tryAdjunction
     finish = tryFinish 
@@ -240,9 +240,9 @@ instance (Language l, CreateableSemi semi, Semiring (semi l)) =>
 --               flip = mkFlip (stateHead init) (stateSide init)
 
 -- tryAdjunction :: (Semiring semi, FSMState (AdjState a) ) => 
---                (AdjState a -> Int -> AdjunctionAction (TAGWord) -> AdjunctionType -> Distance -> Maybe semi) -> 
+--                (AdjState a -> Int -> AdjunctionAction (TWord) -> AdjunctionType -> Distance -> Maybe semi) -> 
 --                (AdjState a) ->  
---                (Maybe (TAGWord)) ->
+--                (Maybe (TWord)) ->
 --                Int -> --huge hack!
 --                [(AdjState a, semi)] 
 

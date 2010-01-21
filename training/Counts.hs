@@ -2,8 +2,8 @@ module Counts where
 import Prelude hiding (catch)
 import NLP.Grammar.TAG
 import NLP.Model.TAGparse 
-import NLP.ChartParse.Eisner
-import NLP.ChartParse.Outside
+import NLP.ChartParse.Eisner.Inside
+import NLP.ChartParse.Eisner.Outside
 import NLP.Semiring.Derivation
 import NLP.TreeBank.TreeBank
 import Control.Exception
@@ -17,8 +17,10 @@ import NLP.Model.CreateableSemi
 import NLP.Model.Adjunction
 import NLP.Language.English
 import NLP.Model.Chain
-
-readTAG :: String -> IO (TAGSentence English)
+import NLP.Model.TAGWrap
+import NLP.WordLattice
+    
+readTAG :: String -> IO (TSentence English)
 readTAG f = toTAGDependency `liftM` readSentence f
 
 
@@ -28,8 +30,8 @@ readSent f =  readSentence f
 showCount f = do
    t <- readTAG f
    putStrLn $ show t 
-   let c = countTAG (t::TAGSentence English)
-   putStrLn $ show $ c
+   let c = countTAG (t::TSentence English)
+   putStrLn $ render $ pPrint $ fst $ c
 
 
 -- showOutside f = do
@@ -48,12 +50,12 @@ type TAGCountSemi l = CD (Observation (Collins l))
 
 type BasicOpts l = ParseOpts (Collins l) (TAGCountSemi l) l
 
-makeParseOpts :: (Language l) => TAGSentence l -> (BasicOpts l, BasicOpts l)
+makeParseOpts :: (Language l) => TSentence l -> (BasicOpts l, BasicOpts l)
 makeParseOpts dsent = 
     (opts{ distanceCache = mkDistCacheLeft sent} , 
      opts{ distanceCache = mkDistCacheRight sent})
           where 
-            (TAGSentence sent _) = dsent
+            sent = tSentence dsent
             opts = ParseOpts {useCommaPruning = False,
                               distanceCache = undefined,
                               model = ProbModel {
@@ -64,13 +66,13 @@ makeParseOpts dsent =
               
 --countTAG :: (Language l) => TAGSentence l -> TAGDerivation l 
 countTAG dsent  = case semi of 
-        Nothing -> trace ("failed to parse" ++ show chart) undefined -- throw $ AssertionFailed $ show dsent
+        Nothing -> trace ("failed to parse" ) (mempty,undefined) -- throw $ AssertionFailed $ show dsent
         Just s -> case s of 
                     (CD (Derivation (Just m))) ->  (m,chart)
-                    (CD (Derivation (Nothing))) -> trace ("no derivation") undefined
+                    (CD (Derivation (Nothing))) -> trace ("no derivation") (mempty,undefined)
           
     where 
-      (TAGSentence sent _) = dsent
+      sent = tSentence dsent
       (lopts, ropts) = makeParseOpts dsent 
       getFSM i (Just word) =  (initState lopts ALeft  word,
                                initState ropts ARight word )

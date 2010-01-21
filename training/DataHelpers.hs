@@ -1,6 +1,6 @@
 module DataHelpers where 
 
-import TreeBank 
+import NLP.TreeBank.TreeBank 
 import Data.List
 
 ngroup [] n = []

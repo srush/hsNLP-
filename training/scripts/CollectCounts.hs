@@ -1,24 +1,27 @@
-import TreeBank 
-import TAG 
-import Adjunction
-import TAGparse
+{-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances, TypeSynonymInstances #-}
+import NLP.Model.TAGparse
+import NLP.TreeBank.TAG
 import System (getArgs) 
 import System.IO
 import Data.Monoid
 import Data.Binary
 import Data.List
-import NLP.ChartParse.Eisner
+import NLP.ChartParse.Eisner.Inside
 import NLP.Semiring.Derivation
 import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
 import Debug.Trace
+import NLP.Model.Adjunction
+import NLP.Model.Chain
+import NLP.Language.English
 import Counts 
+
 main = do 
   [file1, file2] <- getArgs
   counts <- readAndCount file1 file2
   print "full count done"
-  encodeFile file2 (counts::TAGCounts)
+  encodeFile file2 ((counts)::(Observation (Collins English)))
 
 readAndCount file1 file2 = do
   newsents <- getSentences file1
@@ -31,6 +34,6 @@ readAndCount file1 file2 = do
         countSome (ls,n) =  
           --return $! 
           trace (show n) $ 
-                mconcat $ map (countTAG . toTAGDependency) ls 
+                mconcat $ map (fst. countTAG . toTAGDependency) ls 
         
             

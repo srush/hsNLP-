@@ -19,11 +19,11 @@ instance Show (POS English) where  show (EngPOS e)  = show e
 
 instance Language English where 
     newtype POS (English) = EngPOS P.POS 
-                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read)
+                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read, Binary)
     newtype NonTerm (English) = EngNT NT.NonTerm  
-                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read)
+                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read, Binary)
     newtype Word (English) = EngWord (W.WordWrap EnglishWord)
-                          deriving (Eq, Ord, Bounded, Enum, Arbitrary)
+                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Binary)
 
     mkPOS = EngPOS . P.mkPOS
     mkNonTerm = EngNT . read
@@ -37,3 +37,13 @@ instance Language English where
     isVerb (EngPOS p) = P.isPOSVerb p  
     isComma (EngPOS p)= P.isPOSComma p 
     isPunc (EngPOS p) = P.isPOSPunc p 
+
+
+instance Pretty (NonTerm English) where 
+    pPrint = text . show 
+
+instance Pretty (POS English) where 
+    pPrint = text . show 
+
+instance Pretty (Word English) where 
+    pPrint = text . show 

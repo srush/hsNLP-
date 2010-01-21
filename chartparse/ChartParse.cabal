@@ -18,9 +18,11 @@ flag testing
 
 library
     exposed-modules:     NLP.ChartParse
-                         NLP.ChartParse.Eisner
+                         NLP.ChartParse.Eisner.Inside
+                         NLP.ChartParse.Eisner.Outside
                          NLP.ChartParse.CKY.Inside
                          NLP.ChartParse.CKY.Outside
+                         NLP.WordLattice
     other-modules:      Helpers.Common
 
     if flag(testing)
@@ -35,6 +37,7 @@ library
                      prettyclass,
                      text,
                      safe
+
 executable hstestsemi
     main-is:            Tests.hs
     other-modules:      NLP.ChartParse
@@ -52,8 +55,8 @@ executable hstestsemi
                      test-framework-hunit,
                      test-framework-quickcheck2,
                      derive,  
-                     binary,
-                     multilanguage
+                     binary
+
                      
     if !flag(testing)
         buildable: False

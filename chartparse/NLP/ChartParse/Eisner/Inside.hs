@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleContexts #-}
-module NLP.ChartParse.Eisner where 
+module NLP.ChartParse.Eisner.Inside where 
 
 --{{{  Imports
 import NLP.ChartParse
@@ -10,7 +10,7 @@ import NLP.Semiring
 import qualified Data.Map as M
 import Data.Monoid.Multiplicative (times, one) 
 import Control.Exception
-import NLP.Language.WordLattice
+import NLP.WordLattice
 --}}}
 
 type EisnerChart fsa = Chart (ESpan fsa) (FSMSemiring (State fsa))
@@ -263,7 +263,10 @@ processCell :: (WFSM fsa, WordLattice sent) =>
                (Span -> [EItem fsa]) -> -- function from cell to contenst 
                ([EItem fsa] -> [EItem fsa]) -> 
                [EItem fsa] -- contents of the new cell 
-processCell getFSA sentence wordConv (i, k) chart beam = catMaybes $ map seal $ 
+processCell getFSA sentence wordConv (i, k) chart beam = 
+   if k > latticeLength sentence then []
+   else
+    catMaybes $ map seal $ 
     if k-i == 1 then        
         (let seedCells = beam $ seed getFSA i 
                         (map wordConv $ getWords sentence i) 
@@ -290,7 +293,7 @@ eisnerParse :: (WFSM fsa, WordLattice sent) =>
 eisnerParse getFSM wordConv sent prune beam = (semi, chart)  
     where chart = chartParse sent (processCell getFSM sent wordConv) prune beam
           semi = do
-            last <- chartLookup (1, latticeLength sent + 1) chart
+            last <- chartLookup (1, latticeLength sent) chart
             let semiresults = map snd $ filter accept last
             
             guard (length semiresults > 0)  

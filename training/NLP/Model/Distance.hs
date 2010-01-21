@@ -5,15 +5,16 @@ module NLP.Model.Distance where
 import Helpers.Common
 import qualified Data.Bimap as BM
 import NLP.Grammar.TAG
-import NLP.Language.WordLattice
+import NLP.WordLattice
 import NLP.Language
 import qualified Data.Map as M
 import NLP.ChartParse
+import NLP.Model.TAGWrap
 --}}}
 
 type DisCache = (Int,Int) -> (Bool,Bool) 
 
-mkDistCacheRight :: (Language l, WordLattice sent, Symbol sent ~ (TAGWord l)) => sent -> DisCache 
+mkDistCacheRight :: (Language l, WordLattice sent, Symbol sent ~ (TWord l)) => sent -> DisCache 
 mkDistCacheRight sent = \i -> case i of
                                 (_, k ) | k == n +1 -> (False,True)
                                 _ -> fromJustDef (False, False)  $ M.lookup i m 
@@ -29,7 +30,7 @@ mkDistCacheRight sent = \i -> case i of
                 return $ ((i,k), dis)
           n = latticeLength sent
 
-mkDistCacheLeft :: (Language l, WordLattice sent, Symbol sent ~ (TAGWord l)) => sent -> DisCache 
+mkDistCacheLeft :: (Language l, WordLattice sent, Symbol sent ~ (TWord l)) => sent -> DisCache 
 mkDistCacheLeft sent = \i -> case i of
                                 (_, k ) | k == n +1 -> (False,True)
                                 _ -> fromJustDef (False, False) $ M.lookup i m

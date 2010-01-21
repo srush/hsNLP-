@@ -4,17 +4,16 @@ module Prior where
 import NLP.Probability.Distribution
 import NLP.Probability.Observation
 import NLP.Probability.ConditionalDistribution
-import TAG
-import Sentence
-import NonTerm
-import Word 
-import POS
 import qualified Data.Map as M
 import System.IO.Unsafe
 import Data.IORef
+import NLP.Grammar.Spine
+import NLP.Grammar.TAG
+import NLP.Model.TAGWrap
+import NLP.Language
 
-type PriorObs = (Counts GWord,
-                 CondObserved Spine GWord)
+type PriorObs l = (Counts (GWord l),
+                   CondObserved (TSpine l))
 
 type PriorProbs = (Distribution GWord,
                    CondDistribution Spine GWord)

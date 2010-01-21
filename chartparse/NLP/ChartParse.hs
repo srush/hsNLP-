@@ -3,7 +3,7 @@ module NLP.ChartParse where
  
 --{{{  Imports
 import NLP.Semiring
-import NLP.Language.WordLattice
+import NLP.WordLattice
 import Helpers.Common
 import qualified Data.Map as M
 import Data.Array

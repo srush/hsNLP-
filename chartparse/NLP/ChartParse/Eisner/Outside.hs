@@ -1,10 +1,10 @@
-module NLP.ChartParse.Outside where 
+module NLP.ChartParse.Eisner.Outside where 
 import NLP.FSM
 import NLP.Semiring
-import NLP.ChartParse.Eisner
+import NLP.ChartParse.Eisner.Inside
 import NLP.ChartParse
 import Data.Monoid.Multiplicative (times, one) 
-import NLP.Language.WordLattice
+import NLP.WordLattice
 import Helpers.Common
 wordPair span = 
     (word $ leftEnd span , word $ rightEnd span) 
@@ -67,10 +67,10 @@ unprocessCell :: (WFSM fsa, WordLattice sent) =>
                Span -> -- Size of the cell 
                (Span -> [EItem fsa]) -> -- function from cell to contenst
                (Span -> [EItem fsa]) -> 
-               [EItem fsa] -- contents of the new cell 
-unprocessCell sentence (i, j) inChart outChart = seeds
+               ([EItem fsa],()) -- contents of the new cell 
+unprocessCell sentence (i, j) inChart outChart = (seeds
      ++  concat [unOptR s1 o | s1 <- inChart(i,j), o <- seeds] 
-     ++  concat [unOptL s1 o | s1 <- inChart(i,j), o <-seeds]            
+     ++  concat [unOptL s1 o | s1 <- inChart(i,j), o <-seeds], ())            
     where 
       --seeds :: [(EItem ,Semi fsa) ]
       seeds = if (i,j) == (1, n + 1) then 

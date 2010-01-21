@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, FlexibleInstances #-}
 module NLP.Language.German where 
 
 import NLP.Language
@@ -17,11 +17,11 @@ instance W.Word GermanWord where
 
 instance Language German where 
     newtype POS (German) = GerPOS P.POS 
-                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read)
+                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read, Binary)
     newtype NonTerm (German) = GerNT NT.NonTerm
-                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read)
+                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read, Binary)
     newtype Word (German) = GerWord (W.WordWrap GermanWord)
-                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary)
+                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Binary)
 
     mkPOS = GerPOS . P.mkPOS
     mkNonTerm = GerNT . read
@@ -36,3 +36,12 @@ instance Language German where
     isComma (GerPOS p)= E.isPOSComma $ P.toJoint  p  
     isPunc (GerPOS p) = E.isPOSPunc $ P.toJoint  p  
 
+
+instance Pretty (NonTerm German) where 
+    pPrint = text . show 
+
+instance Pretty (POS German) where 
+    pPrint = text . show 
+
+instance Pretty (Word German) where 
+    pPrint = text . show 

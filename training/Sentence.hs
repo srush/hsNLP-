@@ -13,7 +13,7 @@ import Data.Binary hiding (Word)
 import qualified Data.ByteString.Char8 as BS
 import POS 
 import Word
-import EnumHelpers
+import Helpers.MkEnum
 import Control.Exception
 --import StringTable.Atom
 
