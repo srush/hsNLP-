@@ -1,5 +1,5 @@
 name:                chartparse
-version:             0.1
+version:             0.3
 synopsis:            A framework for building chart parsers 
 description:         This provides a simple framework for building probabilistic 
                      chart parsers.

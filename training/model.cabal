@@ -18,22 +18,21 @@ library
                          NLP.TreeBank.TreeBank,
                          NLP.TreeBank.TAG
                          NLP.Model.Adjunction
-                         
                          NLP.Model.ChainPrior
                          NLP.Model.CreateableSemi
-
-                         NLP.Model.Derivation                         
-    other-modules: NLP.Model.TAGWrap
+                         NLP.Model.Derivation
+                         NLP.Model.TAGWrap                         
+    other-modules: 
                    NLP.Grammar.NonTerm
                          
     build-Depends:   base       >= 3   && < 4,                     
                  containers >= 0.1 && < 0.3,
                  array,
                  semiring,
-                 estimators,
+                 estimators >= 0.1.2,
                  binary,  
                     fsm,
-                    chartparse,
+                    chartparse >= 0.3,
                      pretty,
                      prettyclass,
                      safe,

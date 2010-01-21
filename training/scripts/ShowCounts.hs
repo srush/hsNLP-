@@ -105,7 +105,8 @@ main = do
 parseSent counts spineCounts probs probSpine insent = 
 --    trace (show sent) $ 
 --    trace (show actualsent) $ 
-    trace (maybe (show chart') (const "") b')  $   
+--    trace (maybe (show chart') (const "") b')  $   
+--    trace (show b) $
     (dep,                                                                                   
      (b, chart),
      (),
@@ -113,7 +114,7 @@ parseSent counts spineCounts probs probSpine insent =
     where dsent = toTAGDependency insent
           sc1 =  getCVDBestScore $ fromJustNote "blah" b
           (b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m) id
-          (b',chart')= eisnerParse (getFSM trivVal True) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
+          (b',chart')= eisnerParse (getFSM trivVal False{-True-}) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
                             (globalThresOne probSpine sc1)
           
           (TAGSentence _ dep) = dsent
@@ -127,8 +128,8 @@ parseSent counts spineCounts probs probSpine insent =
           prunVal = valid dsent
          
           mkSemi pairs = (prob probs pairs) :: (Counter CVD)   
-          getFSM val collins i (Just word) =  (initState (ParseOpts collins ldiscache (ProbModel mkSemi  val)) ALeft word,
-                                               initState (ParseOpts collins rdiscache (ProbModel mkSemi  val)) ARight word )
+          getFSM val collins i (Just word) =  (initState (ParseOpts collins ldiscache (ProbModel mkSemi val)) ALeft word,
+                                               initState (ParseOpts collins rdiscache (ProbModel mkSemi val)) ARight word )
 
           symbolConv word = Just word 
                           

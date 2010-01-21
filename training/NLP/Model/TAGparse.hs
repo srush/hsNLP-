@@ -171,11 +171,17 @@ findSemi adjstate child atype vdis = do
                                       lookupNonTerm (pos-1) $ twSpine $ headWord) -- Fix this 
                                      ,
                           adjSide  = side,
-                          crossesVerb = vdis,
-                          delta = curDelta, 
-                          parentPOS = getPOS $ twWord headWord, 
-                          parentWord = getLex $ twWord headWord
+                          delta = curDelta,
+                          crossesVerb = vdis', 
+                          parentPOS = getPOS $ parentGWord, 
+                          parentWord = getLex $ parentGWord
                                      }
+           
+              where          -- NPB Trick 
+                (parentGWord, vdis') = 
+                    case lastInNPB adjstate of 
+                      (Just w) -> (w, VerbDistance False)
+                      Nothing -> (twWord headWord, vdis) 
 
           fullEvent  = case child of
                          Nothing -> emptyAdjunction

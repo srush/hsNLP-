@@ -51,14 +51,19 @@ instance (Language l) => Context (AC1 l) where
 --}}}
 
 -- Adjunction Event1 
-type AdjunctionEvent1 l = (Maybe (POS l), Maybe AdjunctionType)
+type AdjunctionEvent1 l = (Maybe (POS l), -- Child POS
+                           Maybe (NonTermWrap l), -- Top NT
+                           Maybe AdjunctionType -- is it sister
+                          )
 newtype AE1 l = AE1 (AdjunctionEvent1 l)
    
 
 --{{{  AdjunctionEvent1 Classes
 
 
-mkEvent1 event = AE1 (childPOS event, adjType event) 
+mkEvent1 event = AE1 (childPOS event, 
+                      fmap (fromJustDef (fromPOS $ fromJustNote "childPOS" $ childPOS event) . top) $ childSpine event, 
+                      adjType event) 
 
 instance (Language l) => Event (AE1 l) where type EventMap (AE1 l) = M.Map
 deriving instance (Language l) => Eq(AE1 l) 
@@ -67,7 +72,9 @@ deriving instance (Language l) => Show(AE1 l)
 deriving instance (Language l) => Binary(AE1 l)
 
 instance (Language l) => Pretty(AE1 l) where 
-    pPrint (AE1 (p, at)) = csep [hPretty p, hPretty at] 
+    pPrint (AE1 (p, topNT, at)) = case p of 
+                             Nothing -> text "END"
+                             Just _ -> csep [hPretty p, hPretty topNT, hPretty at] 
 
 --}}}
 
@@ -78,7 +85,7 @@ type AdjunctionContext2 m l = M3 m (Maybe (POS l)) (AE1 l) (AdjunctionContext1 m
 --{{{  AdjunctionContext2 Classes 
 mkAdjCon2 ::(forall a. a -> m a) -> FullContext (Collins l) -> AE1 l -> AdjunctionContext2 m l
 mkAdjCon2 fi fullContext event1 = M3 (fi pos, fi $ event1, fi $ mkAdjCon1 fi fullContext) 
-    where AE1 (pos, _) = event1 
+    where AE1 (pos, _, _) = event1 
 
 newtype AC2 l = AC2 (AdjunctionContext2 Identity l)
 
@@ -112,7 +119,9 @@ deriving instance (Language l) => Ord(AE2 l)
 deriving instance (Language l) => Binary(AE2 l)
 
 instance (Language l) => Pretty (AE2 l) where 
-    pPrint (AE2 a) = hPretty a 
+    pPrint (AE2 a) = case a of
+                       Just _ -> hPretty a
+                       Nothing -> text "END"
 
 --}}}
 
@@ -120,10 +129,12 @@ instance (Language l) => Pretty (AE2 l) where
 
 type AdjunctionContext3 m l = M3 m (AE1 l) (AE2 l) (AdjunctionContext1 m l)
 
---{{{  AdjunctionContext2 Classes 
+--{{{  AdjunctionContext3 Classes 
 
 mkAdjCon3 :: (forall a. a -> m a) -> FullContext (Collins l) -> AE1 l -> AE2 l -> AdjunctionContext3 m l
-mkAdjCon3 fi fullContext event1 event2 = M3 (fi $ event1, fi event2, fi $ mkAdjCon1 fi fullContext) 
+mkAdjCon3 fi fullContext event1 event2 = M3 (fi $ event1, 
+                                             fi event2, 
+                                             fi $ mkAdjCon1 fi fullContext) 
 
 newtype AC3 l = AC3 (AdjunctionContext3 Identity l)
 
@@ -138,13 +149,13 @@ instance (Language l) => Context (AC3 l) where
     decompose (AC3 (M3 (a,b,c))) = map M3 
         [(ji a,n, n),
          (n, ji b, n),
-         (n, n, Just d3)]
-            where [_, _, d3] = decompose $ AC1 $ runIdentity c 
+         (n, n, Just d1)]
+            where [d1, _, _] = decompose $ AC1 $ runIdentity c 
 --}}}
 
 newtype AE3 l = AE3 (Maybe (TSpine l))
 
---{{{  AdjunctionEvent2 Classes
+--{{{  AdjunctionEvent3 Classes
 mkEvent3 event = AE3 (childSpine event) 
 
 deriving instance (Language l) => Show(AE3 l) 
@@ -156,7 +167,6 @@ instance (Language l) => Event (AE3 l) where type EventMap (AE3 l) = M.Map
 
 instance (Language l) => Pretty (AE3 l) where 
     pPrint (AE3 a) = hPretty a 
-
 
 --}}}
 
