@@ -22,7 +22,7 @@ mkDistCacheRight sent = \i -> case i of
                 i <- [1..n] 
                 k <- [i..n]
                 let dis = (or [twIsVerb $ head $ getWords sent j | j<-[i+1..k]],
-                           (k+1 == n+1) 
+                           (k+1 == n) 
                            || (twIsConj $ head $ getWords sent (k)) 
                            || (twIsConj $ head $ getWords sent (k+1)) 
                            || (twIsComma $ head $ getWords sent (k)) 

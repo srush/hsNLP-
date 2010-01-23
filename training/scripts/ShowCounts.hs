@@ -114,7 +114,7 @@ parseSent counts spineCounts probs probSpine insent =
     where dsent = toTAGDependency insent
           sc1 =  getCVDBestScore $ fromJustNote "blah" b
           (b, chart) = eisnerParse (getFSM prunVal False) symbolConv actualsent (\ wher m -> globalThres 0.0 wher m) id
-          (b',chart')= eisnerParse (getFSM trivVal False{-True-}) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
+          (b',chart')= eisnerParse (getFSM trivVal True) symbolConv sent (\ wher m -> prune probSpine wher $ globalThres sc1 wher m)
                             (globalThresOne probSpine sc1)
           
           (TAGSentence _ dep) = dsent
