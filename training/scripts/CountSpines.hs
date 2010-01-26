@@ -14,6 +14,7 @@ import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
 import NLP.Language.English
+
 main = do 
   [file1, file2] <- getArgs
   sentbundle <- getSentences file1

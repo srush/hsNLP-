@@ -21,7 +21,7 @@ import NLP.Model.Chain
 import NLP.Model.TAGWrap
 --}}}
 
-emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing
+emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing Nothing
 
 n = Nothing 
 ji = Just . runIdentity
@@ -38,7 +38,7 @@ newtype AC1 l = AC1 (AdjunctionContext1 Identity l)
 type AdjunctionSubContext1 l = AdjunctionContext1 Maybe l
 
 mkAdjCon1 ::(forall a. a -> m a) -> FullContext (Collins l) -> AdjunctionContext1 m l
-mkAdjCon1 fi (AdjunctionFullContext a b c d e f g) = 
+mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _) = 
     M7 (fi a,fi b,fi c,fi d, fi e, fi f, fi g) 
        
 instance (Language l) => Context (AC1 l) where 
@@ -173,47 +173,56 @@ instance (Language l) => Pretty (AE3 l) where
 data Collins l = Collins
 
 instance (Language l) => JointModel (Collins l) where 
-     data Pairs (Collins l) =  Pairs ((AE1 l, AC1 l),
-                                      (AE2 l, AC2 l),
-                                      (AE3 l, AC3 l))
+     data Pairs (Collins l) =  
+         Pairs {probInfo :: ((AE1 l, AC1 l),
+                             (AE2 l, AC2 l),
+                             (AE3 l, AC3 l)),
+                decisionInfo :: Maybe (Int, Int)}
      
-     newtype Observation (Collins l) = Observation (CondObserved (AE1 l) (AC1 l),
-                                     CondObserved (AE2 l) (AC2 l),
-                                     CondObserved (AE3 l) (AC3 l))
+     newtype Observation (Collins l) = 
+         Observation (CondObserved (AE1 l) (AC1 l),
+                      CondObserved (AE2 l) (AC2 l),
+                      CondObserved (AE3 l) (AC3 l))
          deriving (Monoid, Show, Pretty, Binary)
 
-     data Probs (Collins l) = Probs (CondDistribution (AE1 l) (AC1 l),
-                               CondDistribution (AE2 l) (AC2 l),
-                               CondDistribution (AE3 l) (AC3 l))
+     data Probs (Collins l) = 
+         Probs (CondDistribution (AE1 l) (AC1 l),
+                CondDistribution (AE2 l) (AC2 l),
+                CondDistribution (AE3 l) (AC3 l))
 
 
      data FullEvent (Collins l)   = AdjunctionFullEvent {
-      childWord :: Maybe (Word l),
-      childPOS :: Maybe (POS l),
+      childWord  :: Maybe (Word l),
+      childPOS   :: Maybe (POS l),
       childSpine :: Maybe (TSpine l), 
-      adjType :: Maybe AdjunctionType
+      childInd   :: Maybe Int, -- Not included in prob
+      adjType    :: Maybe AdjunctionType
     }
  
      data FullContext (Collins l) =  AdjunctionFullContext { 
-      parentNT :: NonTermWrap l, 
-      headNT :: NonTermWrap l, 
-      adjSide :: AdjunctionSide, 
+      parentNT   :: NonTermWrap l, 
+      headNT     :: NonTermWrap l, 
+      adjSide    :: AdjunctionSide, 
       crossesVerb :: VerbDistance, 
-      delta :: Delta,
-      parentPOS :: POS l,
-      parentWord :: Word l
+      delta      :: Delta,
+      parentPOS  :: POS l,
+      parentWord :: Word l,
+      parentInd  :: Int -- not included in prob
     } 
      
      
-     chainRule fullEvent fullContext = Pairs ((e1, AC1 $ mkAdjCon1 Identity fullContext),
-                                        (e2, AC2 $ mkAdjCon2 Identity fullContext e1),
-                                        (mkEvent3 fullEvent, AC3 $ mkAdjCon3 Identity fullContext e1 e2) )
+     chainRule fullEvent fullContext = 
+         Pairs ((e1, AC1 $ mkAdjCon1 Identity fullContext),
+                (e2, AC2 $ mkAdjCon2 Identity fullContext e1),
+                (e3, AC3 $ mkAdjCon3 Identity fullContext e1 e2))
+               $ fmap (\cInd -> (cInd, parentInd fullContext)) $ childInd fullEvent
          where e1 = mkEvent1 fullEvent
                e2 = mkEvent2 fullEvent
+               e3 = mkEvent3 fullEvent
+                    
+     observe (Pairs (a,b,c) _) = Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
 
-     observe (Pairs (a,b, c)) = Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
-
-     prob (Probs (p1,p2,p3)) (Pairs (a,b,c)) =  ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
+     prob (Probs (p1,p2,p3)) (Pairs (a,b,c) _) =  ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
 
      estimate (Observation ( obs1,  obs2,  obs3)) = Probs (est obs1, est obs2, est obs3) 
          where  

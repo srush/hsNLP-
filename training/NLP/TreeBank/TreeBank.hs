@@ -38,6 +38,7 @@ data WordInfo l = Language l =>
       sister :: AdjunctionType
 } 
 
+
 --{{{  WordInfo Classes
 
 instance (Language l) => Eq (WordInfo l) 

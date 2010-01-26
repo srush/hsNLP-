@@ -48,6 +48,12 @@ instance (Eq a) => Ord (DEdge a) where
 
 type SplitMap info = M.Map Int ([DEdge info], [DEdge info])
 
+
+toList :: Dependency info -> [(Int, Int)]
+toList (Dependency m) = do
+  (i, dedge) <- M.toList m
+  return (i, to dedge)
+
 -- | Takes a map from children to head and reverses it 
 -- so it faces from head to children  
 reverseMap :: Dependency info -> M.Map Int [DEdge info]

@@ -174,7 +174,8 @@ findSemi adjstate child atype vdis = do
                           delta = curDelta,
                           crossesVerb = vdis', 
                           parentPOS = getPOS $ parentGWord, 
-                          parentWord = getLex $ parentGWord
+                          parentWord = getLex $ parentGWord,
+                          parentInd  = twInd headWord
                                      }
            
               where          -- NPB Trick 
@@ -189,6 +190,7 @@ findSemi adjstate child atype vdis = do
                                          childWord = Just $ getLex $ twWord child',
                                          childPOS  = Just $ getPOS $ twWord child',
                                          childSpine= Just $ twSpine child',
+                                         childInd  = Just $ twInd child',
                                          adjType   = Just atype
                                        }
                                        
@@ -205,7 +207,8 @@ findSemi adjstate child atype vdis = do
 commaPruning state split = 
     (side state == ARight) &&
     (isAfterComma state) && 
-    (not $ snd $ (distanceCache $ opts state) (twInd $ word state, split))
+    (not $ afterConj)
+        where afterConj = snd $ (distanceCache $ opts state) (twInd $ word state, split) 
 
 shouldPrune adjstate split isTryingEmpty = 
     (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
@@ -215,6 +218,8 @@ mkDistance adjstate split = VerbDistance verb
     where (verb, _) = (distanceCache $ opts adjstate) (twInd $ word adjstate, split)
 
 type Validity l = TWord l -> (Maybe (TWord l)) -> Int -> AdjunctionType -> Bool
+allValid _ _ _ _ = True
+
 data ProbModel m s l = ProbModel {
       probs :: (Pairs m -> Counter s),
 --      extra :: FlipProbs,

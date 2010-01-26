@@ -21,16 +21,25 @@ library
                          NLP.Model.ChainPrior
                          NLP.Model.CreateableSemi
                          NLP.Model.Derivation
-                         NLP.Model.TAGWrap                         
+                         NLP.Model.TAGWrap
+                         NLP.Model.Decoding
+                         NLP.TreeBank.Dependency
+
+    
+                         
     other-modules: 
                    NLP.Grammar.NonTerm
-                         
+                   Helpers.Common
+                   Helpers.MkEnum
+                   Helpers.Arbitrary
+    ghc-options: -O2                     
     build-Depends:   base       >= 3   && < 4,                     
                  containers >= 0.1 && < 0.3,
                  array,
                  semiring,
                  estimators >= 0.1.2,
-                 binary,  
+                 binary,
+                 text,
                     fsm,
                     chartparse >= 0.3,
                      pretty,

@@ -17,6 +17,7 @@ flag testing
     default: False
 
 library
+
     exposed-modules:     NLP.ChartParse
                          NLP.ChartParse.Eisner.Inside
                          NLP.ChartParse.Eisner.Outside

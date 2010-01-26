@@ -21,7 +21,7 @@ main = do
   [file1, file2] <- getArgs
   counts <- readAndCount file1 file2
   print "full count done"
-  encodeFile file2 ((counts)::(Observation (Collins English)))
+  encodeFile file2 (counts::(Observation (Collins English)))
 
 readAndCount file1 file2 = do
   newsents <- getSentences file1

@@ -11,7 +11,7 @@ type Lambda a = M.Map a Double
 type Result a = S.Set a 
 
 update :: (Ord a, Show a) => Int -> Result a -> Result a -> Lambda a -> Lambda a 
-update i y1 y2 lambda = --trace ("Adds: " ++ show adds) $ trace ("Subs:" ++ show subs) $ 
+update i y1 y2 lambda = trace ("Adds: " ++ show adds) $ trace ("Subs:" ++ show subs) $ 
     insertManyWith (+) ( alpha/(1 + (fromIntegral $ round ((fromIntegral i)/10)))) (S.toList adds) $   
     insertManyWith (+) (-alpha/(1 + (fromIntegral $ round ((fromIntegral i)/10)))) (S.toList subs) lambda  
     where 
@@ -65,7 +65,7 @@ takeStep master = do
       maps = do 
         (obj1, map1) <- (getMAP slave1)  (lambda master) i 
         (obj2, map2) <- (getMAP slave2)  (lambda master) i
-        return $ ((obj1,obj2), (map1, map2)) 
+        return $ trace (show map1 ++ show map2) $ ((obj1,obj2), (map1, map2)) 
       i = step master
       
 
