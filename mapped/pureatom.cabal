@@ -1,0 +1,29 @@
+name:                mappend
+version:             0.1
+synopsis:            
+description:         
+category:            Natural Language Processing
+license:             BSD3
+license-file:        LICENSE
+author:              Sasha Rush
+maintainer:          <srush at mit dot edu>
+build-Type:          Simple
+cabal-version:       >= 1.2
+
+library
+    exposed-modules: NLP.Mapped
+                     
+    other-modules:   Helpers.Common
+                     
+
+    build-Depends:   base       >= 3   && < 4,
+                     containers >= 0.1 && < 0.3,
+                     derive,
+                     binary,
+                     bytestring,
+                     safe,
+                     QuickCheck > 2.0,
+                     prettyclass,
+                     pretty,
+                     bimap,
+                     array
