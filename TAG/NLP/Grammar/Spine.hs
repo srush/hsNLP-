@@ -1,17 +1,17 @@
-{-# LANGUAGE TemplateHaskell, Rank2Types, ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell, Rank2Types, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
 module NLP.Grammar.Spine where 
 --import NLP.Grammar.NonTerm 
 import Helpers.MkEnum
 import Helpers.Common
 --import NLP.Language
 
-type Spine nt = [nt] 
-
-mkSpine nts =  nts 
+newtype Spine nt = Spine [nt] 
+    deriving (Eq, Ord, Binary, NFData)
+mkSpine nts = Spine nts 
 
 --{{{  Spine Classes
--- instance (Language l) => Show (Spine l) where 
---     show ( nts) = intercalate "+" $ ["*"] ++ map show nts
+instance (Show n) => Show (Spine n) where 
+    show (Spine nts) = intercalate "+" $ ["*"] ++ map show nts
 
 -- instance (Language l) => Enum (Spine l) where 
 --     fromEnum (Spine s i) = i  
@@ -28,24 +28,24 @@ mkSpine nts =  nts
 -- instance Ord (Spine l)where 
 --     compare (Spine _ i) (Spine _ i') = compare i i' 
 
--- instance (Language l) => Pretty (Spine l) where 
---     pPrint (sp)  = text $ intercalate "->" $ map show $ reverse sp 
+instance (Show l) => Pretty (Spine l) where 
+     pPrint (Spine sp)  = text $ intercalate "->" $ map show $ reverse sp 
 --}}}
 
 -- Returns the non-terminal at the top of the spine (nothing if it has an empty spine)
 top :: Spine nt -> Maybe (nt)
-top  [] = Nothing
-top  nts = Just $ last nts
+top  (Spine []) = Nothing
+top  (Spine nts) = Just $ last nts
 
 -- Return the top position of the spine 
 lastOfSpine :: Spine nt -> Int
-lastOfSpine nts = length nts
+lastOfSpine (Spine nts) = length nts
 
 getNonTerm :: Int -> Spine nt -> nt
-getNonTerm i  nts = atNote "getNonTerm" nts i
+getNonTerm i (Spine nts) = atNote "getNonTerm" nts i
 
 lookupNonTerm :: Int -> Spine nt -> Maybe nt
-lookupNonTerm i nts =
+lookupNonTerm i (Spine nts) =
     if i >= length nts || i < 0 then Nothing
     else Just $ nts !! i
 

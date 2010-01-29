@@ -21,7 +21,7 @@ addBackWords (WordInfoSent wis) tree = list (atom "TOP" : [list $ (tr
     where 
       (tr, k) = count ([], 1) tree
       (1,m) = bounds wis
-      getWord n = trace (show n ++ " " ++ show m) $ wis ! n  
+      getWord n =  wis ! n  
       count :: ([Sexpr String], Int) -> Sexpr String -> ([Sexpr String], Int) 
       count (ls, n) tree  = 
           if isAtom tree then
@@ -73,7 +73,7 @@ trans = BM.fromList [(',' , "*COMMA*"),
                       ( '/' , "*FSLASH*"),
                       ( '%' , "*PERCENT*"),
                       ( ';' , "*SEMI*"),
-                     ( '#' , "*POUND*")]
+                      ( '#' , "*POUND*")]
 
 transFor  = 
     concatMap (\c -> case BM.lookup c trans of

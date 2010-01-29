@@ -24,9 +24,10 @@ data POSCore = NUM | DOL | QUOT | COM | LRB | RRB | DOT | COL | CC | CD | DT | E
 
 $( derive makeBinary ''POSCore )
 $( derive makeArbitrary ''POSCore )
+$( derive makeNFData ''POSCore )
 
 newtype POS = POSWrap POSCore 
-    deriving (Eq, Ord, Enum, Bounded, Binary, Arbitrary, Read)
+    deriving (Eq, Ord, Enum, Bounded, Binary, Arbitrary, Read, NFData)
              
 instance Show POS where 
     show (POSWrap pcore) = fromMaybe (show pcore) $ BM.lookup pcore posMap

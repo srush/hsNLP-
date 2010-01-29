@@ -42,38 +42,14 @@ main = do
   let sents =  map (parseSentence testFile. unlines) $ 
                separate "" $ lines contents
   
-  let parses = zip [1..] $ map (\s -> let Just b = decodeGold params s in (decodeSentence params (getCVDBestScore b) s, b) ) sents
+  let parses = zip [1..] $ map (\s -> let Just b = decodeGold params s in (decodeSentence params s, b) ) sents
   let results = [ ((b', b), n)
                       | (n, (Just b', b)) <- parses]
   
   
   -- putStrLn $ chartStats $ snd $ head results
 
-  mapM_ (\((a,b),_) ->  do
-           let der1 = getCVDBestDerivation a
-           let der2 = getCVDBestDerivation b
-           let (Prob sc1) = getCVDBestScore a
-           let (Prob sc2) = getCVDBestScore b
-           --let TAGDerivation (_, debug1) = der1  
-           --let TAGDerivation (_, debug2) = der2
-           --let m1 = M.fromList debug1
-           --let m2 = M.fromList debug2
-           --let diff1 = M.difference m1 m2 
-           --let diff2 = M.difference m2 m1
-           let st1 = (render $ niceParseTree $ tagDerToTree der1)
-           let st2 = (render $ niceParseTree $ tagDerToTree der2)
-           --let ldiff  = getDiff (lines st1) (lines st2) 
-           putStrLn $ "First " ++ (printf "%.3e" sc1) 
-           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
-           putStrLn $ "Second" ++ (printf "%.3e" sc2) 
-           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
-           --putStrLn $ show ldiff
-           putStrLn $ st1
-           putStrLn $ st2
-           putStrLn $ show $ getCVDBestDerivation b
-
-           putStrLn $ ("G" ++ " " ++ (show $ tagDerToTree der1))
-           putStrLn $ ("T" ++ " " ++ (show $ tagDerToTree der2))) results
+  mapM_ (\((a,b),_) ->  renderSentences a b) results
 
 
       --print "The fixed parse answer"

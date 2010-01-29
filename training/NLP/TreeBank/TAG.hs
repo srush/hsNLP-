@@ -15,6 +15,7 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Debug.Trace
 import NLP.Model.TAGWrap
+import NLP.Language.English
 --}}}
 
 
@@ -57,6 +58,12 @@ toTAGTest counts (WordInfoSent wis) = sent
                    (map (mkTestTAGWord counts) $ 
                     map (\wi -> (ind wi, GWord (word wi, pos wi))) $ elems wis) ++ [[root (n+1)]]
             (_,n) = bounds wis
+
+
+writeSpineMap file = do
+  spine <- decodeFile file :: (IO (SpineExist English)) 
+  let mapping = zip [1..] $ S.toList $ S.unions $ map snd $ M.toList spine
+  return $ render $ vcat $ map (\(a,b)-> (int a)<+>(text$ show b)) mapping
 
 -- toSentence :: WordInfoSent l -> Sentence (GWord l)
 -- toSentence (WordInfoSent wis)=  

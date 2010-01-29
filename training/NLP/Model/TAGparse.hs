@@ -211,7 +211,7 @@ commaPruning state split =
         where afterConj = snd $ (distanceCache $ opts state) (twInd $ word state, split) 
 
 shouldPrune adjstate split isTryingEmpty = 
-    (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
+    -- (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
     ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
 
 mkDistance adjstate split = VerbDistance verb

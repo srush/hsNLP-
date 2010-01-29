@@ -23,8 +23,8 @@ class Word a where
         T.lookup (BS.pack str) $ fst wt
      where (WordTable wt) = getWordTable :: (WordTable a) 
 
-newtype WordWrap a = WordWrap Int 
-    deriving (Eq, Ord, Enum, Binary)
+newtype WordWrap a = WordWrap (Int) 
+    deriving (Eq, Ord, Enum, Binary, NFData)
 
 {-# NOINLINE wordTable #-}
 wordTable :: (Word a) => String -> WordTable a

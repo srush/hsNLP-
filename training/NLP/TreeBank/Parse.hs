@@ -1,4 +1,4 @@
-p{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module TreeBank where 
 import Data.List
 

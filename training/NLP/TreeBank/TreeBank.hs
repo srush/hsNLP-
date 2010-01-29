@@ -10,7 +10,7 @@ import Data.Array
 import qualified Data.Map as M
 import qualified Text.Parsec.Token as P
 import Helpers.Common hiding (char, space)
-import Text.Parsec.Language (haskellDef)
+import Text.Parsec.Language (emptyDef)
 import Control.Exception
 import Data.Either.Unwrap (fromRight)
 import Data.Maybe (catMaybes)
@@ -26,12 +26,13 @@ import Helpers.Arbitrary
 newtype WordInfoSent l = WordInfoSent (Array Int (WordInfo l))
     deriving (Eq)
 
-data WordInfo l = Language l => 
+data WordInfo l = 
      WordInfo {
       ind    :: Int, 
       word   :: Word l,
       wordStr :: String,
       pos    :: POS l,
+      posStr :: String,
       adjoinInd :: Int,
       spine  :: Spine (NT.NonTermWrap l),
       adjPos :: Int,
@@ -48,7 +49,7 @@ instance (Language l) => Show (WordInfo l) where
         intercalate "\t" $ 
         map (\f -> f wi) 
               [show . ind,
-               show . word,
+               wordStr,
                show . pos,
                show . adjoinInd,
                const "HOLDER",
@@ -61,7 +62,7 @@ instance (Language l) => Show (WordInfo l) where
 -- parsing Xavier's tree files with spines
 
 
-lexer = P.makeTokenParser haskellDef    
+lexer = P.makeTokenParser emptyDef    
 nat  = P.natural lexer
 parseString = manyTill anyChar space
 
@@ -90,6 +91,7 @@ instance (Language l) => Parsable (WordInfo l) where
                    word = mkWord (word::String),
                    wordStr = word,
                    pos  = mkPOS pos,
+                   posStr = pos,
                    adjoinInd = fromIntegral adjInd,
                    spine = spine, 
                    sister = if sister == 's' then Sister else Regular,
@@ -135,11 +137,17 @@ parseSentences file contents =
     Right s -> s
     Left error -> throw $ AssertionFailed $ show error 
 
+readSentences file = do
+  contents <- readFile file
+  return $ parseSentences file contents
+
 parseSentence :: (Language l) => String -> String -> WordInfoSent l
 parseSentence file contents = 
   case parse parser file contents of 
     Right s ->  s
     Left error -> throw $ AssertionFailed $ show error 
+
+
 
 --{{{  TESTS
    
@@ -147,7 +155,7 @@ parseSentence file contents =
 testData :: [(String, WordInfo English) ]
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (mkWord "in") "in" (mkPOS "IN") 20 (mkSpine [NT.mkNonTerm "PP"]) 0 Sister)] 
+ WordInfo 23 (mkWord "in") "in" (mkPOS "IN") "IN" 20 (mkSpine [NT.mkNonTerm "PP"]) 0 Sister)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]

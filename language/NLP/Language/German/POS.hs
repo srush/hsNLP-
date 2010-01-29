@@ -14,10 +14,11 @@ data POSCore = ADJA | ADJD | ADV | APPR | APPRART | APPO | APZR | ART | CARD | F
 
 $( derive makeBinary ''POSCore )
 $( derive makeArbitrary ''POSCore )
+$( derive makeNFData ''POSCore )
              
 
 newtype POS = POSWrap POSCore 
-    deriving (Eq, Ord, Enum, Bounded, Binary, Arbitrary, Read)
+    deriving (Eq, Ord, Enum, Bounded, Binary, Arbitrary, Read, NFData)
 
 
 --{ POS Classes 

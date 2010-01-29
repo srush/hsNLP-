@@ -1,7 +1,8 @@
+{-# LANGUAGE BangPatterns  #-}
 module NLP.Model.Decoding where 
 -- Various functions to help with decoding, super hacky right now
 -- TODO: clean up constants in this file 
-
+import Debug.Trace
 import Helpers.Common
 import NLP.Model.CreateableSemi
 import NLP.Model.Derivation
@@ -21,39 +22,74 @@ import NLP.Language
 import NLP.WordLattice
 import Data.Binary
 import NLP.Language.English
+import Control.DeepSeq
+import System.IO.Unsafe
+import Control.Concurrent.MVar
 
+type DecodeParams l = (SpineExist l, Probs (Collins l), Probs (CollinsPrior l))
 readDecodeParams :: (Language l) =>  String -> String -> String -> IO (DecodeParams l)
 readDecodeParams adjCountFile spineCountFile spineProbFile = do
-  counts <- decodeFile adjCountFile
-  spineCounts <- decodeFile spineCountFile
-  spineCounts2 <- decodeFile spineProbFile
+  !counts <- decodeFile adjCountFile
+  !spineCounts <- decodeFile spineCountFile
+  !spineCounts2 <- decodeFile spineProbFile
   let probSpine = estimate spineCounts2
   --print counts
-  let probs = estimate counts
-  return (spineCounts, probs, probSpine)
+  let probs = counts `deepseq` estimate counts
+  return $! (spineCounts, probs, probSpine)
    
 
 
-type DecodeParams l = (SpineExist l, Probs (Collins l), Probs (CollinsPrior l))
+data DecodingOpts l = DecodingOpts {
+      extraDepScore :: (Pairs (Collins l) -> Counter CVD),
+      validator :: Validity l,
+      beamThres :: Double,
+      commaPrune :: Bool
+    }
+
+defaultDecoding =  DecodingOpts {
+                     extraDepScore = const 0.0,
+                     validator = allValid,
+                     beamThres = 10000,
+                     commaPrune = True
+                   }
 
 decodeSentence :: (Language l) =>
-                  DecodeParams l -> Prob -> WordInfoSent l -> 
-                  Maybe (CVD l)
-decodeSentence = genDecodeSentence (const 0.0)
+                  DecodeParams l ->  WordInfoSent l -> 
+                  (Maybe (CVD l))
+decodeSentence = genDecodeSentence defaultDecoding
                          
 
 genDecodeSentence :: (Language l) =>
-                  (Pairs (Collins l) -> Counter CVD) -> 
-                 
-                  DecodeParams l ->  Prob ->  WordInfoSent l -> 
+                  DecodingOpts l ->
+                  DecodeParams l ->   WordInfoSent l -> 
                   Maybe (CVD l)
-genDecodeSentence intercept (spineCounts, probs, probSpine) thres  insent = b'
-    where (b',_)= eisnerParse fsm Just sent (\ wher m -> prune probSpine wher $ globalThres thres wher m) id
-          sent = toTAGTest spineCounts insent 
-          mkSemi pairs = prob probs pairs + intercept pairs
-          fsm = makeFSM (toTAGSentence insent) allValid mkSemi True
-                                                           
-          --intercept (Pairs )
+genDecodeSentence  opts (spineCounts, probs, probSpine)  insent =
+    b'
+        where (b',_)= eisnerParse fsm Just sent (\ wher m -> prune probSpine wher {-$ globalThres thres wher-} m)                             
+                  (globalThresOne (beamThres opts) probSpine)
+
+              sent = toTAGTest spineCounts insent 
+              getProb = memoize (prob probs) 
+              mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
+              fsm = makeFSM (toTAGSentence insent) (validator opts) mkSemi $ commaPrune opts
+
+
+memoize :: Ord a => (a -> b) -> (a -> b) 
+memoize f =
+    unsafePerformIO $ 
+    do cacheRef <- newMVar M.empty
+       return (\x -> unsafePerformIO (g cacheRef x))
+    where
+      g cacheRef x = 
+          do cache <- readMVar cacheRef
+             case M.lookup x cache of
+               Just y  -> return y
+               Nothing -> do 
+                 let y     = f x 
+                 let cache' = M.insert x y cache
+                 swapMVar cacheRef cache'
+                 return y
+
 
 decodeGold :: (Language l) => 
                   DecodeParams l -> WordInfoSent l -> 
@@ -81,14 +117,11 @@ makeFSM insent val mkSemi collins i (Just word) =
       ldiscache = mkDistCacheLeft insent
       rdiscache = mkDistCacheRight insent
 
-
-
-
 globalThres n wher m =
     M.filter (\p -> getCVDBestScore p >= n/100000) $  m    
 
-globalThresOne probs (Prob n) ps =  
-    filter (\p -> score p >= (n/100000) && score p >= (best/10000))  ps  
+globalThresOne beamPrune probs  ps =  
+    filter (\p -> {-score p >= (n/100000) && -} score p >= (best/beamPrune))  ps  
         where
           score p = getFOM probs p 
           best = case  map (getFOM probs) ps of
@@ -140,6 +173,32 @@ prune probs wher m =
       bestNH = case  map (getFOM probs) $ filter hasNoAdjoin $ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls
+
+renderSentences a b = do
+           let der1 = getCVDBestDerivation a
+           let der2 = getCVDBestDerivation b
+           let (Prob sc1) = getCVDBestScore a
+           let (Prob sc2) = getCVDBestScore b
+           --let TAGDerivation (_, debug1) = der1  
+           --let TAGDerivation (_, debug2) = der2
+           --let m1 = M.fromList debug1
+           --let m2 = M.fromList debug2
+           --let diff1 = M.difference m1 m2 
+           --let diff2 = M.difference m2 m1
+           let st1 = (render $ niceParseTree $ tagDerToTree der1)
+           let st2 = (render $ niceParseTree $ tagDerToTree der2)
+           --let ldiff  = getDiff (lines st1) (lines st2) 
+           putStrLn $ "First " ++ (printf "%.3e" sc1) 
+           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
+           putStrLn $ "Second" ++ (printf "%.3e" sc2) 
+           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
+           --putStrLn $ show ldiff
+           putStrLn $ st1
+           putStrLn $ st2
+           putStrLn $ show $ getCVDBestDerivation b
+
+           putStrLn $ ("G" ++ " " ++ (show $ tagDerToTree der1))
+           putStrLn $ ("T" ++ " " ++ (show $ tagDerToTree der2))
 
 basicParams :: IO (DecodeParams English)
 basicParams = 

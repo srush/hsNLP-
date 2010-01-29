@@ -17,7 +17,7 @@ flag testing
     default: False
 
 library
-
+    ghc-options: -O2                     
     exposed-modules:     NLP.ChartParse
                          NLP.ChartParse.Eisner.Inside
                          NLP.ChartParse.Eisner.Outside

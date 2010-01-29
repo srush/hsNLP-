@@ -29,5 +29,6 @@ library
                      prettyclass,
                      pretty,
                      bimap,
-                     array
+                     array,
 
+                     deepseq

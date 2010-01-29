@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances, TypeSynonymInstances, BangPatterns #-}
 module NLP.Model.Adjunction where 
 
 --{{{  Imports
@@ -19,6 +19,7 @@ import NLP.Grammar.NonTerm
 import Text.Printf
 import NLP.Model.Chain
 import NLP.Model.TAGWrap
+import Control.DeepSeq
 --}}}
 
 emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing Nothing
@@ -34,7 +35,7 @@ type AdjunctionContext1 m l =
 
 --{{{  AdjunctionContext1 Classes
 newtype AC1 l = AC1 (AdjunctionContext1 Identity l)
-
+    deriving (Eq, Ord)
 type AdjunctionSubContext1 l = AdjunctionContext1 Maybe l
 
 mkAdjCon1 ::(forall a. a -> m a) -> FullContext (Collins l) -> AdjunctionContext1 m l
@@ -55,8 +56,9 @@ type AdjunctionEvent1 l = (Maybe (POS l), -- Child POS
                            Maybe (NonTermWrap l), -- Top NT
                            Maybe AdjunctionType -- is it sister
                           )
+
 newtype AE1 l = AE1 (AdjunctionEvent1 l)
-   
+    
 
 --{{{  AdjunctionEvent1 Classes
 
@@ -70,6 +72,7 @@ deriving instance (Language l) => Eq(AE1 l)
 deriving instance (Language l) => Ord(AE1 l)
 deriving instance (Language l) => Show(AE1 l)
 deriving instance (Language l) => Binary(AE1 l)
+deriving instance (Language l) => NFData(AE1 l)
 
 instance (Language l) => Pretty(AE1 l) where 
     pPrint (AE1 (p, topNT, at)) = case p of 
@@ -117,7 +120,7 @@ deriving instance (Language l) => Show(AE2 l)
 deriving instance (Language l) => Eq(AE2 l)
 deriving instance (Language l) => Ord(AE2 l) 
 deriving instance (Language l) => Binary(AE2 l)
-
+deriving instance (Language l) => NFData(AE2 l)
 instance (Language l) => Pretty (AE2 l) where 
     pPrint (AE2 a) = case a of
                        Just _ -> hPretty a
@@ -162,6 +165,7 @@ deriving instance (Language l) => Show(AE3 l)
 deriving instance (Language l) => Eq(AE3 l) 
 deriving instance (Language l) => Ord(AE3 l) 
 deriving instance (Language l) => Binary(AE3 l)
+deriving instance (Language l) => NFData(AE3 l)
 
 instance (Language l) => Event (AE3 l) where type EventMap (AE3 l) = M.Map
 
@@ -178,12 +182,13 @@ instance (Language l) => JointModel (Collins l) where
                              (AE2 l, AC2 l),
                              (AE3 l, AC3 l)),
                 decisionInfo :: Maybe (Int, Int)}
-     
+         deriving (Eq, Ord)
+
      newtype Observation (Collins l) = 
          Observation (CondObserved (AE1 l) (AC1 l),
                       CondObserved (AE2 l) (AC2 l),
                       CondObserved (AE3 l) (AC3 l))
-         deriving (Monoid, Show, Pretty, Binary)
+         deriving (Monoid, Show, Pretty, Binary, NFData)
 
      data Probs (Collins l) = 
          Probs (CondDistribution (AE1 l) (AC1 l),
@@ -220,11 +225,14 @@ instance (Language l) => JointModel (Collins l) where
                e2 = mkEvent2 fullEvent
                e3 = mkEvent3 fullEvent
                     
-     observe (Pairs (a,b,c) _) = Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
+     observe (Pairs (a,b,c) _) = 
+         Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
 
-     prob (Probs (p1,p2,p3)) (Pairs (a,b,c) _) =  ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
+     prob (Probs (p1,p2,p3)) (Pairs (a,b,c) _) =           
+         ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
 
-     estimate (Observation ( obs1,  obs2,  obs3)) = Probs (est obs1, est obs2, est obs3) 
+     estimate (Observation (!obs1,  !obs2,  !obs3)) = 
+         Probs (est $! obs1, est $! obs2, est $! obs3) 
          where  
            est :: (Event a, Context b) => CondObserved a b -> CondDistribution a b 
            est = estimateGeneralLinear (wittenBell 5)

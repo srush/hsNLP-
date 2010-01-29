@@ -17,6 +17,7 @@ data AdjunctionSide = ALeft | ARight
 --{{{AdjunctionSide Classes
 
 $( derive makeBinary ''AdjunctionSide)
+$( derive makeNFData ''AdjunctionSide)
 $( derive makeArbitrary ''AdjunctionSide)
 
 instance Show AdjunctionSide where 
@@ -48,7 +49,7 @@ instance Show AdjunctionType where
 
 $( derive makeBinary ''AdjunctionType ) 
 $( derive makeArbitrary ''AdjunctionType ) 
-
+$( derive makeNFData ''AdjunctionType)
 --}}} 
 --}}}
 
@@ -128,7 +129,7 @@ valid (TAGSentence sent dep) head (Just child) pos atype =
 -- | Takes a spine and an ordered list of adjunctions, 
 --   returns the list of adjunctions with epsilons inserted 
 alignWithSpine :: Spine nt -> [DEdge (AdjunctionInfo a)] -> [(Int, [Maybe (AdjunctionInfo a)])] 
-alignWithSpine (spine) adjs =
+alignWithSpine (Spine spine) adjs =
     [(pos, getAdj nt pos ++ [Nothing]) | 
      (nt, pos) <- zip spine [0..]] 
     where 

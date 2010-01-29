@@ -6,6 +6,7 @@ import qualified NLP.Language.English.NonTerm as NT
 import qualified NLP.Language.English.POS as P
 import qualified NLP.Language.Word as W
 import Helpers.Common
+import Control.DeepSeq
 
 newtype English = English () 
 
@@ -19,11 +20,11 @@ instance Show (POS English) where  show (EngPOS e)  = show e
 
 instance Language English where 
     newtype POS (English) = EngPOS P.POS 
-                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read, Binary)
+                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read, Binary, NFData)
     newtype NonTerm (English) = EngNT NT.NonTerm  
-                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read, Binary)
+                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Read, Binary, NFData)
     newtype Word (English) = EngWord (W.WordWrap EnglishWord)
-                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Binary)
+                          deriving (Eq, Ord, Bounded, Enum, Arbitrary, Binary, NFData)
 
     mkPOS = EngPOS . P.mkPOS
     mkNonTerm = EngNT . read

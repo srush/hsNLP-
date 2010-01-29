@@ -2,11 +2,11 @@
 module NLP.Language where 
 import Helpers.Common
 import Helpers.MkEnum
-
+import Control.DeepSeq
     
-class (Binary (POS a), Read (POS a), Show (POS a), Enum (POS a), Eq (POS a), Ord (POS a), Arbitrary (POS a), Bounded (POS a), Pretty (POS a), 
-       Binary (NonTerm a), Show (NonTerm a), Enum (NonTerm a), Read (NonTerm a), Eq (NonTerm a), Ord (NonTerm a), Arbitrary (NonTerm a), Bounded (NonTerm a), Pretty (NonTerm a) , 
-       Binary (Word a), Show (Word a), Enum (Word a), Eq (Word a), Ord (Word a), Arbitrary (Word a), Bounded (Word a), Pretty (Word a)
+class (Binary (POS a), Read (POS a), Show (POS a), Enum (POS a), Eq (POS a), Ord (POS a), Arbitrary (POS a), Bounded (POS a), Pretty (POS a), NFData (POS a),  
+       Binary (NonTerm a), Show (NonTerm a), Enum (NonTerm a), Read (NonTerm a), Eq (NonTerm a), Ord (NonTerm a), Arbitrary (NonTerm a), Bounded (NonTerm a), Pretty (NonTerm a) , NFData (NonTerm a), 
+       Binary (Word a), Show (Word a), Enum (Word a), Eq (Word a), Ord (Word a), Arbitrary (Word a), Bounded (Word a), Pretty (Word a), NFData (Word a)
        )  
     => Language a where 
     data POS a

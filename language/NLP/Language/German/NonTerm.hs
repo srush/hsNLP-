@@ -8,6 +8,7 @@ data NonTerm = AA | AP | AVP | CAC | CAP | CAVP | CCP | CH | CNP | CO | CPP | CS
 
 $( derive makeBinary ''NonTerm )
 $( derive makeArbitrary ''NonTerm )
+$( derive makeNFData ''NonTerm )
 
 
 toJoint nt = case nt of 

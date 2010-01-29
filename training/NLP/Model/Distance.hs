@@ -47,6 +47,7 @@ newtype VerbDistance = VerbDistance { spansVerb  :: Bool -- Is there a verb in t
     deriving (Show, Eq, Ord, Enum, Bounded)
 
 $( derive makeArbitrary ''VerbDistance )
+$( derive makeNFData ''VerbDistance )
 
 data Delta = Delta {
       prevComma :: Bool,
@@ -54,6 +55,7 @@ data Delta = Delta {
       adjacent :: Bool
     }  
    deriving (Eq, Ord, Bounded)
+$( derive makeNFData ''Delta )
 
 instance Show Delta where 
     show (Delta a b c) = show (a,b,c)

@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 module NLP.Probability.SmoothTrie where 
 import Data.Monoid
 import qualified Data.ListTrie.Map as T
@@ -10,10 +10,13 @@ import Test.QuickCheck
 import Data.Binary
 import Text.PrettyPrint.HughesPJClass
 import qualified Data.ListTrie.Base.Map as M
-
+import Control.DeepSeq
 
 newtype SmoothTrie map letter holder= SmoothTrie (T.TrieMap map letter holder)
     deriving (Show, Binary, Functor)
+
+instance (NFData letter, NFData holder, M.Map map letter) => NFData (SmoothTrie map letter holder) where 
+    rnf (SmoothTrie st) = rnf $ T.toList st 
 
 instance (M.Map map letter, Arbitrary letter, Arbitrary holder) => Arbitrary (SmoothTrie map letter holder) where 
     arbitrary = do

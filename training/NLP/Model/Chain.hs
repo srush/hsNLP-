@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns #-}
 module NLP.Model.Chain where 
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 
@@ -6,6 +6,7 @@ import NLP.Probability.Observation
 import qualified Data.Map as M
 import Control.Monad.Identity
 import Helpers.Common
+import Control.DeepSeq
 
 class JointModel a where 
     data FullEvent a
@@ -41,17 +42,16 @@ instance Context Con2 where
     decompose a = [a]
 
 newtype M2 m a b = M2 (m a, m b)
-    deriving (Show, Eq, Ord, Binary)
+    deriving (Show, Eq, Ord, Binary, NFData)
 
 newtype M3 m a b c = M3 (m a, m b, m c)
-    deriving (Show, Eq, Ord, Binary )
+    deriving (Show, Eq, Ord, Binary, NFData )
 
 newtype M4 m a b c d = M4 (m a, m b, m c, m d)
-    deriving (Show, Eq, Ord, Binary)
+    deriving (Show, Eq, Ord, Binary, NFData)
 
 newtype M7 m a b c d e f g = M7 (m a, m b, m c, m d, m e, m f, m g)
-    deriving (Show, Eq, Ord, Binary)
-
+    deriving (Show, Eq, Ord, Binary, NFData)
 
 class HolderPretty a where 
     holderPretty :: (b -> Doc) -> a b -> Doc

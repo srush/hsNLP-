@@ -20,7 +20,7 @@ import Control.Monad (liftM)
 import Data.Binary
 import Text.PrettyPrint.HughesPJClass
 import qualified Data.ListTrie.Base.Map as M
-
+import Control.DeepSeq
 -- $ObsDesc
 -- This module provides a simple way to collect observations ('counts'), particularly within a monoid.  
 -- Use 'observation' for each observed event and 'mappend' for combining observations. Finally 'finish' before estimating probabilities. 
@@ -31,6 +31,8 @@ type Count = Double
 newtype Counts event = Counts {
       counts :: (EventMap event) event Count 
 } 
+
+
 
 -- | Trivial type family for events. Just use EventMap = M.Map for most cases. Allows clients to specify the type of map used, when efficiency is important.   
 class (M.Map (EventMap event) event) => Event event where 
@@ -52,6 +54,9 @@ instance (Event event, Binary event, Binary ((EventMap event) event Count)) =>
          Binary (Counts event) where
     put (Counts m) = put m
     get = Counts `liftM` get 
+
+instance (Event event, NFData event) => NFData (Counts event) where 
+    rnf = rnf . M.toList . counts 
 
 -- | Observation of a single event  
 observation :: (Event event) => event -> Counts event

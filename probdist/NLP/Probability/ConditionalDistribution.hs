@@ -45,6 +45,7 @@ import Data.Binary
 -- | The set of observations of event conditioned on context. event must be an instance of Event and context of Context 
 type CondObserved event context = (ST.SmoothTrie (SubMap context) (Sub context) (Counts event))
 
+ 
 -- | Events are conditioned on Contexts. When Contexts are sparse, we need a way to decompose into simpler SubContexts. 
 --   This class allows us to separate this decomposition from the collection of larger contexts. 
 class (M.Map (SubMap a) (Sub a)) => Context a where 

@@ -1,10 +1,10 @@
 import PreProcess
-import TreeBank
+import NLP.TreeBank.TreeBank
 import System (getArgs) 
 import System.IO
-import POS
-import Common
+import Helpers.Common
 import DataHelpers
+import NLP.Language
 main = do 
   [file1] <- getArgs
   cont <- readFile file1
@@ -12,7 +12,7 @@ main = do
   sequence_ $ 
          map (\sents -> do  
                   putStrLn $ intercalate "\n\n" $ 
-                           map (show . toWIS . augmentNP . reapply 20 (liftNode (isPOSComma . pos)) . reapply 5 (removeFront (isPOSComma . pos)) . reapply 5 (removeEnd (isPOSComma . pos)) .  filterNode (isPOSPunc . pos) . fromWIS) sents
+                           map (show . toWIS . {-augmentNP-} reapply 20 (liftNode (isComma . pos)) . reapply 5 (removeFront (isComma . pos)) . reapply 5 (removeEnd (isComma . pos)) .  filterNode (isPunc . pos) . fromWIS) sents
                   putStrLn ""
    ) sentbundle
   where

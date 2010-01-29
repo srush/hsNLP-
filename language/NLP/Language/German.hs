@@ -17,11 +17,11 @@ instance W.Word GermanWord where
 
 instance Language German where 
     newtype POS (German) = GerPOS P.POS 
-                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read, Binary)
+                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read, Binary, NFData)
     newtype NonTerm (German) = GerNT NT.NonTerm
-                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read, Binary)
+                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Read, Binary,NFData)
     newtype Word (German) = GerWord (W.WordWrap GermanWord)
-                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Binary)
+                          deriving (Eq, Ord, Show, Bounded, Enum, Arbitrary, Binary, NFData)
 
     mkPOS = GerPOS . P.mkPOS
     mkNonTerm = GerNT . read
