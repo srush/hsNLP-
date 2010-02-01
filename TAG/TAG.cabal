@@ -17,6 +17,7 @@ library
                      
     other-modules:   Helpers.Common
                      Helpers.MkEnum
+                     Helpers.Parse
 
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
@@ -30,5 +31,5 @@ library
                      pretty,
                      bimap,
                      array,
-
+                     parsec >= 3.0,
                      deepseq

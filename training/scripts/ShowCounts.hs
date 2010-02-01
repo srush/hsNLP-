@@ -1,4 +1,5 @@
 import Helpers.Common
+import NLP.ParseMonad
 import NLP.Model.Decoding
 import NLP.TreeBank.TAG 
 import NLP.TreeBank.TreeBank
@@ -22,7 +23,6 @@ import NLP.Grammar.TAG
 import System.IO
 import NLP.Model.Chain
 import NLP.Model.Adjunction
-import NLP.Language.English
 import NLP.Model.CreateableSemi
 import NLP.Model.Derivation
 import NLP.Model.TAGWrap
@@ -36,20 +36,24 @@ separate el ls = case elemIndex el ls of
 
 main = do 
   [adjCountFile, spineCountFile, spineProbFile, testFile, n] <- getArgs
-  params <- (readDecodeParams adjCountFile spineCountFile spineProbFile) :: IO (DecodeParams English)
+  params <- (readDecodeParams adjCountFile spineCountFile spineProbFile) :: IO (DecodeParams)
   contents <- readFile testFile
+  mappers <- loadDebugMappers 
   hSetBuffering stdout NoBuffering
-  let sents =  map (parseSentence testFile. unlines) $ 
+  let sentsM =  mapM (parseSentence testFile. unlines) $ 
                separate "" $ lines contents
-  
-  let parses = zip [1..] $ map (\s -> let Just b = decodeGold params s in (decodeSentence params s, b) ) sents
-  let results = [ ((b', b), n)
-                      | (n, (Just b', b)) <- parses]
+  let sents = runParseMonad sentsM mappers  
+  let parses =  mapM (\s -> do 
+                        Just b <- decodeGold params s
+                        b' <- decodeSentence params s 
+                        return (b', b) ) sents
+  let results = [ (b', b)
+                      |  (Just b', b) <- runParseMonad parses mappers]
   
   
   -- putStrLn $ chartStats $ snd $ head results
 
-  mapM_ (\((a,b),_) ->  renderSentences a b) results
+  sequence $ runParseMonad (mapM (\(a,b) ->  renderSentences a b) results) mappers 
 
 
       --print "The fixed parse answer"

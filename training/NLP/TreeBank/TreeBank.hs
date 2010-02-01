@@ -1,56 +1,55 @@
 {-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, ScopedTypeVariables, Rank2Types, ExistentialQuantification, TypeSynonymInstances #-}
 module NLP.TreeBank.TreeBank where 
 
-
 --{{{  Imports
 import Data.List
-import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Char
+import Helpers.Parse
 import Data.Array
 import qualified Data.Map as M
 import qualified Text.Parsec.Token as P
 import Helpers.Common hiding (char, space)
 import Text.Parsec.Language (emptyDef)
 import Control.Exception
-import Data.Either.Unwrap (fromRight)
 import Data.Maybe (catMaybes)
 import Test.HUnit hiding (assert)
 import NLP.Grammar.TAG hiding (adjPos)
 import NLP.Grammar.Spine
-import qualified NLP.Grammar.NonTerm as NT 
-import NLP.Language
-import NLP.Language.English -- For tests
+--import qualified NLP.Grammar.NonTerm as NT 
+import NLP.Language.SimpleLanguage -- For tests
 import Helpers.Arbitrary
+import NLP.ParseMonad
+import Control.Monad.Trans
+import qualified Data.Traversable as TR
 --}}}
 
-newtype WordInfoSent l = WordInfoSent (Array Int (WordInfo l))
+newtype WordInfoSent = WordInfoSent (Array Int (WordInfo))
     deriving (Eq)
 
-data WordInfo l = 
+data WordInfo = 
      WordInfo {
       ind    :: Int, 
-      word   :: Word l,
-      wordStr :: String,
-      pos    :: POS l,
-      posStr :: String,
+      word   :: AWord,
+      wordStr :: Word,
+      pos    :: APOS,
+      posStr :: POS,
       adjoinInd :: Int,
-      spine  :: Spine (NT.NonTermWrap l),
+      aspine :: Atom (Spine NonTerm),
+      tspine :: Spine (ANonTerm),
+      spine  :: Spine (NonTerm),
       adjPos :: Int,
       sister :: AdjunctionType
-} 
+} deriving (Eq)
 
 
 --{{{  WordInfo Classes
 
-instance (Language l) => Eq (WordInfo l) 
-
-instance (Language l) => Show (WordInfo l) where 
+instance Show (WordInfo) where 
     show wi = 
         intercalate "\t" $ 
         map (\f -> f wi) 
               [show . ind,
-               wordStr,
-               show . pos,
+               show . wordStr,
+               show . posStr,
                show . adjoinInd,
                const "HOLDER",
                show . spine, 
@@ -64,86 +63,90 @@ instance (Language l) => Show (WordInfo l) where
 
 lexer = P.makeTokenParser emptyDef    
 nat  = P.natural lexer
-parseString = manyTill anyChar space
 
-class Parsable a where 
-    parser :: Parser a
-
-instance (Language l) => Parsable (WordInfo l) where 
-    parser =  do 
+parseWordInfo :: Parser (ParseMonad WordInfo)
+parseWordInfo =  do 
       n <- nat
       spaces
-      word <- parseString 
+      word <- parser
       spaces 
-      pos <- parseString
+      pos <- parser
       spaces
       adjInd <- nat
       spaces
       manyTill anyChar space
       spaces
-      spine <- parseSpine
+      spine <- parseSpine parser
       spaces 
       adjPos <- nat 
       spaces
       sister <- anyChar
-      return $ WordInfo {
+      return $ do
+        newword <- collapseWord word 
+        aword <- toAtom newword
+        apos <- toAtom pos
+        aspine <- toAtom spine
+        tspine <- TR.mapM toAtom spine 
+
+        return $ WordInfo {
                    ind  = fromIntegral n,
-                   word = mkWord (word::String),
-                   wordStr = word,
-                   pos  = mkPOS pos,
+                   wordStr =  newword,
+                   word = aword,
+                   pos = apos,
                    posStr = pos,
                    adjoinInd = fromIntegral adjInd,
+                   tspine = tspine,
+                   aspine = aspine,
                    spine = spine, 
                    sister = if sister == 's' then Sister else Regular,
                    adjPos = fromIntegral adjPos
                  }
 
-parsePOS :: (Language l) => Parser (POS l) 
-parsePOS = mkPOS `liftM` parseString 
+-- parseNT :: Parser (NT.NonTermWrap) 
+-- parseNT = NT.mkNonTerm `liftM` parser
 
-parseNT :: (Language l ) => Parser (NT.NonTermWrap l) 
-parseNT = NT.mkNonTerm `liftM` (many1 $ choice [upper, char '_'])
+-- parseSpine :: Parser (Spine (NT.NonTermWrap))
+-- parseSpine = do 
+--       nonterms <- choice [Just `liftM` parseNT, 
+--                           char '*' >> return Nothing] 
+--                   `sepBy` char '+'
+--       return $ mkSpine $ catMaybes nonterms
 
-parseSpine :: (Language l) => Parser (Spine (NT.NonTermWrap l))
-parseSpine = do 
-      nonterms <- choice [Just `liftM` parseNT, 
-                          char '*' >> return Nothing] 
-                  `sepBy` char '+'
-      return $ mkSpine $ catMaybes nonterms
+parseWordInfoSent :: Parser (ParseMonad WordInfoSent)
+parseWordInfoSent = do 
+      words <- parseWordInfo `sepEndBy` ((optional $ char ' ') >> newline)
+      return $ do 
+        ws <- sequence words
+        return $ WordInfoSent $ listArray (1,length words) (ws)
 
-instance (Language l) => Parsable (WordInfoSent l) where 
-    parser = do 
-      words <- parser `sepEndBy` ((optional $ char ' ') >> newline)
-      return $ WordInfoSent $ listArray (1,length words) words
-
-instance (Language l) => Show (WordInfoSent l) where 
+instance Show (WordInfoSent) where 
     show (WordInfoSent wis) = intercalate "\n" $ map show $ elems wis
            
  
-parseWordInfo :: (Language l) => String -> Either ParseError (WordInfo l) 
-parseWordInfo = parse parser "" 
+--parseWordInfo :: String -> Either ParseError (WordInfo) 
+--parseWordInfo = parse parser "" 
 
 
-readSentence :: (Language l) => String -> IO (WordInfoSent l)
+readSentence :: String -> IO (ParseMonad WordInfoSent)
 readSentence file = do
   contents <- readFile file
-  case parse parser file contents of 
+  case parse parseWordInfoSent file contents of 
     Right s -> return s
     Left error -> throw $ AssertionFailed $ show error 
 
-parseSentences :: (Language l) => String -> String -> [WordInfoSent l]
+parseSentences :: String -> String -> ParseMonad [WordInfoSent]
 parseSentences file contents = 
-  case parse (parser `sepEndBy` newline)  file contents of 
-    Right s -> s
+  case parse (parseWordInfoSent `sepEndBy` newline)  file contents of 
+    Right s -> sequence s
     Left error -> throw $ AssertionFailed $ show error 
 
 readSentences file = do
   contents <- readFile file
   return $ parseSentences file contents
 
-parseSentence :: (Language l) => String -> String -> WordInfoSent l
+parseSentence :: String -> String -> ParseMonad WordInfoSent
 parseSentence file contents = 
-  case parse parser file contents of 
+  case parse parseWordInfoSent file contents of 
     Right s ->  s
     Left error -> throw $ AssertionFailed $ show error 
 
@@ -152,27 +155,34 @@ parseSentence file contents =
 --{{{  TESTS
    
 
-testData :: [(String, WordInfo English) ]
+testData :: [(String, WordInfo) ]
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (mkWord "in") "in" (mkPOS "IN") "IN" 20 (mkSpine [NT.mkNonTerm "PP"]) 0 Sister)] 
+ WordInfo 23 (Atom 2) (mkWord "in") (Atom 1) (mkPOS "IN") 20 (Atom 1) (mkSpine [Atom 2]) (mkSpine [read "PP"])  0 Sister)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]
 
-test1 = TestCase (mapM_ (\(str, testParse) -> 
-                         assertEqual "parse fail" (fromRight $ parse parser "" str) testParse) 
+test1 = TestCase $ do 
+          mappers <- liftIO $ loadDebugMappers 
+          (mapM_ (\(str, testParse) -> 
+                      case parse parseWordInfo "" str of
+                        Right p -> 
+                           assertEqual "parse fail" (runParseMonad  p  mappers) testParse
+                        Left mes ->
+                           liftIO $ print mes
+                 ) 
                   testData)
 
-prop_showParse w =  case parse parser "" (show w) of 
-                     Right s -> w == s
-                     Left error ->  False --throw $ AssertionFailed $ show error 
-    where types = (w::WordInfo English) 
+-- prop_showParse w =  case parse parser "" (show w) of 
+--                      Right s -> w == s
+--                      Left error ->  False --throw $ AssertionFailed $ show error 
+--     where types = (w::WordInfo ) 
 
-prop_showParseSent w = case parse parser "" (show w) of 
-                     Right s -> w == s
-                     Left error ->  False --throw $ AssertionFailed $ show error 
-    where types = (w::WordInfoSent English) 
+-- prop_showParseSent w = case parse parser "" (show w) of 
+--                      Right s -> w == s
+--                      Left error ->  False --throw $ AssertionFailed $ show error 
+--     where types = (w::WordInfoSent) 
 
 --instance (Language l) => Arbitrary (WordInfoSent l) where 
 --    arbitrary = nonEmptyArray WordInfoSent

@@ -10,7 +10,7 @@ import NLP.Semiring.Viterbi
 import NLP.Semiring.ViterbiNBestDerivation
 import NLP.Grammar.TAG
 import NLP.Grammar.Dependency
-import NLP.Language
+import NLP.Language.SimpleLanguage
 import NLP.Model.TAGWrap
 --}}}
 
@@ -20,14 +20,14 @@ instance (Pretty d, Monoid d ) => Pretty (Derivation d) where
     
 -- type TAGCountSemi = Derivation TAGCounts 
 
-data DerivationCell l = DerivationCell {
-      dcWord :: TWord l
+data DerivationCell = DerivationCell {
+      dcWord :: TWord
 } deriving (Eq, Show, Ord)
 
 mkDerivationCell word = 
     DerivationCell word 
 
-newtype TAGDerivation l = TAGDerivation (Dependency (AdjunctionInfo (DerivationCell l))) 
+newtype TAGDerivation = TAGDerivation (Dependency (AdjunctionInfo (DerivationCell))) 
     deriving (Eq, Monoid)
 
 
@@ -36,10 +36,10 @@ viterbiHelp prob tdep =
 
 class CreateableSemi a where 
     type Counter a
-    mkSemi ::  Counter a -> TWord l -> (Maybe (TWord l)) -> Int -> AdjunctionType -> a l
-    mkSemiSmall :: Counter a -> a l
+    mkSemi ::  Counter a -> TWord -> (Maybe (TWord)) -> Int -> AdjunctionType -> a
+    mkSemiSmall :: Counter a -> a
 
-newtype CProb l = CProb Prob
+newtype CProb = CProb Prob
     deriving (Monoid, Multiplicative, Semiring)
 
 instance CreateableSemi CProb where
@@ -47,7 +47,7 @@ instance CreateableSemi CProb where
     mkSemi p head child pos atype  = CProb $ Prob p
     mkSemiSmall p = CProb $ Prob p 
 
-newtype CVD l = CVD (ViterbiDerivation Prob (TAGDerivation l))
+newtype CVD = CVD (ViterbiDerivation Prob (TAGDerivation))
     deriving (Show, Monoid, Multiplicative, Semiring)
 
 getCVDBestScore (CVD bs) =  getBestScore bs
@@ -66,7 +66,7 @@ instance CreateableSemi CVD where
                       (singletonDep (twInd head) (twInd child') $ 
                           (AdjunctionInfo pos atype (mkDerivationCell child')))   
 
-newtype CD m l = CD (Derivation m)
+newtype CD m = CD (Derivation m)
     deriving (Monoid, Multiplicative, Semiring, Pretty, Show)
 
 instance (Monoid m) => CreateableSemi (CD m) where 
@@ -74,8 +74,8 @@ instance (Monoid m) => CreateableSemi (CD m) where
     mkSemiSmall p = CD $ mkDerivation p
     mkSemi p _ _ _ _= CD $ mkDerivation p
 
-instance (Language l) => Show (TAGDerivation l) where 
+instance Show (TAGDerivation) where 
     show = render . pPrint
 
-instance (Language l) => Pretty (TAGDerivation l) where 
+instance Pretty (TAGDerivation) where 
     pPrint (TAGDerivation der) = (text $ show der)

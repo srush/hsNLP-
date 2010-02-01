@@ -18,30 +18,32 @@ import NLP.Model.Distance
 import NLP.TreeBank.TAG
 import NLP.Model.Adjunction
 import NLP.TreeBank.TreeBank
-import NLP.Language
 import NLP.WordLattice
 import Data.Binary
-import NLP.Language.English
+import NLP.Language.SimpleLanguage
 import Control.DeepSeq
 import System.IO.Unsafe
 import Control.Concurrent.MVar
+import NLP.ParseMonad
+import qualified Data.Traversable as T
 
-type DecodeParams l = (SpineExist l, Probs (Collins l), Probs (CollinsPrior l))
-readDecodeParams :: (Language l) =>  String -> String -> String -> IO (DecodeParams l)
+type DecodeParams = (SpineExist, Probs Collins, Probs CollinsPrior)
+
+readDecodeParams :: String -> String -> String -> IO DecodeParams
 readDecodeParams adjCountFile spineCountFile spineProbFile = do
   !counts <- decodeFile adjCountFile
   !spineCounts <- decodeFile spineCountFile
   !spineCounts2 <- decodeFile spineProbFile
   let probSpine = estimate spineCounts2
   --print counts
-  let probs = counts `deepseq` estimate counts
+  let probs = estimate counts
   return $! (spineCounts, probs, probSpine)
    
 
 
-data DecodingOpts l = DecodingOpts {
-      extraDepScore :: (Pairs (Collins l) -> Counter CVD),
-      validator :: Validity l,
+data DecodingOpts = DecodingOpts {
+      extraDepScore :: (Pairs (Collins) -> Counter CVD),
+      validator :: Validity ,
       beamThres :: Double,
       commaPrune :: Bool
     }
@@ -53,26 +55,28 @@ defaultDecoding =  DecodingOpts {
                      commaPrune = True
                    }
 
-decodeSentence :: (Language l) =>
-                  DecodeParams l ->  WordInfoSent l -> 
-                  (Maybe (CVD l))
+decodeSentence :: 
+                  DecodeParams ->  WordInfoSent -> 
+                  ParseMonad (Maybe CVD)
 decodeSentence = genDecodeSentence defaultDecoding
                          
 
-genDecodeSentence :: (Language l) =>
-                  DecodingOpts l ->
-                  DecodeParams l ->   WordInfoSent l -> 
-                  Maybe (CVD l)
-genDecodeSentence  opts (spineCounts, probs, probSpine)  insent =
-    b'
-        where (b',_)= eisnerParse fsm Just sent (\ wher m -> prune probSpine wher {-$ globalThres thres wher-} m)                             
-                  (globalThresOne (beamThres opts) probSpine)
+genDecodeSentence ::
+                  DecodingOpts  ->
+                  DecodeParams  ->   WordInfoSent -> 
+                  ParseMonad (Maybe CVD)
+genDecodeSentence  opts (spineCounts, probs, probSpine)  insent = do 
+  testsent <- toTAGTest spineCounts insent 
+  sent <- toTAGSentence insent
+  fsm <- makeFSM  sent (validator opts) mkSemi $ commaPrune opts
+  let (b',_)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb wher {-$ globalThres thres wher-} m)                             
+                  (globalThresOne (beamThres opts) getSpineProb)
 
-              sent = toTAGTest spineCounts insent 
+  return b'
+        where 
               getProb = memoize (prob probs) 
               mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
-              fsm = makeFSM (toTAGSentence insent) (validator opts) mkSemi $ commaPrune opts
-
+              getSpineProb = memoize (prob probSpine) 
 
 memoize :: Ord a => (a -> b) -> (a -> b) 
 memoize f =
@@ -91,31 +95,35 @@ memoize f =
                  return y
 
 
-decodeGold :: (Language l) => 
-                  DecodeParams l -> WordInfoSent l -> 
-                  Maybe (CVD l)
-decodeGold (spineCounts, probs, probSpine) insent = b'
-    where (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id
-          actualsent = tSentence dsent 
-          mkSemi pairs = prob probs pairs
-          fsm = makeFSM (toTAGSentence insent) prunVal mkSemi False
-          prunVal = valid dsent
-          dsent = toTAGDependency insent
-
-
-makeFSM :: (Language l) => Sentence (TWord l)  -> Validity l -> 
-           (Pairs (Collins l) -> Counter CVD) -> 
-           Bool -> Int ->
-           Maybe (TWord l) ->
-           (AdjState (Collins l) CVD  l, 
-            AdjState (Collins l) CVD  l)
-makeFSM insent val mkSemi collins i (Just word) =  
-    (initState (ParseOpts collins ldiscache (ProbModel mkSemi val)) ALeft word,
-     initState (ParseOpts collins rdiscache (ProbModel mkSemi val)) ARight word )
-
+decodeGold :: DecodeParams -> WordInfoSent -> ParseMonad (Maybe CVD)
+decodeGold (spineCounts, probs, probSpine) insent = do
+    dsent <- toTAGDependency insent
+    let actualsent = tSentence dsent 
+        prunVal = valid dsent
+    tagsent <- toTAGSentence insent
+    fsm <- makeFSM tagsent prunVal mkSemi False
+    let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id
+    return b'
     where
-      ldiscache = mkDistCacheLeft insent
-      rdiscache = mkDistCacheRight insent
+          mkSemi pairs = prob probs pairs
+
+
+
+
+makeFSM :: Sentence TWord  -> Validity -> 
+           (Pairs Collins -> Counter CVD) -> 
+           Bool -> 
+           ParseMonad (Int -> Maybe TWord ->
+                       (AdjState Collins CVD, 
+                        AdjState Collins CVD))
+makeFSM insent val mkSemi collins =  do 
+      ldiscache <- mkDistCacheLeft insent
+      rdiscache <- mkDistCacheRight insent
+      
+      leftState <- initState (ParseOpts collins ldiscache (ProbModel mkSemi val)) ALeft
+      rightState <- initState (ParseOpts collins rdiscache (ProbModel mkSemi val)) ARight 
+      return (\ _ (Just word) -> (leftState word, rightState word))
+
 
 globalThres n wher m =
     M.filter (\p -> getCVDBestScore p >= n/100000) $  m    
@@ -132,9 +140,11 @@ globalThresOne beamPrune probs  ps =
 
 getFOM probs (sig, semi) = getPrior sig * getInside semi 
     where
-      getProb = (\a  -> prob probs $  PrPair a ) 
-      getPrior sig = (if hasParent $ leftEnd sig then 1.0 else (prior getProb $ EI.word $ leftEnd sig)) * 
-               (if hasParent $ rightEnd sig then 1.0 else (prior getProb $ EI.word $ rightEnd sig)) 
+      getProb = (\a  -> probs a) 
+      getPrior sig = (if hasParent $ leftEnd sig then 1.0 else 
+                          (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) (EI.word $ leftEnd sig) )) * 
+                     (if hasParent $ rightEnd sig then 1.0 else 
+                          (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) $ EI.word $ rightEnd sig)) 
       getInside i  =  p
           where (Prob p) = getCVDBestScore i 
 
@@ -174,6 +184,7 @@ prune probs wher m =
                [] -> 0.0
                ls -> maximum $ ls
 
+
 renderSentences a b = do
            let der1 = getCVDBestDerivation a
            let der2 = getCVDBestDerivation b
@@ -185,22 +196,38 @@ renderSentences a b = do
            --let m2 = M.fromList debug2
            --let diff1 = M.difference m1 m2 
            --let diff2 = M.difference m2 m1
-           let st1 = (render $ niceParseTree $ tagDerToTree der1)
-           let st2 = (render $ niceParseTree $ tagDerToTree der2)
-           --let ldiff  = getDiff (lines st1) (lines st2) 
-           putStrLn $ "First " ++ (printf "%.3e" sc1) 
-           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
-           putStrLn $ "Second" ++ (printf "%.3e" sc2) 
-           --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
-           --putStrLn $ show ldiff
-           putStrLn $ st1
-           putStrLn $ st2
-           putStrLn $ show $ getCVDBestDerivation b
+           d1 <- tagDerToTree der1 
+           d2 <- tagDerToTree der2 
+           let toReadable = (\a -> case a of 
+                                     Left anonterm -> do
+                                       nonterm <- fromAtom $ anonterm  
+                                       return $ Left nonterm 
+                                     Right gword -> do
+                                       word <- fromAtom $ getLex gword
+                                       pos <- fromAtom $ getPOS gword
+                                       return $ Right (word, pos))
+                                         
+           d1' <- T.mapM toReadable d1 
+           d2' <- T.mapM toReadable d2
 
-           putStrLn $ ("G" ++ " " ++ (show $ tagDerToTree der1))
-           putStrLn $ ("T" ++ " " ++ (show $ tagDerToTree der2))
+           let st1 = (render $ niceParseTree $ d1')
+           let st2 = (render $ niceParseTree $ d2')
 
-basicParams :: IO (DecodeParams English)
+           return $ do 
+             --let ldiff  = getDiff (lines st1) (lines st2) 
+             putStrLn $ "First " ++ (printf "%.3e" sc1) 
+             --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff1
+             putStrLn $ "Second" ++ (printf "%.3e" sc2) 
+             --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
+             --putStrLn $ show ldiff
+             putStrLn $ st1
+             putStrLn $ st2
+             putStrLn $ show $ getCVDBestDerivation b
+
+             putStrLn $ ("G" ++ " " ++ (show $ d1'))
+             putStrLn $ ("T" ++ " " ++ (show $ d2'))
+
+basicParams :: IO DecodeParams
 basicParams = 
     readDecodeParams "/tmp/curcounts" "/tmp/cspines" "/tmp/pspines"
                      

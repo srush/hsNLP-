@@ -13,20 +13,22 @@ import NLP.Semiring.Derivation
 import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
-import NLP.Language.English
+import NLP.Language.SimpleLanguage
 import NLP.Model.ChainPrior
 import NLP.Grammar.TAG
-import NLP.Language
 import NLP.Model.TAGWrap
 import NLP.Model.Chain
-
+import NLP.ParseMonad
 main = do 
   [file1, file2] <- getArgs
   sentbundle <- getSentences file1
+  dm <- loadDebugMappers
+  let newsent = runParseMonad (sequence $ map sequence sentbundle) dm
+  let myroot = runParseMonad (root 0) dm
   print "full count done"
   let counts = mconcat  $ 
                parMap rwhnf (\sents ->  mconcat $ [ mconcat $ 
-                   (simpleObserve (PrEv (root 0)) (PrCon ()) : (map (\wi -> simpleObserve (PrEv $ mkTAGWord  (GWord (word wi, pos wi)) (spine wi) 0 ) $ PrCon ()) $ elems sent)) 
+                   (simpleObserve (PrEv myroot) (PrCon ()) : (map (\wi -> simpleObserve (PrEv $ mkTAGWord  (GWord (word wi, pos wi), aspine wi) (tspine wi) 0 ) $ PrCon ()) $ elems sent)) 
                    | WordInfoSent sent <- sents
-                 ] ) sentbundle
-  encodeFile file2 (counts::Observation (CollinsPrior English))
+                 ] ) newsent
+  encodeFile file2 (counts::Observation (CollinsPrior))

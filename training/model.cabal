@@ -1,5 +1,5 @@
 name:                model
-version:             0.1
+version:             0.1.1
 synopsis:            
 description:         
 category:            Natural Language Processing
@@ -12,8 +12,7 @@ cabal-version:       >= 1.2
 
 
 library
-    exposed-modules:     NLP.Model.Chain,
-                         NLP.Model.TAGparse,
+    exposed-modules:     NLP.Model.TAGparse,
                          NLP.Model.Distance,
                          NLP.TreeBank.TreeBank,
                          NLP.TreeBank.TAG
@@ -24,14 +23,12 @@ library
                          NLP.Model.TAGWrap
                          NLP.Model.Decoding
                          NLP.TreeBank.Dependency
-
-    
-                         
+                         NLP.ParseMonad                         
     other-modules: 
-                   NLP.Grammar.NonTerm
                    Helpers.Common
                    Helpers.MkEnum
                    Helpers.Arbitrary
+                   Helpers.Parse
     ghc-options: -O2                     
     build-Depends:   base       >= 3   && < 4,                     
                  containers >= 0.1 && < 0.3,
@@ -53,11 +50,11 @@ library
                      process,
                      MonadRandom,
                      TAG,
-                     multilanguage,
+                     simplelanguage,
                      monoids,
                      bimap,
                      mtl,
                      list-tries,
-                     either-unwrap
-                                
+                     deepseq,
+                     pureatom                            
 

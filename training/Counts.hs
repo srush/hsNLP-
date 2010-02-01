@@ -12,26 +12,27 @@ import NLP.Semiring.ViterbiNBestDerivation
 import Debug.Trace
 import Helpers.Common
 import NLP.TreeBank.TAG
-import NLP.Language
 import NLP.Model.CreateableSemi
 import NLP.Model.Adjunction
-import NLP.Language.English
+import NLP.Language.SimpleLanguage
 import NLP.Model.Chain
 import NLP.Model.TAGWrap
 import NLP.WordLattice
+import NLP.ParseMonad
     
-readTAG :: String -> IO (TSentence English)
-readTAG f = toTAGDependency `liftM` readSentence f
+readTAG :: String -> IO (ParseMonad TSentence) 
+readTAG f = do 
+  sent <- readSentence f
+  return $ sent >>= toTAGDependency  
 
-
-readSent :: String -> IO (WordInfoSent English)
+readSent :: String -> IO (ParseMonad WordInfoSent)
 readSent f =  readSentence f
 
 showCount f = do
    t <- readTAG f
-   putStrLn $ show t 
-   let c = countTAG (t::TSentence English)
-   putStrLn $ render $ pPrint $ fst $ c
+   let c = t >>= countTAG
+   return c
+   --putStrLn $ render $ pPrint $ fst $ c
 
 
 -- showOutside f = do
@@ -45,15 +46,19 @@ showCount f = do
 --     where (inchart, _) = countTAG dsent
 --           (TAGSentence sent _) = dsent
 
-type TAGCountState l = AdjState (Collins l) (TAGCountSemi l) l
-type TAGCountSemi l = CD (Observation (Collins l))
+type TAGCountState = AdjState Collins TAGCountSemi
+type TAGCountSemi = CD (Observation Collins)
+ 
 
-type BasicOpts l = ParseOpts (Collins l) (TAGCountSemi l) l
+type BasicOpts = ParseOpts Collins TAGCountSemi  
 
-makeParseOpts :: (Language l) => TSentence l -> (BasicOpts l, BasicOpts l)
-makeParseOpts dsent = 
-    (opts{ distanceCache = mkDistCacheLeft sent} , 
-     opts{ distanceCache = mkDistCacheRight sent})
+makeParseOpts ::  TSentence -> ParseMonad (BasicOpts, BasicOpts)
+makeParseOpts dsent = do 
+  left <- mkDistCacheLeft sent
+  right <- mkDistCacheRight sent
+  return $ 
+    (opts{ distanceCache = left } , 
+     opts{ distanceCache = right})
           where 
             sent = tSentence dsent
             opts = ParseOpts {useCommaPruning = False,
@@ -64,20 +69,22 @@ makeParseOpts dsent =
                                       }
                              }
               
---countTAG :: (Language l) => TAGSentence l -> TAGDerivation l 
-countTAG dsent  = case semi of 
-        Nothing -> trace ("failed to parse" ) (mempty,undefined) -- throw $ AssertionFailed $ show dsent
-        Just s -> case s of 
+--countTAG :: TSentence  -> ParseMonad TAGDerivation 
+countTAG dsent  = do 
+        (lopts, ropts) <- makeParseOpts dsent 
+        lstate <- initState lopts ALeft
+        rstate <- initState ropts ARight
+        let getFSM = (\ _ (Just word) -> (lstate word, rstate word))
+            (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) id   
+        return $ case semi of 
+          Nothing -> trace ("failed to parse" ) (mempty,undefined) -- throw $ AssertionFailed $ show dsent
+          Just s -> case s of 
                     (CD (Derivation (Just m))) ->  (m,chart)
                     (CD (Derivation (Nothing))) -> trace ("no derivation") (mempty,undefined)
-          
     where 
       sent = tSentence dsent
-      (lopts, ropts) = makeParseOpts dsent 
-      getFSM i (Just word) =  (initState lopts ALeft  word,
-                               initState ropts ARight word )
       symbolConv word = Just word 
-      (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) id 
+
      
 
 

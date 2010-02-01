@@ -89,9 +89,9 @@ data TAGSentence nt word =
 --{{{  TAGWord
 -- | A TAGWord is an individual word located in a sentence and paired with a spine. 
 --   There can be many words with the same index as long as they have different spines
-data TAGWord nt word = TAGWord {
+data TAGWord nt twdata = TAGWord {
       twSpine :: Spine nt,
-      twWord  :: word,
+      twData  :: twdata,
       twInd   :: Int 
 } deriving (Eq,Ord)
 

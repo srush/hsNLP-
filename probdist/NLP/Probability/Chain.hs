@@ -1,11 +1,15 @@
-{-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns #-}
-module NLP.Model.Chain where 
+{-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns, StandaloneDeriving #-}
+module NLP.Probability.Chain where 
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 
 import NLP.Probability.Observation
 import qualified Data.Map as M
 import Control.Monad.Identity
-import Helpers.Common
+import Data.Monoid
+import Data.List (intercalate)
+import Control.Monad (liftM)
+import Data.Binary
+import Text.PrettyPrint.HughesPJClass
 import Control.DeepSeq
 
 class JointModel a where 
@@ -66,6 +70,8 @@ hShow = holderPretty  (text .show)
 hPretty :: (HolderPretty m, Pretty a) => m a -> Doc
 hPretty = holderPretty pPrint
 
+csep = hsep .  punctuate comma . filter (not. isEmpty) 
+
 instance (HolderPretty m, Pretty a, Pretty b, Pretty c, Pretty d, Pretty e, Pretty f, Pretty g) => Pretty (M7 m a b c d e f g) where 
     pPrint (M7 (a, b, c, d, e, f, g)) = csep [hPretty a, hPretty b, hPretty c, hPretty d, hPretty e, hPretty f, hPretty g]
 
@@ -80,6 +86,8 @@ instance (Ord a) => Ord (Identity a) where
 
 instance (Show a) => Show (Identity a) where 
     show = show . runIdentity
+
+deriving instance (Binary a) => Binary (Identity a)
 
 instance HolderPretty Identity where 
     holderPretty s = s . runIdentity

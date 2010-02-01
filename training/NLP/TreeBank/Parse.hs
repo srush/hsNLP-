@@ -31,6 +31,10 @@ import Safe (atNote)
 newtype WordInfoSent = WordInfoSent (Array Int WordInfo)
     deriving (Eq)
 
+
+
+
+
 data WordInfo = WordInfo {
       ind    :: Int,
       word   :: Word,
@@ -219,7 +223,7 @@ toTAGDependency (WordInfoSent wis) = TAGSentence sent depstruct
           convertWI wi = (ind wi, 
                           if head == 0 then DEdge (n + 1) $ AdjunctionInfo (adjPos wi) (sister wi) () 
                           else DEdge head $ AdjunctionInfo (adjPos wi) (sister wi) ())
-              where n = slength sent
+n              where n = slength sent
                     head = adjoinInd wi
 
 toTAGTest counts (WordInfoSent wis) = sent

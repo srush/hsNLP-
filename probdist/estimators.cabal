@@ -1,5 +1,5 @@
 name:                estimators
-version:             0.1.3
+version:             0.1.4
 synopsis:            Tool for managing probability estimation
 description:         This library provides data structures for collecting counts 
                      and estimating distributions from observed data. It is designed for natural language
@@ -19,7 +19,7 @@ library
                          NLP.Probability.ConditionalDistribution
                          NLP.Probability.EM
                          NLP.Probability.Example.Trigram 
-
+                         NLP.Probability.Chain
     other-modules:       NLP.Probability.SmoothTrie
     ghc-options: -O2                     
     build-Depends:   base       >= 3   && < 4,
@@ -31,7 +31,7 @@ library
                      text,
                      deepseq,
                      MonadRandom,
-                     QuickCheck >= 2.0 
-
+                     QuickCheck >= 2.0, 
+                     mtl
                     
                   

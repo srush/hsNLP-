@@ -13,18 +13,20 @@ import NLP.Semiring.Derivation
 import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
-import NLP.Language.English
+import NLP.ParseMonad
 
 main = do 
   [file1, file2] <- getArgs
   sentbundle <- getSentences file1
+  dm <- loadDebugMappers
+  let newsent = runParseMonad  (sequence $ map sequence sentbundle) dm
   print "full count done"
   let counts = M.unionsWith mappend  $ 
                parMap rwhnf (\sents ->  M.unionsWith mappend $ [ M.fromListWith mappend $ 
                    map (\wi -> (pos wi, S.singleton (spine wi))) $ elems sent 
                    | WordInfoSent sent <- sents
-                 ] ) sentbundle
-  encodeFile file2 (counts::SpineExist English)
+                 ] ) newsent
+  encodeFile file2 (counts::SpineExist)
 
 
 

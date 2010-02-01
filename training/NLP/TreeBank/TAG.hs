@@ -3,11 +3,10 @@ module NLP.TreeBank.TAG (toTAGDependency, toTAGTest, toTAGSentence, SpineExist, 
 --{{{  Imports 
 import Helpers.Common
 import Data.Array
-import NLP.Language hiding (mkNonTerm)
+--import NLP.Language hiding (mkNonTerm)
 import NLP.WordLattice
 import NLP.Grammar.TAG hiding (adjPos)
 import NLP.Grammar.Spine
-import NLP.Grammar.NonTerm
 
 import NLP.Grammar.Dependency
 import NLP.TreeBank.TreeBank
@@ -15,55 +14,80 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Debug.Trace
 import NLP.Model.TAGWrap
-import NLP.Language.English
+import NLP.Language.SimpleLanguage 
+import NLP.ParseMonad
+import Prelude hiding (mapM)
+import Data.Traversable 
 --}}}
 
 
 
-tagRoot :: (Language l) => (GWord l, TSpine l) 
-tagRoot = (GWord (mkWord "ROOT", mkPOS "ROOT"), mkSpine [mkNonTerm "ROOT"])
+tagRoot :: ParseMonad (TData, TSpine) 
+tagRoot = do 
+  aroot <- toAtom $ mkWord "ROOT"
+  apos <- toAtom $ mkPOS "ROOT"
 
-root:: (Language l) => Int -> (TWord l)
-root ind = mkTAGWord  word spine ind 
+  let non = read "ROOT"
+  anon <- toAtom non
+  let spine =  mkSpine [anon]
+  aspine <- toAtom $  mkSpine [non] 
+  return ((GWord (aroot, apos), aspine) , spine)
+
+root:: Int -> ParseMonad (TWord)
+root ind = do 
+    (word,spine) <- tagRoot
+    return $ mkTAGWord  word spine ind 
+
+toTAGSentence :: WordInfoSent  -> ParseMonad (Sentence (TWord))
+toTAGSentence (WordInfoSent wis)= do
+  tr <- tagRoot
+  return $ mkTAGWords $ (map (\wi -> ((GWord (word wi, pos wi), aspine wi), tspine wi )) $ elems wis) ++ [tr]
+
+toTAGDependency :: WordInfoSent  -> ParseMonad TSentence 
+toTAGDependency (WordInfoSent wis) = do
+  (Sentence sent) <- toTAGSentence (WordInfoSent wis)
+  return $ TAGSentence sent (depstruct sent)
     where 
-    (word,spine) = tagRoot
-
-toTAGSentence :: (Language l) => WordInfoSent l -> Sentence (TWord l)
-toTAGSentence (WordInfoSent wis)=  
-    mkTAGWords $ (map (\wi -> (GWord (word wi, pos wi), spine wi )) $ elems wis) ++ [tagRoot]
-
-toTAGDependency :: (Language l) => WordInfoSent l -> TSentence l 
-toTAGDependency (WordInfoSent wis) = TAGSentence sent depstruct
-    where (Sentence sent) = toTAGSentence (WordInfoSent wis)
-          depstruct = Dependency $ M.fromList $ map convertWI  $ elems wis
-          convertWI wi = (ind wi, 
+          depstruct sent = Dependency $ M.fromList $ map (convertWI sent)  $ elems wis
+          convertWI sent wi = (ind wi, 
                           if head == 0 then DEdge n $ AdjunctionInfo (adjPos wi) (sister wi) () 
                           else DEdge head $ AdjunctionInfo (adjPos wi) (sister wi) ())
               where n = latticeLength (Sentence sent)
                     head = adjoinInd wi
 
-type SpineExist l = M.Map (POS l) (S.Set (TSpine l))
+type SpineExist = M.Map (APOS) (S.Set (RSpine))
 
 mkTAGWords words = 
     mkSentence $ newWords
         where newWords = map (\(i, (a,b)) -> mkTAGWord a b i) $ zip [1..] words
 
-mkTestTAGWord :: (Language l) => SpineExist l -> (Int, GWord l) -> [TWord l]
-mkTestTAGWord counts (ind, GWord (word,pos)) = 
-     map (\sp -> mkTAGWord (GWord (word,pos)) sp ind) $ S.toList $ 
-     fromJustDef mempty $ M.lookup pos counts
+tagWordHelper :: AWord -> APOS -> Spine NonTerm -> Int -> ParseMonad TWord
+tagWordHelper word pos sp ind = do
+  aspine <- toAtom sp
+  tspine <- mapM toAtom sp
+  return $ mkTAGWord (GWord (word, pos), aspine) tspine ind 
 
-toTAGTest counts (WordInfoSent wis) = sent
-      where sent = mkSentenceLat $ 
-                   (map (mkTestTAGWord counts) $ 
-                    map (\wi -> (ind wi, GWord (word wi, pos wi))) $ elems wis) ++ [[root (n+1)]]
+mkTestTAGWord :: SpineExist -> (Int, GWord) -> ParseMonad [TWord]
+mkTestTAGWord counts (ind, GWord (word,pos)) =
+     mapM (\sp -> tagWordHelper word pos sp ind) spinels 
+         where spinels = S.toList $ 
+                         fromJustDef mempty $ 
+                         M.lookup pos counts
+
+toTAGTest :: SpineExist -> WordInfoSent -> ParseMonad (SentenceLat TWord) 
+toTAGTest counts (WordInfoSent wis) = do 
+  r <- root (n+1)
+  testTagWords <- mapM (mkTestTAGWord counts) $ 
+                  map (\wi -> (ind wi, GWord (word wi, pos wi))) $ elems wis
+  return $ mkSentenceLat $ testTagWords  ++ [[r]]
+      where
             (_,n) = bounds wis
 
 
-writeSpineMap file = do
-  spine <- decodeFile file :: (IO (SpineExist English)) 
-  let mapping = zip [1..] $ S.toList $ S.unions $ map snd $ M.toList spine
-  return $ render $ vcat $ map (\(a,b)-> (int a)<+>(text$ show b)) mapping
+-- writeSpineMap file = do
+--   spine <- decodeFile file :: (IO (SpineExist)) 
+--   let mapping = zip [1..] $ S.toList $ S.unions $ map snd $ M.toList spine
+--   return $ render $ vcat $ map (\(a,b)-> (int a)<+>(text$ show b)) mapping
 
 -- toSentence :: WordInfoSent l -> Sentence (GWord l)
 -- toSentence (WordInfoSent wis)=  

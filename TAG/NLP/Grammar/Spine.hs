@@ -2,14 +2,20 @@
 module NLP.Grammar.Spine where 
 --import NLP.Grammar.NonTerm 
 import Helpers.MkEnum
-import Helpers.Common
+import Helpers.Common hiding (char)
+import Helpers.Parse
+import Control.Applicative
+import Data.Traversable
+import Data.Foldable
 --import NLP.Language
 
 newtype Spine nt = Spine [nt] 
-    deriving (Eq, Ord, Binary, NFData)
+    deriving (Eq, Ord, Binary, NFData, Functor, Foldable, Traversable)
 mkSpine nts = Spine nts 
 
 --{{{  Spine Classes
+
+
 instance (Show n) => Show (Spine n) where 
     show (Spine nts) = intercalate "+" $ ["*"] ++ map show nts
 
@@ -48,6 +54,14 @@ lookupNonTerm :: Int -> Spine nt -> Maybe nt
 lookupNonTerm i (Spine nts) =
     if i >= length nts || i < 0 then Nothing
     else Just $ nts !! i
+
+parseSpine :: Parser (nt) -> Parser (Spine (nt))
+parseSpine parseNT = do 
+      nonterms <- choice [Just `liftM` parseNT, 
+                          char '*' >> return Nothing] 
+                  `sepBy` char '+'
+      return $ mkSpine $ catMaybes nonterms
+
 
 
 --{{{  TESTS

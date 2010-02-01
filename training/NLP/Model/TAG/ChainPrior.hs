@@ -11,7 +11,7 @@ import Data.IORef
 import NLP.Grammar.Spine
 import NLP.Grammar.TAG
 import NLP.Model.TAGWrap
-import NLP.Language
+import NLP.Language.SimpleLanguage
 import NLP.Model.Chain
 import Helpers.Common
 --}}}
@@ -23,47 +23,47 @@ import Helpers.Common
 
 -- | A GWord context is smoo
 
-type SubGWord l = (Maybe (Word l), Maybe (POS l))
+type SubGWord = (Maybe (AWord), Maybe (APOS))
   
-instance (Language l) => Context (GWord l) where 
-    type Sub (GWord l) = (SubGWord l)
-    type SubMap (GWord l) = M.Map
+instance Context (GWord) where 
+    type Sub (GWord ) = (SubGWord)
+    type SubMap (GWord) = M.Map
     decompose gword = [(Nothing, Just $ getPOS gword),
                        (Just $ getLex gword, Nothing)]
      
-instance (Language l) => Event (GWord l) where type EventMap (GWord l) = M.Map
-instance (Language l) => Event (TSpine l) where type EventMap (TSpine l) = M.Map
+instance Event (GWord ) where type EventMap (GWord) = M.Map
+instance Event (ASpine) where type EventMap (ASpine) = M.Map
 
 
 -- | The Prior is made up of the unigram probability of a GWord
 --   And the conditional probability of a Spine given a GWord
     
-data CollinsPrior l = CollinsPrior
+data CollinsPrior = CollinsPrior
 
-instance (Language l) => JointModel (CollinsPrior l) where 
-    newtype FullEvent (CollinsPrior l) = PrEv (TWord l) 
-    newtype FullContext (CollinsPrior l) = PrCon ()
+instance JointModel CollinsPrior where 
+    newtype FullEvent CollinsPrior  = PrEv (TWord) 
+    newtype FullContext CollinsPrior = PrCon ()
 
-    newtype Probs (CollinsPrior l) = 
-        PriorProbs  (Distribution (GWord l),
-                     CondDistribution (TSpine l) (GWord l))
+    newtype Probs CollinsPrior = 
+        PriorProbs  (Distribution (GWord),
+                     CondDistribution (ASpine) (GWord))
  
-    newtype Observation (CollinsPrior l) =
-        PriorObs (Counts (GWord l),
-                  CondObserved (TSpine l) (GWord l))
+    newtype Observation CollinsPrior =
+        PriorObs (Counts GWord,
+                  CondObserved ASpine GWord)
         deriving (Monoid, Binary)
 
-    newtype Pairs (CollinsPrior l) = PrPair (TWord l)
-
-    chainRule (PrEv tagword) _ = (PrPair tagword)
+    newtype Pairs (CollinsPrior) = PrPair (GWord, ASpine)
+        deriving (Eq, Ord)
+    chainRule (PrEv tagword) _ = (PrPair (twWord tagword, twAtomSpine tagword))
         
-    observe (PrPair tagword) = PriorObs (observation $ twWord tagword,
-                                condObservation (twSpine tagword) $ twWord tagword)
+    observe (PrPair (word, spine)) = PriorObs (observation $ word,
+                                               condObservation spine word)
                       
     prob (PriorProbs (udist, cdist)) = subProb
         where 
-          subProb (PrPair tagword) = p * (cdist  (twWord tagword) $ twSpine tagword)
-              where p' = (udist $ twWord tagword)
+          subProb (PrPair (word,spine)) = p * (cdist  word spine)
+              where p' = (udist $ word)
                     p = if isNaN p' then (1e-19) else max p' (1e-19)
 
 --           subProb' tagword = unsafePerformIO $ do
