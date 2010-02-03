@@ -33,7 +33,7 @@ main = do
   
   -- putStrLn $ chartStats $ snd $ head results
 
-  sequence $ runParseMonad (mapM (\(a,b) ->  renderSentences a b) results) mappers 
+  sequence $ runParseMonad (mapM (\(b,a) ->  renderSentences a b) results) mappers 
 
 
       --print "The fixed parse answer"
