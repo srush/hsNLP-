@@ -42,7 +42,7 @@ data LoadMapConf = LoadMapConf {
       verbs :: [String]
     }
 
-defaultLoadMap = LoadMapConf "maps/" [ ",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"]
+defaultLoadMap = LoadMapConf "maps/" [ ","]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] 
 
 testPM pm = do 
   l <- loadDebugMappers

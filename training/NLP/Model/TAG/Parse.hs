@@ -89,7 +89,7 @@ tryEmpties split state = tryEmpties' (state,one)
 -- | This function is called only to finish a tree. 
 -- That is add end symbols to each node until it is complete.
 tryFinish state split =
-    if isComplete endstate then semi else mempty
+    if isComplete endstate then semi else trace (show state) mempty
     where (endstate, semi) = last $ tryEmpties split state
 
 -- | Helper function, perform an adjunction
