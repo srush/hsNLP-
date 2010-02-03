@@ -1,24 +1,23 @@
-{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell, FlexibleContexts #-}
 module NLP.Model.Distance where 
 
 --{{{  Imports 
 import Helpers.Common
 import qualified Data.Bimap as BM
-import NLP.Grammar.TAG
 import NLP.WordLattice
 import NLP.Language.SimpleLanguage
 import NLP.ParseMonad
 import qualified Data.Map as M
 import NLP.ChartParse
-import NLP.Model.TAGWrap
 --}}}
 
 type DisCache = (Int,Int) -> (Bool,Bool) 
 
-mkDistCacheRight :: (WordLattice sent, Symbol sent ~ TWord) => sent -> ParseMonad DisCache 
+
+mkDistCacheRight :: (WordLattice sent, WordSymbol (Symbol sent)) => sent -> ParseMonad DisCache 
 mkDistCacheRight sent = do
-  verbFn <- twIsVerb
-  commaFn <- twIsComma
+  verbFn <- isVerb
+  commaFn <- isComma
   let cache = m verbFn commaFn 
   return $ \i -> case i of
                    (_, k ) | k == n +1 -> (False,True)
@@ -26,17 +25,17 @@ mkDistCacheRight sent = do
     where m vfn cfn = M.fromList $ do
                 i <- [1..n] 
                 k <- [i..n]
-                let dis = (or [vfn $ head $ getWords sent j | j<-[i+1..k]],
+                let dis = (or [vfn $ getPOS $ head $ getWords sent j | j<-[i+1..k]],
                            (k+1 == n)  
-                           || (cfn $ head $ getWords sent (k)) 
-                           || (cfn $ head $ getWords sent (k+1)) )
+                           || (cfn $ getPOS $ head $ getWords sent (k)) 
+                           || (cfn $ getPOS $ head $ getWords sent (k+1)) )
                 return $ ((i,k), dis)
           n = latticeLength sent
 
-mkDistCacheLeft :: (WordLattice sent, Symbol sent ~ (TWord)) => sent -> ParseMonad DisCache 
+mkDistCacheLeft :: (WordLattice sent,  WordSymbol (Symbol sent)) => sent -> ParseMonad DisCache 
 mkDistCacheLeft sent = do 
-  verbFn <- twIsVerb
-  commaFn <- twIsComma
+  verbFn <- isVerb
+  commaFn <- isComma
   let cache = m verbFn commaFn 
   return $ \i -> case i of
                      (_, k ) | k == n +1 -> (False,True)
@@ -45,7 +44,7 @@ mkDistCacheLeft sent = do
     where m vfn cfn = M.fromList $ do
                 i <- [n,n-1..1] 
                 k <- [i, i-1..1]
-                let dis = (or [vfn $ head $ getWords sent j | j<-[i-1, i-2..k]] ,
+                let dis = (or [vfn $ getPOS $ head $ getWords sent j | j<-[i-1, i-2..k]] ,
                            True)
                 return $ ((i,k), dis)
           n = latticeLength sent
@@ -91,8 +90,6 @@ instance Pretty Delta where
     pPrint = text . show 
 
 resetDelta = Delta (False, False, False)
-
-
 
 instance Pretty VerbDistance where 
     pPrint d = text $ showBool (spansVerb d)

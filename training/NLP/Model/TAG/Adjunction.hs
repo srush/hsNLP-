@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances, TypeSynonymInstances, BangPatterns #-}
-module NLP.Model.Adjunction where 
+module NLP.Model.TAG.Adjunction where 
 
 --{{{  Imports
 import Helpers.Common 
@@ -16,12 +16,13 @@ import NLP.Language.SimpleLanguage
 import NLP.Grammar.TAG hiding (adjPos, adjType)
 import NLP.Grammar.Spine
 import Text.Printf
-import NLP.Model.Chain
-import NLP.Model.TAGWrap
+import NLP.Probability.Chain
+import NLP.Model.TAG.Wrap
 import Control.DeepSeq
+import NLP.Grammar.Dependency
 --}}}
 
-emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing Nothing Nothing
+emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 
 n = Nothing 
@@ -40,7 +41,7 @@ newtype AC1 = AC1 (AdjunctionContext1 Identity)
 type AdjunctionSubContext1 = AdjunctionContext1 Maybe
 
 mkAdjCon1 ::(forall a. a -> m a) -> FullContext (Collins) -> AdjunctionContext1 m 
-mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _) = 
+mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _ _ _) = 
     M7 (fi a,fi b,fi c,fi d, fi e, fi f, fi g) 
        
 instance Context (AC1 ) where 
@@ -167,8 +168,10 @@ instance JointModel (Collins) where
          Pairs {probInfo :: ((AE1, AC1),
                              (AE2, AC2),
                              (AE3, AC3)),
-                decisionInfo :: Maybe (Int, Int)}
-         deriving (Eq, Ord)
+                decisionInfo :: Maybe (Int, Int),
+                enumVal :: (Int,Int)
+               }
+         deriving (Eq, Ord, Show)
 
      newtype Observation (Collins) = 
          Observation (CondObserved (AE1) (AC1),
@@ -188,7 +191,8 @@ instance JointModel (Collins) where
       childSpine :: Maybe (TSpine), 
       atomChildSpine :: Maybe (ASpine), 
       childInd   :: Maybe Int, -- Not included in prob
-      adjType    :: Maybe AdjunctionType
+      adjType    :: Maybe AdjunctionType,
+      childTWord :: Maybe TWord -- Not included
     }
  
      data FullContext (Collins) =  AdjunctionFullContext { 
@@ -199,7 +203,9 @@ instance JointModel (Collins) where
       delta      :: Delta,
       parentPOS  :: APOS ,
       parentWord :: AWord,
-      parentInd  :: Int -- not included in prob
+      parentInd  :: Int, -- not included in prob
+      spinePos   :: Int,  -- not included
+      parentTWord :: TWord -- Not included
     } 
      
      
@@ -207,15 +213,31 @@ instance JointModel (Collins) where
          Pairs ((e1, AC1 $ mkAdjCon1 Identity fullContext),
                 (e2, AC2 $ mkAdjCon2 Identity fullContext e1),
                 (e3, AC3 $ mkAdjCon3 Identity fullContext e1 e2))
-               $ fmap (\cInd -> (cInd, parentInd fullContext)) $ childInd fullEvent
+               (fmap (\cInd -> (cInd, parentInd fullContext)) $ childInd fullEvent)
+               (combineEnum [(fromEnum $ parentNT fullContext, 60),
+                             (fromEnum $ headNT fullContext, 60),
+                             (fromEnum $ adjSide fullContext, 3),
+                             (fromEnum $ crossesVerb fullContext, 3),
+                             (fromEnum $ delta fullContext, 20),
+                             (fromEnum $ parentPOS fullContext, 60),
+                             (fromEnum $ parentWord fullContext, 30000)]
+                             ,
+                combineEnum
+                             [(fromEnum $ childPOS fullEvent, 60),
+                             (fromEnum $ childWord fullEvent, 30000),
+                             (fromEnum $ atomChildSpine fullEvent, 400),
+                             (fromEnum $ atomChildSpine fullEvent, 400),
+                             (fromEnum $ adjType fullEvent, 3)])
+                            
          where e1 = mkEvent1 fullEvent
                e2 = mkEvent2 fullEvent
                e3 = mkEvent3 fullEvent
+
                     
-     observe (Pairs (a,b,c) _) = 
+     observe (Pairs (a,b,c)_ _) = 
          Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
 
-     prob (Probs (p1,p2,p3)) (Pairs (a,b,c) _) =           
+     prob (Probs (p1,p2,p3)) (Pairs (a,b,c) _ _) =           
          ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
 
      estimate (Observation (!obs1,  !obs2,  !obs3)) = 

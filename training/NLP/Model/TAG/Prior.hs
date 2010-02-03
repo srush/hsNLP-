@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeSynonymInstances, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell #-}
-module NLP.Model.ChainPrior where 
+module NLP.Model.TAG.Prior where 
 
 --{{{  Imports
 import NLP.Probability.Distribution
@@ -10,10 +10,12 @@ import System.IO.Unsafe
 import Data.IORef
 import NLP.Grammar.Spine
 import NLP.Grammar.TAG
-import NLP.Model.TAGWrap
+import NLP.Model.TAG.Wrap
 import NLP.Language.SimpleLanguage
-import NLP.Model.Chain
+import NLP.Probability.Chain
 import Helpers.Common
+import Helpers.MkEnum
+import NLP.Atom
 --}}}
 
 
@@ -47,22 +49,29 @@ instance JointModel CollinsPrior where
     newtype Probs CollinsPrior = 
         PriorProbs  (Distribution (GWord),
                      CondDistribution (ASpine) (GWord))
- 
+        
     newtype Observation CollinsPrior =
         PriorObs (Counts GWord,
                   CondObserved ASpine GWord)
         deriving (Monoid, Binary)
 
-    newtype Pairs (CollinsPrior) = PrPair (GWord, ASpine)
-        deriving (Eq, Ord)
-    chainRule (PrEv tagword) _ = (PrPair (twWord tagword, twAtomSpine tagword))
+    data Pairs (CollinsPrior) = PrPair { pair :: (GWord, ASpine),
+                                         priorEnumVal :: Int} 
+        deriving (Eq, Ord, Show)
+    chainRule (PrEv tagword) _ = (PrPair (word, twAtomSpine tagword) 
+                                         $ combineEnum [(fromEnum $ getLex word, 30000),
+                                                        (fromEnum $ getPOS word, 60),
+                                                        (fromEnum spine, 400)
+                                                       ])
+        where word = twWord tagword
+              spine = twAtomSpine tagword
         
-    observe (PrPair (word, spine)) = PriorObs (observation $ word,
+    observe (PrPair (word, spine) _) = PriorObs (observation $ word,
                                                condObservation spine word)
                       
     prob (PriorProbs (udist, cdist)) = subProb
         where 
-          subProb (PrPair (word,spine)) = p * (cdist  word spine)
+          subProb (PrPair (word,spine) _) = p * (cdist  word spine)
               where p' = (udist $ word)
                     p = if isNaN p' then (1e-19) else max p' (1e-19)
 

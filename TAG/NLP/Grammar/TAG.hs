@@ -9,26 +9,6 @@ import qualified Data.Map as M
 import Data.Array
 --}}}
 
---{{{  AdjunctionSide
--- | AdjunctionSide tells us from which direction we should adjoin a new tree
-data AdjunctionSide = ALeft | ARight
-                    deriving (Eq, Ord, Enum, Bounded)
-
---{{{AdjunctionSide Classes
-
-$( derive makeBinary ''AdjunctionSide)
-$( derive makeNFData ''AdjunctionSide)
-$( derive makeArbitrary ''AdjunctionSide)
-
-instance Show AdjunctionSide where 
-    show ALeft = "Left"
-    show ARight = "Right"
-
-instance Pretty AdjunctionSide where pPrint = text . show
-
---}}}
---}}}
-
 --{{{  AdjunctionType
 -- | There are two types of adjunction, 
 --   Sister comes from a single position, 

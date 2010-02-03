@@ -16,7 +16,6 @@ newtype Sentence word = Sentence (Array Int word)
 mkSentence :: [word] -> Sentence word
 mkSentence words = Sentence $ listArray (1, length words) words 
 
-
 sentFromArray :: Array Int word -> Sentence word
 sentFromArray = Sentence 
 

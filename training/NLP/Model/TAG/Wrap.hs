@@ -1,4 +1,5 @@
-module NLP.Model.TAGWrap where 
+{-# LANGUAGE FlexibleInstances #-}
+module NLP.Model.TAG.Wrap where 
 
 import NLP.Grammar.TAG
 import NLP.Grammar.Spine 
@@ -16,6 +17,11 @@ type ASpine = Atom (Spine (NonTerm))
 
 twWord = fst . twData 
 twAtomSpine = snd . twData 
+
+instance WordSymbol (TAGWord ANonTerm TData) where 
+    getLex = getLex . twWord
+    getPOS = getPOS . twWord
+
 
 twIsVerb :: ParseMonad (TWord ->  Bool)
 twIsVerb = do

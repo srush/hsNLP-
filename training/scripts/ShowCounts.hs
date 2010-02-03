@@ -1,31 +1,11 @@
 import Helpers.Common
-import NLP.ParseMonad
-import NLP.Model.Decoding
-import NLP.TreeBank.TAG 
-import NLP.TreeBank.TreeBank
-import NLP.Model.TAGparse
-import System (getArgs) 
-import qualified Data.Map as M
-import NLP.ChartParse
-import NLP.Model.ChainPrior
-import NLP.Semiring
-import NLP.Semiring.Prob
-import NLP.ChartParse.Eisner.Inside as EI
-import NLP.Semiring.ViterbiNBestDerivation
-import Debug.Trace
-import Text.Printf
-import Data.Array
-import Control.Parallel.Strategies
-import Data.List
-import NLP.Model.Distance
-import Data.Binary
-import NLP.Grammar.TAG
+import Data.List 
+import NLP.Model.TAG.Decoding
+import NLP.Language.SimpleLanguage
 import System.IO
-import NLP.Model.Chain
-import NLP.Model.Adjunction
-import NLP.Model.CreateableSemi
-import NLP.Model.Derivation
-import NLP.Model.TAGWrap
+import System
+import NLP.TreeBank.TreeBank
+import NLP.ParseMonad
 
 separate :: (Eq el) => el -> [el] -> [[el]]
 separate el [] = [] 

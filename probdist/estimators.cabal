@@ -14,6 +14,7 @@ build-Type:          Simple
 cabal-version:       >= 1.2
 
 library
+    ghc-options: -O2                     
     exposed-modules:     NLP.Probability.Distribution
                          NLP.Probability.Observation
                          NLP.Probability.ConditionalDistribution
@@ -21,7 +22,6 @@ library
                          NLP.Probability.Example.Trigram 
                          NLP.Probability.Chain
     other-modules:       NLP.Probability.SmoothTrie
-    ghc-options: -O2                     
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
                      binary,

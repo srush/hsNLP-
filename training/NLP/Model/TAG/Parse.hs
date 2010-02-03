@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell, FlexibleInstances, FlexibleContexts  #-}  
-module NLP.Model.TAGparse where 
+module NLP.Model.TAG.Parse where 
 
 --{{{  Imports 
 import Helpers.Common hiding (Derivation)
@@ -7,7 +7,7 @@ import NLP.FSM
 import NLP.ChartParse
 -- import NLP.ChartParse.Eisner
 import NLP.Grammar.Dependency
-import NLP.WordLattice
+
 import qualified Data.Map as M
 import qualified Data.Set as S
 import NLP.Grammar.TAG hiding (adjType)
@@ -18,57 +18,13 @@ import NLP.ParseMonad
 --import ExtraParams
 import NLP.Model.CreateableSemi
 import NLP.Model.Distance
-import NLP.Model.Adjunction
-import NLP.Model.Chain
+import NLP.Model.TAG.Adjunction
+import NLP.Probability.Chain
 import Debug.Trace
-import NLP.Model.TAGWrap
+import NLP.Model.TAG.Wrap
+import NLP.Model.ParseState
 --}}}
 
--- | Sentence level run-time options
-data ParseOpts m semi   = ParseOpts {
-      useCommaPruning :: Bool,
-      distanceCache :: DisCache,
-      model :: ProbModel m semi  
-}
-
-data AdjState m semi = 
-    AdjState { 
-      opts :: ParseOpts m semi,      
-      word :: TWord,
-      curPos :: !Int, 
-      side :: !AdjunctionSide,
-      curDelta :: !Delta,
-      isAfterComma :: !Bool,
-      lastInNPB :: Maybe (GWord ),
-      predComma :: TWord -> Bool,
-      predVerb :: TWord -> Bool
-      -- stateParents :: M.Map (Int, VerbDistance, Delta) AdjunctionParent 
-    } 
-
-initState :: 
-           ParseOpts model semi  ->
-           AdjunctionSide ->
-           ParseMonad (TWord ->
-                       (AdjState model semi))  
-initState parseOpts side = do
-  predComma<- twIsComma
-  predVerb <- twIsVerb
-  return $ (\tagword -> 
-                let  last = lastOfSpine $ twSpine tagword in
-                AdjState {
-               opts = parseOpts,
-               word = tagword,
-               side = side,                                
-               curPos = 0,
-               curDelta = startDelta,
-               isAfterComma = False,
-               lastInNPB = Nothing,
-               predComma = predComma,
-               predVerb = predVerb
-                   }
-            
-             
-           )
 --stateNT :: AdjState l -> NonTerm l 
 stateNT adjstate = getNonTerm (curPos adjstate) $ twSpine (word adjstate)
     
@@ -78,18 +34,10 @@ topPos = lastOfSpine . twSpine . word
 isComplete state = curPos state >= topPos state 
 
 --{{{  AdjState Classes 
-{-# INLINE expandAdjState #-}
-expandAdjState as =  (curPos as, curDelta as, isAfterComma as, lastInNPB as, side as)
 
-instance Show (AdjState a b) where 
+instance Show (AdjState TWord a b) where 
     show s = (show $ curPos s) ++ (show $ ((lastOfSpine $ twSpine $ word s) - 1) ) ++ (show $ side s)
 
-instance  Eq (AdjState a b ) where 
-    (==) = (==) `on` expandAdjState
-
-instance  Ord (AdjState a b) where
-    {-# INLINE compare #-}
-    compare = compare `on` expandAdjState
 --}}}
 
 block = guard . not
@@ -112,7 +60,7 @@ tryAdjunction state child split = do
   atype <- [Sister, Regular]
 
   -- do each possible adjunction
-  doOneAdj semi state' child atype $ mkDistance state' split
+  doOneAdj semi state' (child, atype, mkDistance state' split)
 
 
 -- | This helper function is given an Adjunction state and a split point.  
@@ -126,13 +74,13 @@ tryEmpties split state = tryEmpties' (state,one)
             block $ isComplete adjstate
 
             -- Tells us if this 
-            semi' <- findSemi adjstate Nothing Sister (mkDistance adjstate split)
+            semi' <- findSemi adjstate (Nothing, Sister, (mkDistance adjstate split))
 
             -- Should we prune this node?
             block $ shouldPrune adjstate split True
 
             -- pop and continue
-            tryEmpties'  (adjstate {curPos = curPos adjstate + 1, 
+            tryEmpties'  (cacheState $ adjstate {curPos = curPos adjstate + 1, 
                                              curDelta = startDelta,
                                              isAfterComma = False,
                                              lastInNPB = Nothing}, 
@@ -145,9 +93,9 @@ tryFinish state split =
     where (endstate, semi) = last $ tryEmpties split state
 
 -- | Helper function, perform an adjunction
-doOneAdj baseSemi adjstate child atype dis = do 
-    s <- findSemi adjstate child atype dis
-    return  (adjstate{curDelta = newDelta,
+doOneAdj baseSemi adjstate (child, atype, dis) = do 
+    s <- findSemi adjstate (child, atype, dis)
+    return  (cacheState $ adjstate{curDelta = newDelta,
                       isAfterComma = prevComma oldDelta,
                       lastInNPB = if npbMode then 
                                       if (predComma adjstate) child' then
@@ -164,13 +112,13 @@ doOneAdj baseSemi adjstate child atype dis = do
                        else resetDelta
 
 
-findSemi :: ( CreateableSemi semi) => 
-            AdjState (Collins) semi -> Maybe (TWord) -> 
-            AdjunctionType -> VerbDistance -> [semi]
-findSemi adjstate child atype vdis = do 
-    guard $ (validity $ model opts) headWord child pos atype
-    return $ mkSemi p headWord child pos atype
-        where
+instance ParseModel Collins where 
+    type Req1 Collins = (Maybe (TWord), AdjunctionType, VerbDistance)
+    type MyWord Collins = TWord
+    mkEventAndContext = mkEventAndContextTAG
+
+mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
+    where  
           fullContext = AdjunctionFullContext {
                           parentNT = stateNT adjstate,
                           headNT   = -- (fromJustDef (fromPOS $ getPOS $ twWord headWord) $ 
@@ -181,8 +129,10 @@ findSemi adjstate child atype vdis = do
                           crossesVerb = vdis', 
                           parentPOS = getPOS $ parentGWord, 
                           parentWord = getLex $ parentGWord,
-                          parentInd  = twInd headWord
-                                     }
+                          parentInd  = twInd headWord,
+                          spinePos   = pos,
+                          parentTWord = headWord
+                        }
            
               where          -- NPB Trick 
                 (parentGWord, vdis') = 
@@ -198,10 +148,9 @@ findSemi adjstate child atype vdis = do
                                          childPOS  = Just $ getPOS $ twWord child',
                                          childSpine= Just $ twSpine child',
                                          childInd  = Just $ twInd child',
-                                         adjType   = Just atype
+                                         adjType   = Just atype,
+                                         childTWord = Just child'
                                        }
-                                       
-          p = (probs $ model opts) (chainRule fullEvent fullContext)  -- TODO
           AdjState {opts  = opts, 
                     side  = side, 
                     curPos= pos,
@@ -210,65 +159,18 @@ findSemi adjstate child atype vdis = do
                     lastInNPB = npblast
                     } = adjstate
 
--- | Implements comma pruning 
-commaPruning state split = 
-    (side state == ARight) &&
-    (isAfterComma state) && 
-    (not $ afterConj)
-        where afterConj = snd $ (distanceCache $ opts state) (twInd $ word state, split) 
 
-shouldPrune adjstate split isTryingEmpty = 
-    -- (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
-    ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
-
-mkDistance adjstate split = VerbDistance verb
-    where (verb, _) = (distanceCache $ opts adjstate) (twInd $ word adjstate, split)
-
-type Validity = TWord -> Maybe TWord -> Int -> AdjunctionType -> Bool
-allValid _ _ _ _ = True
-
-data ProbModel m s = ProbModel {
-      probs :: (Pairs m -> Counter s),
---      extra :: FlipProbs,
-      validity :: Validity 
-    }
-
-instance (CreateableSemi semi, Semiring semi) => 
-    WFSM (AdjState Collins semi ) where 
-    type State (AdjState Collins semi) = AdjState Collins semi 
+instance (CreateableSemi semi, Semiring semi, Model semi ~ Collins) => 
+    WFSM (AdjState TWord Collins semi) where 
+    type State (AdjState TWord Collins semi) = AdjState TWord Collins semi 
     initialState init =  [(init, one)] 
     
-instance (CreateableSemi semi, Semiring semi) => 
-    FSMState (AdjState Collins semi) where 
-    type FSMSymbol (AdjState Collins semi ) = Maybe TWord
-    type FSMSemiring (AdjState Collins semi ) = semi 
+instance (CreateableSemi semi, Semiring semi, Model semi ~ Collins) => 
+    FSMState (AdjState TWord Collins semi) where 
+    type FSMSymbol (AdjState TWord Collins semi ) = Maybe TWord
+    type FSMSemiring (AdjState TWord Collins semi ) = semi 
     next = tryAdjunction
     finish = tryFinish 
     isFinal = const True  
 
 
--- if (lastOfSpine $ twSpine $ stateHead init) == 0 then [(init, one)]
---                         else
---                             [(init{stateSide = ALeft }, 
---                           mkSemiSmall (probFlip flipprobs ALeft $ flip)),
---                          (init{stateSide = ARight},
---                           mkSemiSmall (probFlip flipprobs ARight $ flip)
---                           )]
---         where flipprobs = extra $ stateModel init
---               flip = mkFlip (stateHead init) (stateSide init)
-
--- tryAdjunction :: (Semiring semi, FSMState (AdjState a) ) => 
---                (AdjState a -> Int -> AdjunctionAction (TWord) -> AdjunctionType -> Distance -> Maybe semi) -> 
---                (AdjState a) ->  
---                (Maybe (TWord)) ->
---                Int -> --huge hack!
---                [(AdjState a, semi)] 
-
---     else if stateNT adjstate == rootNT then
---              if stateSide adjstate == ARight then
---                  []
---              else
---                  case findSemi adjstate (DoAdj $ fromJustNote "its good" child) Sister (mkDistance adjstate split) of 
---                    Nothing -> []
---                    Just s -> 
---                        [(adjstate {statePos = (statePos adjstate) + 1} , s)]

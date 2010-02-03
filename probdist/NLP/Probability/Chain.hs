@@ -1,5 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns, StandaloneDeriving #-}
-module NLP.Probability.Chain where 
+module NLP.Probability.Chain (
+                              JointModel (..),
+                              M2(..), M3(..), M4(..), M5(..), M7(..), HolderPretty, hPretty
+                             ) where 
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 
 import NLP.Probability.Observation
@@ -52,6 +55,9 @@ newtype M3 m a b c = M3 (m a, m b, m c)
     deriving (Show, Eq, Ord, Binary, NFData )
 
 newtype M4 m a b c d = M4 (m a, m b, m c, m d)
+    deriving (Show, Eq, Ord, Binary, NFData)
+
+newtype M5 m a b c d e = M5 (m a, m b, m c, m d, m e)
     deriving (Show, Eq, Ord, Binary, NFData)
 
 newtype M7 m a b c d e f g = M7 (m a, m b, m c, m d, m e, m f, m g)

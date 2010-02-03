@@ -40,6 +40,19 @@ instance Read NonTerm where
 instance Parsable NonTerm where 
     parser = NonTerm `liftM` (many1 $ choice [upper, char '_'])
 
+newtype Label = Label String 
+type ALabel = Atom Label
+mkLabel = Label
+
+instance Read Label where 
+    readsPrec _ =  makeParseRead parser
+
+instance Parsable Label where 
+    parser = Label `liftM` spaceSep anyChar
+
+
+
+
 newtype Word = Word String
     deriving (Eq, Ord)
 mkWord = Word
@@ -59,8 +72,15 @@ instance Show Word where
 
 newtype GWord = GWord (AWord, APOS)
     deriving (Eq, Ord, Show, Binary)
-getLex (GWord (l,_)) = l  
-getPOS (GWord (_,p)) = p 
+
+class WordSymbol a where 
+    getPOS :: a -> APOS
+    getLex :: a -> AWord
+
+instance WordSymbol GWord where 
+    getLex (GWord (l,_)) = l  
+    getPOS (GWord (_,p)) = p 
+
 
 instance Pretty (Atom a) where 
     pPrint = text . show 

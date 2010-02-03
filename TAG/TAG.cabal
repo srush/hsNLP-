@@ -14,7 +14,9 @@ library
     exposed-modules: NLP.Grammar.TAG
                      NLP.Grammar.Spine
                      NLP.Grammar.Dependency
+                     NLP.Grammar.DependencySent
                      
+    ghc-options: -O2                     
     other-modules:   Helpers.Common
                      Helpers.MkEnum
                      Helpers.Parse

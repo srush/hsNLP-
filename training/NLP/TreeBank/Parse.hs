@@ -32,9 +32,6 @@ newtype WordInfoSent = WordInfoSent (Array Int WordInfo)
     deriving (Eq)
 
 
-
-
-
 data WordInfo = WordInfo {
       ind    :: Int,
       word   :: Word,

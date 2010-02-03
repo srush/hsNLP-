@@ -1,4 +1,4 @@
-module NLP.TreeBank.TAG (toTAGDependency, toTAGTest, toTAGSentence, SpineExist, tagRoot, root) where 
+module NLP.Model.TAG.Format (toTAGDependency, toTAGTest, toTAGSentence, SpineExist, tagRoot, root) where 
 
 --{{{  Imports 
 import Helpers.Common
@@ -13,14 +13,12 @@ import NLP.TreeBank.TreeBank
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Debug.Trace
-import NLP.Model.TAGWrap
+import NLP.Model.TAG.Wrap
 import NLP.Language.SimpleLanguage 
 import NLP.ParseMonad
 import Prelude hiding (mapM)
 import Data.Traversable 
 --}}}
-
-
 
 tagRoot :: ParseMonad (TData, TSpine) 
 tagRoot = do 

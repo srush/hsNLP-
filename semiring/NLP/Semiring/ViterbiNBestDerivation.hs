@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances #-}
 module NLP.Semiring.ViterbiNBestDerivation where
 import NLP.Semiring
 import Data.List 
@@ -20,8 +21,14 @@ type ViterbiNBestDerivation n m = ViterbiNBest n (Weighted Prob (Derivation m))
 -- > type ViterbiDerivation m  = Viterbi (Weighted Prob (Derivation m))
 type ViterbiDerivation p m  = Viterbi (Weighted p (Derivation m))
 
-getBestDerivation :: (Monoid m, WeightedSemiring p) => ViterbiDerivation p m -> m
-getBestDerivation = fromDerivation . getInfo . fromViterbi
+class BestScorer d s a | a -> d, a -> s where 
+    getBestDerivation :: a -> d 
+    getBestScore :: a -> s
 
-getBestScore :: (Monoid m, WeightedSemiring p) => ViterbiDerivation p m -> p
-getBestScore = getWeight . fromViterbi
+instance (Monoid m, WeightedSemiring p) => BestScorer m p (ViterbiDerivation p m) where
+    getBestDerivation = fromDerivation . getInfo . fromViterbi
+    getBestScore = getWeight . fromViterbi
+--getBestDerivation :: (Monoid m, WeightedSemiring p) => ViterbiDerivation p m -> m
+
+
+--getBestScore :: (Monoid m, WeightedSemiring p) => ViterbiDerivation p m -> p

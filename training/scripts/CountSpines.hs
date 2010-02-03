@@ -26,7 +26,7 @@ main = do
                    map (\wi -> (pos wi, S.singleton (spine wi))) $ elems sent 
                    | WordInfoSent sent <- sents
                  ] ) newsent
-  encodeFile file2 (counts::SpineExist)
+  encodeFile file2 (counts:: SpineExist)
 
 
 

@@ -1,7 +1,7 @@
 module Counts where 
 import Prelude hiding (catch)
 import NLP.Grammar.TAG
-import NLP.Model.TAGparse 
+import NLP.Model.TAG.Parse 
 import NLP.ChartParse.Eisner.Inside
 import NLP.ChartParse.Eisner.Outside
 import NLP.Semiring.Derivation
@@ -11,15 +11,16 @@ import NLP.Model.Distance
 import NLP.Semiring.ViterbiNBestDerivation
 import Debug.Trace
 import Helpers.Common
-import NLP.TreeBank.TAG
+import NLP.Model.TAG.Format
 import NLP.Model.CreateableSemi
-import NLP.Model.Adjunction
+import NLP.Model.TAG.Adjunction as ADJ
 import NLP.Language.SimpleLanguage
-import NLP.Model.Chain
+import NLP.Probability.Chain
 import NLP.Model.TAGWrap
 import NLP.WordLattice
 import NLP.ParseMonad
-    
+import NLP.Model.ParseState
+import NLP.Grammar.Dependency    
 readTAG :: String -> IO (ParseMonad TSentence) 
 readTAG f = do 
   sent <- readSentence f
@@ -46,8 +47,8 @@ showCount f = do
 --     where (inchart, _) = countTAG dsent
 --           (TAGSentence sent _) = dsent
 
-type TAGCountState = AdjState Collins TAGCountSemi
-type TAGCountSemi = CD (Observation Collins)
+type TAGCountState = AdjState TWord Collins TAGCountSemi
+type TAGCountSemi = CD (Observation Collins) Collins
  
 
 type BasicOpts = ParseOpts Collins TAGCountSemi  
@@ -64,17 +65,20 @@ makeParseOpts dsent = do
             opts = ParseOpts {useCommaPruning = False,
                               distanceCache = undefined,
                               model = ProbModel {
-                                        validity = valid dsent,
+                                        validity = newValid dsent,
                                         probs = (\p -> observe p)
                                       }
                              }
               
+newValid sent  event context = 
+    valid sent (parentTWord context) (childTWord event) (spinePos context) (fromJustDef Sister $ ADJ.adjType event)
+
 --countTAG :: TSentence  -> ParseMonad TAGDerivation 
 countTAG dsent  = do 
         (lopts, ropts) <- makeParseOpts dsent 
-        lstate <- initState lopts ALeft
-        rstate <- initState ropts ARight
-        let getFSM = (\ _ (Just word) -> (lstate word, rstate word))
+        lstate <- initState lopts [] ALeft
+        rstate <- initState ropts [] ARight
+        let getFSM = (\ i (Just word) -> (lstate i word, rstate i word))
             (semi,chart) =   eisnerParse getFSM symbolConv sent (\ _ i -> i) id   
         return $ case semi of 
           Nothing -> trace ("failed to parse" ) (mempty,undefined) -- throw $ AssertionFailed $ show dsent
@@ -85,8 +89,6 @@ countTAG dsent  = do
       sent = tSentence dsent
       symbolConv word = Just word 
 
-     
-
-
+    
 -- Query (for making queries about the counts)
 

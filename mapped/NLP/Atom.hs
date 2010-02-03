@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, ScopedTypeVariables #-}
 module NLP.Atom where
 import qualified Data.Text as T
 import qualified Data.Bimap as B
@@ -40,6 +40,12 @@ fromAtom (Atom b) = do
   (Mapper m) <- getMapper
   return $ fromJustNote "Cannot int back to item" $ B.lookupR b m
 
+enumerate :: (MonadAtom s m) => m [s]
+enumerate = do
+  (Mapper m) <- getMapper
+  return $ B.keys m
+
+
 instance (Ord s) => MonadAtom s (AtomM s)  where 
     getMapper = ask
 
@@ -48,6 +54,10 @@ newtype AtomT s m a = AtomT (ReaderT (Mapper s) m a)
 
 instance (Ord s, Monad m) => MonadAtom s (AtomT s m) where 
     getMapper = ask 
+
+instance Enum (Atom a) where 
+    fromEnum (Atom a) = a
+    toEnum = Atom
 
 readMapped :: (Ord a, Read a) => String -> Mapper a
 readMapped contents = 

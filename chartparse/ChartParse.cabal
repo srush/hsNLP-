@@ -37,7 +37,8 @@ library
                      pretty,
                      prettyclass,
                      text,
-                     safe
+                     safe,
+                     deepseq
 
 executable hstestsemi
     main-is:            Tests.hs

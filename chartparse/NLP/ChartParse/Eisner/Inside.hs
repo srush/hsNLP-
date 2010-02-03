@@ -8,9 +8,11 @@ import Data.List (find)
 import NLP.FSM
 import NLP.Semiring
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Monoid.Multiplicative (times, one) 
 import Control.Exception
 import NLP.WordLattice
+import Debug.Trace 
 --}}}
 
 type EisnerChart fsa = Chart (ESpan fsa) (FSMSemiring (State fsa))
@@ -35,10 +37,10 @@ fromSeal (Open a) = a
 -- Data structure from p. 12 declarative structure  
 data ESpanEnd fsa =
     ESpanEnd {
-      hasParent :: Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
-      state :: Seal (State fsa), -- q1 and q2
-      word  :: Sym fsa,
-      split :: Maybe Int
+      hasParent :: !Bool, -- b1 and b2 (does the parent exist in the span, i.e. it's not the head)     
+      state :: !(Seal (State fsa)), -- q1 and q2
+      word  :: !(Sym fsa),
+      split :: !(Maybe Int)
 }
 
 
@@ -47,10 +49,10 @@ data ESpanEnd fsa =
 instance (WFSM fsa) => Show (ESpanEnd fsa) where 
     show end = intercalate " " 
                [(show $ hasParent end),
-               (show $ state end),
-               (show $ word end)] 
+                (show $ state end),
+                (show $ word end)] 
 
-expandESpanEnd sp =  (hasParent sp, state sp, word sp, split sp)
+expandESpanEnd sp =  (hasParent sp, state sp, word sp) -- TODO- fix back, split sp)
 
 instance (WFSM fsa) => Eq (ESpanEnd fsa) where 
     (==)  = (==) `on` expandESpanEnd
@@ -62,9 +64,9 @@ instance (WFSM fsa) => Ord (ESpanEnd fsa) where
 
 data ESpan fsa =
     ESpan {
-      simple :: Bool, -- s
-      leftEnd :: ESpanEnd fsa,
-      rightEnd :: ESpanEnd fsa
+      simple :: !Bool, -- s
+      leftEnd :: !(ESpanEnd fsa),
+      rightEnd :: !(ESpanEnd fsa)
 } deriving (Eq, Ord) 
 
 --{{{  ESpan Classes
@@ -118,7 +120,7 @@ canOptLinkR span =
 -- The OptLink Rules take spans with dual head (0,0) and adjoin the head on 
 -- one side to the head on the other. 
 --optLinkL'
-optLinkL' span = do -- trace ("optLinkL" ++ show span )$ do -- $ do
+optLinkL' span = do -- $ do
       guard $ canOptLinkL span
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span) 
       let pfin = finish (fromSeal $ state $ rightEnd span) (fromJustNote "split" $ split $ rightEnd span) 
@@ -137,7 +139,7 @@ optLinkL (span, semi) =do
     
 
 --optLinkR' :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
-optLinkR' span =  do --trace "optLinkR" $ do 
+optLinkR' span = do 
   guard $ canOptLinkR span
   let pfin = finish (fromSeal $ state $  leftEnd span) (fromJustNote "split" $ split $ leftEnd span) 
   (rightEnd', p) <- advance (rightEnd span)  (word $ leftEnd span)   
@@ -154,12 +156,14 @@ optLinkR (span, semi) =do
   (span', semi') <- optLinkR' span
   return (span', semi `times` semi') 
 
+{-# INLINE canCombine #-}
 canCombine span1 span2 =
-    simple span1 && (b2 /= b2') && f1 && f2 &&  w1 == w2
+    simple span1 && (b2 /= b2') &&  w1 == w2
         where
-          ((b1, b2), (b2', b3)) =  (hasParentPair span1, hasParentPair span2)
-          f1 = isStateFinal $ state $ rightEnd span1
-          f2 = isStateFinal $ state $ leftEnd span2
+          b2 = hasParent $ rightEnd span1
+          b2'= hasParent $ leftEnd span2
+          --f1 = isStateFinal $ state $ rightEnd span1
+          --f2 = isStateFinal $ state $ leftEnd span2
           w1 = word $ rightEnd span1
           w2 = word $ leftEnd span2
 
@@ -172,8 +176,7 @@ combine' span1 span2 = do
   guard  $ canCombine span1 span2
   return $ (ESpan {simple = False,
                   leftEnd = (leftEnd span1)   {split = leftSp},
-                  rightEnd = (rightEnd span2) {split = rightSp} 
-                 },
+                  rightEnd = (rightEnd span2) {split = rightSp}},
              pfin)
         where
           pfin = if not b2' then -- _ 1 0 1
@@ -186,7 +189,8 @@ combine' span1 span2 = do
                              else if not b3 && b2' then
                                  (split $ leftEnd span1,  split $ rightEnd span1)
                              else (Nothing, Nothing)
-          ((b1, b2), (b2', b3)) =  (hasParentPair span1, hasParentPair span2)
+          (b1, b2)  = hasParentPair span1
+          (b2', b3) = hasParentPair span2
 
 combine :: (WFSM fsa) => DoubleDerivationRule (EItem fsa)
 combine (span1, semi1) (span2, semi2) = do  
@@ -255,7 +259,7 @@ accept (span, _) =
 
 type GetFSM fsa = Int -> Sym fsa -> (fsa, fsa) --todo: fix this 
 
-processCell :: (WFSM fsa, WordLattice sent) => 
+processCell :: (Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
                GetFSM fsa -> 
                sent ->  
                (Symbol sent -> Sym fsa) ->                
@@ -268,7 +272,7 @@ processCell getFSA sentence wordConv (i, k) chart beam =
    else
     catMaybes $ map seal $ 
     if k-i == 1 then        
-        (let seedCells = beam $ seed getFSA i 
+        (let seedCells = beam $ M.toList $ M.fromListWith mappend $ seed getFSA i 
                         (map wordConv $ getWords sentence i) 
                         (map wordConv  $ getWords sentence (i+1))
         in
@@ -276,14 +280,14 @@ processCell getFSA sentence wordConv (i, k) chart beam =
     else
         (left starter ++ right starter ++ starter) 
         where
-          starter = beam $ concat [combine s1 s2
+          starter =  beam $ M.toList $ M.fromListWith mappend $ concat [combine s1 s2
                             | j  <- [i+1..k-1],
                               s2 <- chart (j,k),
                               s1 <- chart (i,j)]
-          left = beam . concatMap (\s -> optLinkL s)  
+          left = beam . concatMap (\s ->  optLinkL s)  
           right = beam . concatMap (\s -> optLinkR s )  
 
-eisnerParse :: (WFSM fsa, WordLattice sent) => 
+eisnerParse :: (Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 

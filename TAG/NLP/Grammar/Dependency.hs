@@ -1,9 +1,30 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 module NLP.Grammar.Dependency where 
 import Helpers.Common
 import qualified Data.Map as M
 import Data.List
 import qualified Data.Tree as T
+
+
+--{{{  AdjunctionSide
+-- | AdjunctionSide tells us from which direction we should adjoin a new tree
+data AdjunctionSide = ALeft | ARight
+                    deriving (Eq, Ord, Enum, Bounded)
+
+--{{{AdjunctionSide Classes
+
+$( derive makeBinary ''AdjunctionSide)
+$( derive makeNFData ''AdjunctionSide)
+$( derive makeArbitrary ''AdjunctionSide)
+
+instance Show AdjunctionSide where 
+    show ALeft = "Left"
+    show ARight = "Right"
+
+instance Pretty AdjunctionSide where pPrint = text . show
+
+--}}}
+--}}}
 
 -- | Dependency structure is modeled as a map from 
 --   Children to parents 
@@ -68,10 +89,9 @@ splitMap m =
      where partAndSort key intls = (reverse $ sort bottom, sort top)
                where (bottom, top) = partition ((< key).to) intls
 
-convertToTree m showInd = convert' $ fst $ M.findMax m' 
-    where convert' ind =
-              T.Node word $ maybe [] (map (convert' .to)) $ M.lookup ind m' 
-                  where word = show ind 
+convertToTree m  = convert' (fst $ M.findMax m') Nothing 
+    where convert' ind v =
+              T.Node v  $ maybe [] (map (\d -> convert' (to d) (Just $ info d))) $ M.lookup ind m' 
           m' = reverseMap m
 
 -- | Flattens the dependency representation into a list of nodes and their children
@@ -82,6 +102,15 @@ flattenDep dep  =
           sMap = splitMap $ reverseMap dep
           n = rootInd dep
 
+hasDependency :: Dependency a -> Int -> Int -> Bool
+hasDependency (Dependency dm) head child =
+    (Just head) == (fmap to $ M.lookup child dm)
+
+hasDependencyAndLabel :: (Eq a) => Dependency a -> Int -> Int -> a -> Bool
+hasDependencyAndLabel (Dependency dm) head child label =
+    hasDependency (Dependency dm) head child && 
+    (Just label) == (fmap info childLook)
+        where childLook = M.lookup child dm
 
 --{{{ TESTS
 

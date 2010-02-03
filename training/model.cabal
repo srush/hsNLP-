@@ -1,5 +1,5 @@
 name:                model
-version:             0.1.1
+version:             0.1.2
 synopsis:            
 description:         
 category:            Natural Language Processing
@@ -12,17 +12,31 @@ cabal-version:       >= 1.2
 
 
 library
-    exposed-modules:     NLP.Model.TAGparse,
+    exposed-modules:     
                          NLP.Model.Distance,
                          NLP.TreeBank.TreeBank,
-                         NLP.TreeBank.TAG
-                         NLP.Model.Adjunction
-                         NLP.Model.ChainPrior
+                         NLP.Model.TAG.Adjunction
+                         NLP.Model.TAG.Wrap
+                         NLP.Model.TAG.Prior
+                         NLP.Model.TAG.Parse,
+                         NLP.Model.TAG.Semi,
+                         NLP.Model.TAG.Format,
+                         NLP.Model.TAG.Decoding,
+                         NLP.Model.TAG.Derivation,
+
+                         NLP.Model.Dependency.Model
+                         NLP.Model.Dependency.Wrap
+                         NLP.Model.Dependency.Parse,
+                         NLP.Model.Dependency.Semi,
+                         NLP.Model.Dependency.Format,
+                         NLP.Model.Dependency.Decoding,
+
                          NLP.Model.CreateableSemi
-                         NLP.Model.Derivation
-                         NLP.Model.TAGWrap
-                         NLP.Model.Decoding
-                         NLP.TreeBank.Dependency
+                         NLP.Model.ParseState
+                         NLP.Model.ParseTree
+
+                         NLP.TreeBank.Dependency,
+                         NLP.TreeBank.Label,
                          NLP.ParseMonad                         
     other-modules: 
                    Helpers.Common
