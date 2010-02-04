@@ -98,7 +98,7 @@ instance (Show w, Show nt) => Pretty (TAGWord nt w) where
 
 -- | Predicate - does the adjunction of two tagword at a certain pos agree with the TAG sentence
 valid :: (TAGSentence nt w) -> TAGWord nt w -> Maybe (TAGWord nt w) -> Int -> AdjunctionType -> Bool
-valid _ _ Nothing _ _ = True 
+valid _ _ Nothing _ _ = True
 valid (TAGSentence sent dep) head (Just child) pos atype =
     case getHead dep $ twInd child of 
       Nothing -> False  -- (not $ isRoot child) && 

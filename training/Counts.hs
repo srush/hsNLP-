@@ -21,6 +21,7 @@ import NLP.WordLattice
 import NLP.ParseMonad
 import NLP.Model.ParseState
 import NLP.Grammar.Dependency    
+
 readTAG :: String -> IO (ParseMonad TSentence) 
 readTAG f = do 
   sent <- readSentence f
