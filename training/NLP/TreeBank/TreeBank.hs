@@ -6,9 +6,8 @@ import Data.List
 import Helpers.Parse
 import Data.Array
 import qualified Data.Map as M
-import qualified Text.Parsec.Token as P
+
 import Helpers.Common hiding (char, space)
-import Text.Parsec.Language (emptyDef)
 import Control.Exception
 import Data.Maybe (catMaybes)
 import Test.HUnit hiding (assert)
@@ -59,10 +58,6 @@ instance Show (WordInfo) where
 --}}}
 
 -- parsing Xavier's tree files with spines
-
-
-lexer = P.makeTokenParser emptyDef    
-nat  = P.natural lexer
 
 parseWordInfo :: Parser (ParseMonad WordInfo)
 parseWordInfo =  do 

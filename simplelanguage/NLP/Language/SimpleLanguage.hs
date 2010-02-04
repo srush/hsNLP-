@@ -34,6 +34,9 @@ mkNonTerm = NonTerm
 instance Show NonTerm where 
     show (NonTerm p) = p
 
+instance Pretty NonTerm where 
+    pPrint = text .show
+
 instance Read NonTerm where 
     readsPrec _ =  makeParseRead parser
 
@@ -49,9 +52,6 @@ instance Read Label where
 
 instance Parsable Label where 
     parser = Label `liftM` spaceSep anyChar
-
-
-
 
 newtype Word = Word String
     deriving (Eq, Ord)
@@ -84,3 +84,27 @@ instance WordSymbol GWord where
 
 instance Pretty (Atom a) where 
     pPrint = text . show 
+
+
+newtype Triplet = Triplet (NonTerm, Maybe NonTerm, Maybe NonTerm)
+    deriving (Eq,Ord)
+ 
+instance Show Triplet where 
+     show = render .pPrint
+
+instance Pretty Triplet where 
+    pPrint (Triplet (a,b,c)) = 
+        hcat $ punctuate (text "+") $ map pPrint [Just a,b,c] 
+
+instance Parsable Triplet where 
+    parser = do 
+      [a,b,c] <- choice [Just `liftM` (parser :: Parser NonTerm), 
+                         char '*' >> (return Nothing)] 
+                   `sepBy` char '+'
+      return $ Triplet (fromJustNote "first" a,b,c) 
+
+instance Read Triplet where 
+    readsPrec _ =  makeParseRead parser
+
+type ATriplet = Atom Triplet
+type STriplet = (Atom NonTerm, Maybe ANonTerm, Maybe ANonTerm)

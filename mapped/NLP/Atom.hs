@@ -29,16 +29,21 @@ class (Monad m) => MonadAtom s m where
 toAtomWithMap :: (Ord s) => Mapper s -> s -> Atom s 
 toAtomWithMap (Mapper m) a = 
     Atom $ fromJustNote "Cannot map item" $ B.lookup a m
-         
+
+
+fromAtomWithMap :: (Ord s) => Mapper s -> Atom s -> s 
+fromAtomWithMap (Mapper m) (Atom b) = 
+    fromJustNote "Cannot int back to item" $ B.lookupR b m
+     
 toAtom :: (MonadAtom s m, Ord s) => s -> m (Atom s) 
 toAtom a = do 
       m <- getMapper
       return $ toAtomWithMap m a 
 
 fromAtom :: (MonadAtom s m, Ord s) => Atom s -> m s 
-fromAtom (Atom b) = do
-  (Mapper m) <- getMapper
-  return $ fromJustNote "Cannot int back to item" $ B.lookupR b m
+fromAtom b = do
+  m <- getMapper
+  return $ fromAtomWithMap m b
 
 enumerate :: (MonadAtom s m) => m [s]
 enumerate = do

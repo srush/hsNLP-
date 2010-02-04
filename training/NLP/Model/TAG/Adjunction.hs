@@ -66,7 +66,7 @@ newtype AE1 = AE1 (AdjunctionEvent1)
 
 
 mkEvent1 event = AE1 (childPOS event, 
-                      fmap (top) $ childSpine event, 
+                      fmap (top) $ childSpine event,
                       adjType event) 
                  
 

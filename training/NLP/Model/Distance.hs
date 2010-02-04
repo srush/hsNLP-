@@ -27,6 +27,7 @@ mkDistCacheRight sent = do
                 k <- [i..n]
                 let dis = (or [vfn $ getPOS $ head $ getWords sent j | j<-[i+1..k]],
                            (k+1 == n)  
+                          
                            || (cfn $ getPOS $ head $ getWords sent (k)) 
                            || (cfn $ getPOS $ head $ getWords sent (k+1)) )
                 return $ ((i,k), dis)

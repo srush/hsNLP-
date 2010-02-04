@@ -6,16 +6,11 @@ import System.IO
 import System
 import NLP.TreeBank.TreeBank
 import NLP.ParseMonad
-
-separate :: (Eq el) => el -> [el] -> [[el]]
-separate el [] = [] 
-separate el ls = case elemIndex el ls of
-                   Just n -> 
-                       (take n ls): (separate el (drop (n+1) ls))
-                   Nothing -> []
+import NLP.Model.TAG.DependencyPrior
+import NLP.ParseMonad
 
 main = do 
-  [adjCountFile, spineCountFile, spineProbFile, testFile, n] <- getArgs
+  [adjCountFile, spineCountFile, spineProbFile, pruneFile, testFile, n] <- getArgs
   params <- (readDecodeParams adjCountFile spineCountFile spineProbFile) :: IO (DecodeParams)
   contents <- readFile testFile
   mappers <- loadDebugMappers 
@@ -23,11 +18,13 @@ main = do
   let sentsM =  mapM (parseSentence testFile. unlines) $ 
                separate "" $ lines contents
   let sents = runParseMonad sentsM mappers  
-  let parses =  mapM (\s -> do 
+  prunes <- readPruning pruneFile
+  let parses =  mapM (\(s,p) -> do
+                        tm <- tripletMapper
                         Just b <- decodeGold params s
-                        b' <- decodeSentence params s 
-                        return (b', b) ) sents
-  let results = [ (b', b)
+                        b' <- genDecodeSentence (defaultDecoding{validator=validByDepPrior tm p} ) params s 
+                        return (b', b) ) $ zip sents prunes
+  let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]
   
   

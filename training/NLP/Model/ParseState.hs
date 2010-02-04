@@ -105,9 +105,9 @@ commaPruning state split =
     (not $ afterConj)
         where afterConj = snd $ (distanceCache $ opts state) (ind state, split) 
 
-shouldPrune adjstate split isTryingEmpty = 
+shouldPrune adjstate split isTryingEmpty = False 
     -- (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
-    ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
+    --((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
 
 mkDistance adjstate split = VerbDistance verb
     where (verb, _) = (distanceCache $ opts adjstate) (ind adjstate, split)
@@ -119,10 +119,10 @@ class (JointModel a) => ParseModel a where
 
 
 findSemi :: (ParseModel model, CreateableSemi semi, Model semi ~ model ) => 
-            AdjState (MyWord model) model semi ->  Req1 model -> [semi]
+            AdjState (MyWord model) model semi -> Req1 model -> [semi]
 findSemi adjstate extra = do 
     guard $ (validity $ model opt) fullEvent fullContext
-    return $ mkSemi p fullEvent fullContext -- headWord child pos atype
+    return $ mkSemi p fullEvent fullContext
         where                          
           (fullEvent, fullContext) = mkEventAndContext adjstate extra 
           p = (probs $ model opt) (chainRule fullEvent fullContext)  -- TODO

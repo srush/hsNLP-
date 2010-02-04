@@ -63,7 +63,6 @@ parseSpine parseNT = do
       return $ mkSpine $ catMaybes nonterms
 
 
-
 --{{{  TESTS
 
 

@@ -11,6 +11,7 @@ module Helpers.Common (
                ap,
                guard,
                on,
+               separate,
                module Data.Binary,
                module Data.DeriveTH, 
                module Test.QuickCheck,
@@ -33,6 +34,13 @@ import Control.Monad (liftM, ap, guard)
 import Data.List (intercalate)
 import Data.Monoid
 import Text.Printf
-
+import Data.List (elemIndex)
 csep = hsep .  punctuate comma . filter (not. isEmpty) 
 
+
+separate :: (Eq el) => el -> [el] -> [[el]]
+separate el [] = [] 
+separate el ls = case elemIndex el ls of
+                   Just n -> 
+                       (take n ls): (separate el (drop (n+1) ls))
+                   Nothing -> []
