@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns, StandaloneDeriving #-}
-module NLP.Probability.Chain (
+module NLP.Probability.Chain (simpleObserve,
                               JointModel (..),
                               M2(..), M3(..), M4(..), M5(..), M7(..), HolderPretty, hPretty
                              ) where 

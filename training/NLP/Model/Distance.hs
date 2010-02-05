@@ -18,16 +18,18 @@ mkDistCacheRight :: (WordLattice sent, WordSymbol (Symbol sent)) => sent -> Pars
 mkDistCacheRight sent = do
   verbFn <- isVerb
   commaFn <- isComma
-  let cache = m verbFn commaFn 
+  conjFn <- isConj
+  let cache = m verbFn commaFn conjFn 
   return $ \i -> case i of
                    (_, k ) | k == n +1 -> (False,True)
                    _ -> fromJustDef (False, False)  $ M.lookup i cache 
-    where m vfn cfn = M.fromList $ do
+    where m vfn cfn ccfn = M.fromList $ do
                 i <- [1..n] 
                 k <- [i..n]
                 let dis = (or [vfn $ getPOS $ head $ getWords sent j | j<-[i+1..k]],
                            (k+1 == n)  
-                          
+                           || (ccfn $ getPOS $ head $ getWords sent (k)) 
+                           || (ccfn $ getPOS $ head $ getWords sent (k+1))
                            || (cfn $ getPOS $ head $ getWords sent (k)) 
                            || (cfn $ getPOS $ head $ getWords sent (k+1)) )
                 return $ ((i,k), dis)

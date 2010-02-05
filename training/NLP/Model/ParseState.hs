@@ -47,7 +47,7 @@ data AdjState w m semi =
       side :: !AdjunctionSide,
       curDelta :: !Delta,
       isAfterComma :: !Bool,
-      lastInNPB :: Maybe (GWord ),
+      lastInNPB :: Maybe GWord,
       predComma :: w -> Bool,
       predVerb :: w -> Bool,
       labelList :: [ALabel],
@@ -55,11 +55,14 @@ data AdjState w m semi =
     } 
 
 --expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, side as)
+--expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, side as)
+
+-- OPTIMIZATION
 expandAdjState as = (enumId as, lastInNPB as)
 cacheEnum as = as{ enumId = combineEnum [(fromEnum $  curPos as, 5), (fromEnum $ curDelta as, 10), (fromEnum $ isAfterComma as,5), 
                                          (fromEnum $ side as,5)] }
  
-cacheState = cacheEnum
+cacheState = id -- cacheEnum
 
 initState :: (WordSymbol w) => 
            ParseOpts model semi  ->
@@ -105,9 +108,9 @@ commaPruning state split =
     (not $ afterConj)
         where afterConj = snd $ (distanceCache $ opts state) (ind state, split) 
 
-shouldPrune adjstate split isTryingEmpty = False 
-    -- (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
-    --((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
+shouldPrune adjstate split isTryingEmpty = False
+--    (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
+--    ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
 
 mkDistance adjstate split = VerbDistance verb
     where (verb, _) = (distanceCache $ opts adjstate) (ind adjstate, split)

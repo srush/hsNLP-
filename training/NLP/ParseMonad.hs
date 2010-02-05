@@ -1,12 +1,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving ,FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
 module NLP.ParseMonad (ParseMonad, 
                        LoadMapConf (..),
+                       Mappers,
                        defaultLoadMap,
                        loadDebugMappers,
                        loadMappers,
                        runParseMonad,
                        isVerb,
                        isComma,
+                       isConj,
                        collapseWord,
                        testPM,
                        tripletMapper,
@@ -21,7 +23,7 @@ import Control.Monad.Reader
 import Helpers.Parse 
 import qualified Data.Set as S
 import qualified Data.Bimap as B
-
+import Data.Char (ord)
 data Mappers = Mappers {
       map_pos   :: Mapper POS,
       map_word  :: Mapper Word,
@@ -30,6 +32,8 @@ data Mappers = Mappers {
       map_triplet :: Mapper Triplet, 
       map_isComma :: S.Set APOS,
       map_isVerb  :: S.Set APOS,
+      map_isConj  :: S.Set APOS,
+      map_npb  :: ANonTerm,
       map_commonWords :: Maybe (S.Set Word)
     }
 
@@ -45,10 +49,12 @@ data LoadMapConf = LoadMapConf {
       directory :: String,
       commas :: [String],
       verbs :: [String],
+      conj :: [String],
+      npb :: String,
       shouldCollapseWords :: Bool
     }
 
-defaultLoadMap = LoadMapConf "maps/" [",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] True
+defaultLoadMap = LoadMapConf "maps/" [",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] ["CC"] "NPB" True
 
 testPM pm = do 
   l <- loadDebugMappers
@@ -71,6 +77,7 @@ loadMappers conf = do
   common <- loadSet $ dir ++ "commonWords.map"
   let commaSet = map (toAtomWithMap m1 . mkPOS) $ commas conf 
   let verbSet = map (toAtomWithMap  m1 . mkPOS) $ verbs conf
+  let conjSet = map (toAtomWithMap  m1 . mkPOS) $ conj conf
   return $ Mappers {
                map_pos = m1,
                map_word = m2,
@@ -79,16 +86,19 @@ loadMappers conf = do
                map_triplet = m5,
                map_isComma = S.fromList commaSet,
                map_isVerb = S.fromList verbSet,
+               map_isConj = S.fromList conjSet,
+               map_npb    = toAtomWithMap m3 $ mkNonTerm $ npb conf ,
                map_commonWords = if (shouldCollapseWords conf) then Just common else Nothing
              }
 
-tripletMapper :: ParseMonad (STriplet -> Maybe ATriplet) 
+tripletMapper :: ParseMonad (ANonTerm ->Bool, STriplet -> Maybe ATriplet) 
 tripletMapper = do 
   m <- ask 
   let mtrip = map_triplet m
       mnt   = map_nt m
-      (Mapper bimap) = mtrip 
-  return (\(a,b,c) -> 
+      (Mapper bimap) = mtrip
+      npb = map_npb m
+  return ((==) npb , \(a,b,c) -> 
               let newa = fromAtomWithMap mnt a 
                   newb = fmap (fromAtomWithMap mnt) b 
                   newc = fmap (fromAtomWithMap mnt) c 
@@ -103,10 +113,14 @@ collapseWord w = do
   return $ case m of 
              Nothing -> w 
              Just common ->
-                  if S.member w common  then 
+                  if isNum w then
+                      read "*NUM*"
+                  else if S.member w common  then 
                       w 
                   else read "*UNK*" 
-               
+      where isNum (Word w ) = ord a >= ord '0' && ord a <= ord '9'                
+                where a = w!!0
+
 instance (MonadAtom POS ParseMonad) where 
     getMapper = map_pos `liftM` ask
 instance (MonadAtom Word ParseMonad) where 
@@ -126,4 +140,9 @@ isVerb :: ParseMonad (APOS -> Bool)
 isVerb  = do
   m <- ask
   return $ \pos -> S.member pos (map_isVerb m) 
+
+isConj :: ParseMonad (APOS -> Bool)
+isConj  = do
+  m <- ask
+  return $ \pos -> S.member pos (map_isConj m) 
        

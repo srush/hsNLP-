@@ -26,21 +26,21 @@ newtype AtomM s a = AtomM (Reader (Mapper s) a)
 class (Monad m) => MonadAtom s m where 
     getMapper :: m (Mapper s) 
 
-toAtomWithMap :: (Ord s) => Mapper s -> s -> Atom s 
+toAtomWithMap :: (Show s, Ord s) => Mapper s -> s -> Atom s 
 toAtomWithMap (Mapper m) a = 
-    Atom $ fromJustNote "Cannot map item" $ B.lookup a m
+    Atom $ fromJustNote ("Cannot map item " ++ show a)  $ B.lookup a m
 
 
-fromAtomWithMap :: (Ord s) => Mapper s -> Atom s -> s 
+fromAtomWithMap :: (Ord s, Show s) => Mapper s -> Atom s -> s 
 fromAtomWithMap (Mapper m) (Atom b) = 
-    fromJustNote "Cannot int back to item" $ B.lookupR b m
+    fromJustNote ("Cannot int back to item " ++ show b) $ B.lookupR b m
      
-toAtom :: (MonadAtom s m, Ord s) => s -> m (Atom s) 
+toAtom :: (Show s, MonadAtom s m, Ord s) => s -> m (Atom s) 
 toAtom a = do 
       m <- getMapper
       return $ toAtomWithMap m a 
 
-fromAtom :: (MonadAtom s m, Ord s) => Atom s -> m s 
+fromAtom :: (Show s, MonadAtom s m, Ord s) => Atom s -> m s 
 fromAtom b = do
   m <- getMapper
   return $ fromAtomWithMap m b

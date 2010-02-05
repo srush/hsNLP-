@@ -1,6 +1,6 @@
 import NLP.TreeBank.TreeBank 
-import NLP.TreeBank.TAG
-import NLP.Model.TAGparse hiding (word)
+import NLP.Model.TAG.Format
+import NLP.Model.TAG.Parse 
 import System (getArgs) 
 import System.IO
 import Helpers.Common
@@ -14,10 +14,10 @@ import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
 import NLP.Language.SimpleLanguage
-import NLP.Model.ChainPrior
+import NLP.Model.TAG.Prior
 import NLP.Grammar.TAG
-import NLP.Model.TAGWrap
-import NLP.Model.Chain
+import NLP.Model.TAG.Wrap
+import NLP.Probability.Chain
 import NLP.ParseMonad
 main = do 
   [file1, file2] <- getArgs

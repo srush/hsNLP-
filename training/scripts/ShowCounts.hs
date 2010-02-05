@@ -22,7 +22,7 @@ main = do
   let parses =  mapM (\(s,p) -> do
                         tm <- tripletMapper
                         Just b <- decodeGold params s
-                        b' <- genDecodeSentence (defaultDecoding{validator=validByDepPrior tm p} ) params s 
+                        b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {validator=const $ validByDepPrior tm p} ) params s 
                         return (b', b) ) $ zip sents prunes
   let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]

@@ -16,7 +16,7 @@ import NLP.Model.CreateableSemi
 import NLP.Model.TAG.Adjunction as ADJ
 import NLP.Language.SimpleLanguage
 import NLP.Probability.Chain
-import NLP.Model.TAGWrap
+import NLP.Model.TAG.Wrap
 import NLP.WordLattice
 import NLP.ParseMonad
 import NLP.Model.ParseState

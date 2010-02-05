@@ -1,6 +1,6 @@
 import NLP.TreeBank.TreeBank 
-import NLP.TreeBank.TAG
-import NLP.Model.TAGparse
+import NLP.Model.TAG.Format
+import NLP.Model.TAG.Parse
 import System (getArgs) 
 import System.IO
 import Helpers.Common

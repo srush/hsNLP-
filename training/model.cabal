@@ -23,6 +23,7 @@ library
                          NLP.Model.TAG.Format,
                          NLP.Model.TAG.Decoding,
                          NLP.Model.TAG.Derivation,
+                         NLP.Model.TAG.DependencyPrior,
 
                          NLP.Model.Dependency.Model
                          NLP.Model.Dependency.Wrap

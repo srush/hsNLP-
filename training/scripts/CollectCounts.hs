@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell, StandaloneDeriving, TypeFamilies, UndecidableInstances, Rank2Types, GeneralizedNewtypeDeriving, FlexibleInstances, TypeSynonymInstances #-}
-import NLP.Model.TAGparse
+import NLP.Model.TAG.Parse
 
-import NLP.TreeBank.TAG
+import NLP.Model.TAG.Format
 import NLP.TreeBank.TreeBank
 import System (getArgs) 
 import System.IO
@@ -15,8 +15,8 @@ import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
 import Debug.Trace
-import NLP.Model.Adjunction
-import NLP.Model.Chain
+import NLP.Model.TAG.Adjunction
+import NLP.Probability.Chain
 import NLP.Language.SimpleLanguage
 import Counts 
 import NLP.ParseMonad

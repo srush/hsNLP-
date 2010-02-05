@@ -50,14 +50,14 @@ readDecodeParams adjCountFile spineCountFile spineProbFile = do
 
 data DecodingOpts = DecodingOpts {
       extraDepScore :: (Pairs (Collins) -> Counter (CVD TAGDerivation)),
-      validator :: Validity Collins ,
+      validator :: TSentence -> Validity Collins ,
       beamThres :: Double,
       commaPrune :: Bool
     }
 
 defaultDecoding =  DecodingOpts {
                      extraDepScore = const 0.0,
-                     validator = allValid,
+                     validator = const allValid,
                      beamThres = 10000,
                      commaPrune = True
                    }
@@ -75,15 +75,16 @@ genDecodeSentence ::
 genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do 
   testsent <- toTAGTest spineCounts insent 
   sent <- toTAGSentence insent
-  fsm <- makeFSM  sent (validator opts) mkSemi $ commaPrune opts
-  let (b',_)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb wher {-$ globalThres thres wher-} m)                             
+  dsent <- toTAGDependency insent
+  fsm <- makeFSM  sent (validator opts dsent) mkSemi $ commaPrune opts
+  let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)                             
                   (globalThresOne (beamThres opts) getSpineProb)
-
-  return b'
+  
+  return $ b'
         where 
-              getProb =  memoizeIntInt enumVal (prob probs) 
+              getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
               mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
-              getSpineProb =  memoizeInt priorEnumVal (prob probSpine) 
+              getSpineProb =  memoize False (prob probSpine) -- OPTIMIZATION
 
 memoizeIntInt :: (a -> (Int,Int)) -> (a -> b) -> (a -> b)
 memoizeIntInt toInt f = 
@@ -193,17 +194,17 @@ getFOM probs (sig, semi) = getPrior sig * getInside semi
           where (Prob p) = getBestScore i 
 
 
-prune probs wher m = 
+prune probs beamprune wher m = 
     --(trace ((printf "Best for %s is : %s %s %s  " (show wher ) (show bestNH) (show bestR) (show bestL)) ++ (show (Cell s))) )  
  s 
      where 
       s = M.filterWithKey (\sig semi -> ( -- getFOM (sig,semi)) > (best / 10000) --
                                          if hasNoAdjoin (sig,semi) then
-                                             getFOM probs (sig,semi) >= (bestNH / 10000) || isNaN bestNH 
+                                             getFOM probs (sig,semi) >= (bestNH / beamprune) || isNaN bestNH 
                                          else if hasAdjoinL (sig,semi) then
-                                             getFOM probs (sig,semi) >= (bestL / 10000) || isNaN bestL
+                                             getFOM probs (sig,semi) >= (bestL / beamprune) || isNaN bestL
                                          else if hasAdjoinR (sig,semi) then
-                                             getFOM probs (sig,semi) >= (bestR / 10000) || isNaN bestR 
+                                             getFOM probs (sig,semi) >= (bestR / beamprune) || isNaN bestR 
                                         else True)
                                         --    (getFOM (sig,semi)) > (bestH / 50000)
                                         --else  (getFOM (sig,semi)) > (bestNH / 50000)

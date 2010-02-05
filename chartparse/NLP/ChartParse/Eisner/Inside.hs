@@ -52,7 +52,7 @@ instance (WFSM fsa) => Show (ESpanEnd fsa) where
                 (show $ state end),
                 (show $ word end)] 
 
-expandESpanEnd sp =  (hasParent sp, state sp, word sp) -- TODO- fix back, split sp)
+expandESpanEnd sp =  (hasParent sp, state sp, word sp) --split sp)  TODO- fix back, 
 
 instance (WFSM fsa) => Eq (ESpanEnd fsa) where 
     (==)  = (==) `on` expandESpanEnd
@@ -158,12 +158,12 @@ optLinkR (span, semi) =do
 
 {-# INLINE canCombine #-}
 canCombine span1 span2 =
-    simple span1 && (b2 /= b2') &&  w1 == w2
+    simple span1 && (b2 /= b2') &&  f1 && f2 && w1 == w2
         where
           b2 = hasParent $ rightEnd span1
           b2'= hasParent $ leftEnd span2
-          --f1 = isStateFinal $ state $ rightEnd span1
-          --f2 = isStateFinal $ state $ leftEnd span2
+          f1 = isStateFinal $ state $ rightEnd span1
+          f2 = isStateFinal $ state $ leftEnd span2
           w1 = word $ rightEnd span1
           w2 = word $ leftEnd span2
 

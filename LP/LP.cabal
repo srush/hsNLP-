@@ -40,6 +40,6 @@ library
                      multilanguage,
                      monoids,
                      bimap,
-                     bytestring
-                                
+                     bytestring,
+                     deepseq                                
 
