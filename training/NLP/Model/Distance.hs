@@ -9,6 +9,7 @@ import NLP.Language.SimpleLanguage
 import NLP.ParseMonad
 import qualified Data.Map as M
 import NLP.ChartParse
+import Debug.Trace
 --}}}
 
 type DisCache = (Int,Int) -> (Bool,Bool) 
@@ -20,14 +21,13 @@ mkDistCacheRight sent = do
   commaFn <- isComma
   conjFn <- isConj
   let cache = m verbFn commaFn conjFn 
-  return $ \i -> case i of
-                   (_, k ) | k == n +1 -> (False,True)
+  return $  \i ->  case i of
                    _ -> fromJustDef (False, False)  $ M.lookup i cache 
     where m vfn cfn ccfn = M.fromList $ do
                 i <- [1..n] 
                 k <- [i..n]
                 let dis = (or [vfn $ getPOS $ head $ getWords sent j | j<-[i+1..k]],
-                           (k+1 == n)  
+                           (k + 1 == n)  || (k == n)   
                            || (ccfn $ getPOS $ head $ getWords sent (k)) 
                            || (ccfn $ getPOS $ head $ getWords sent (k+1))
                            || (cfn $ getPOS $ head $ getWords sent (k)) 
@@ -41,7 +41,7 @@ mkDistCacheLeft sent = do
   commaFn <- isComma
   let cache = m verbFn commaFn 
   return $ \i -> case i of
-                     (_, k ) | k == n +1 -> (False,True)
+                     (_, k ) | k == n  -> (False,True)
                      _ -> fromJustDef (False, False) $ M.lookup i cache
 
     where m vfn cfn = M.fromList $ do

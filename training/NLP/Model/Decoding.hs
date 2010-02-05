@@ -5,11 +5,11 @@ module NLP.Model.TAG.Decoding where
 import Debug.Trace
 import Helpers.Common
 import NLP.Model.CreateableSemi
-import NLP.Model.TAG.Derivation
+import NLP.Model.Derivation
 import NLP.Model.TAG.Wrap
 import NLP.Model.TAG.Prior
 import NLP.Model.TAG.Semi
-import NLP.Model.ParseTree
+
 import NLP.Semiring.ViterbiNBestDerivation
 import NLP.Probability.Chain
 import qualified Data.Map as M
@@ -32,15 +32,13 @@ import Control.Concurrent.MVar
 import NLP.ParseMonad
 import qualified Data.Traversable as T
 import NLP.Model.TAG.Semi
-import qualified Data.IntMap as IM
-import NLP.ChartParse
 type DecodeParams = (SpineExist, Probs Collins, Probs CollinsPrior)
 
 readDecodeParams :: String -> String -> String -> IO DecodeParams
 readDecodeParams adjCountFile spineCountFile spineProbFile = do
-  counts <- decodeFile adjCountFile
-  spineCounts <- decodeFile spineCountFile
-  spineCounts2 <- decodeFile spineProbFile
+  !counts <- decodeFile adjCountFile
+  !spineCounts <- decodeFile spineCountFile
+  !spineCounts2 <- decodeFile spineProbFile
   let probSpine = estimate spineCounts2
   --print counts
   let probs = estimate counts
@@ -50,14 +48,14 @@ readDecodeParams adjCountFile spineCountFile spineProbFile = do
 
 data DecodingOpts = DecodingOpts {
       extraDepScore :: (Pairs (Collins) -> Counter (CVD TAGDerivation)),
-      validator :: TSentence -> Validity Collins ,
+      validator :: Validity Collins ,
       beamThres :: Double,
       commaPrune :: Bool
     }
 
 defaultDecoding =  DecodingOpts {
                      extraDepScore = const 0.0,
-                     validator = const allValid,
+                     validator = allValid,
                      beamThres = 10000,
                      commaPrune = True
                    }
@@ -75,54 +73,18 @@ genDecodeSentence ::
 genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do 
   testsent <- toTAGTest spineCounts insent 
   sent <- toTAGSentence insent
-  dsent <- toTAGDependency insent
-  fsm <- makeFSM  sent dsent opts  mkSemi
-  let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)                             
-                  (globalThresOne ((beamThres opts)) getSpineProb) (globalThresOne (1e5) getSpineProb)
-  return $ {-trace (show $ chartStats chart)-}  b'
+  fsm <- makeFSM  sent (validator opts) mkSemi $ commaPrune opts
+  let (b',_)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb wher {-$ globalThres thres wher-} m)                             
+                  (globalThresOne (beamThres opts) getSpineProb)
+
+  return b'
         where 
-              getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
+              getProb = memoize (prob probs) 
               mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
-              getSpineProb = memoize False (prob probSpine) -- OPTIMIZATION
+              getSpineProb = memoize (prob probSpine) 
 
-memoizeIntInt :: (a -> (Int,Int)) -> (a -> b) -> (a -> b)
-memoizeIntInt toInt f = 
-    unsafePerformIO $ 
-    do cacheRef <- newMVar IM.empty
-       return (\x -> unsafePerformIO (g cacheRef x))
-    where
-      g cacheRef x = 
-          do cache <- readMVar cacheRef
-             let (ix1,ix2) = toInt x 
-             case IM.lookup ix1 cache >>= IM.lookup ix2 of
-               Just y  -> return y
-               Nothing -> do 
-                 let y     = f x 
-                 let cache' = IM.insertWith (IM.union) ix1 (IM.singleton ix2 y) cache
-                 swapMVar cacheRef cache'
-                 return y
-                        
-
-memoizeInt :: (a -> Int) -> (a -> b) -> (a -> b)
-memoizeInt toInt f = 
-    unsafePerformIO $ 
-    do cacheRef <- newMVar IM.empty
-       return (\x -> unsafePerformIO (g cacheRef x))
-    where
-      g cacheRef x = 
-          do cache <- readMVar cacheRef
-             let ix1 = toInt x 
-             case IM.lookup ix1 cache of
-               Just y  -> return y
-               Nothing -> do 
-                 let y     = f x 
-                 let cache' = IM.insert ix1 y cache
-                 swapMVar cacheRef cache'
-                 return y
-                        
-
-memoize :: (Ord a, Show a) => Bool -> (a -> b) -> (a -> b) 
-memoize tra f =
+memoize :: Ord a => (a -> b) -> (a -> b) 
+memoize f =
     unsafePerformIO $ 
     do cacheRef <- newMVar M.empty
        return (\x -> unsafePerformIO (g cacheRef x))
@@ -130,7 +92,7 @@ memoize tra f =
       g cacheRef x = 
           do cache <- readMVar cacheRef
              case M.lookup x cache of
-               Just y  -> (if tra then trace "hit"$ trace (show x) else id) return y
+               Just y  -> return y
                Nothing -> do 
                  let y     = f x 
                  let cache' = M.insert x y cache
@@ -140,38 +102,34 @@ memoize tra f =
 newValid sent  event context = 
     valid sent (parentTWord context) (childTWord event) (spinePos context) (fromJustDef Sister $ NLP.Model.TAG.Adjunction.adjType event)
 
-decodeGold = genDecodeGold defaultGoldDecoding
 
-defaultGoldDecoding =  DecodingOpts {
-                     extraDepScore = const 0.0,
-                     validator = newValid,
-                     beamThres = 1e100,
-                     commaPrune = False
-                   }
-
-
-genDecodeGold :: DecodingOpts -> DecodeParams -> WordInfoSent -> ParseMonad (Maybe (CVD TAGDerivation))
-genDecodeGold opts (spineCounts, probs, probSpine) insent = do
+decodeGold :: DecodeParams -> WordInfoSent -> ParseMonad (Maybe (CVD TAGDerivation))
+decodeGold (spineCounts, probs, probSpine) insent = do
     dsent <- toTAGDependency insent
     let actualsent = tSentence dsent 
+        prunVal = newValid dsent
     tagsent <- toTAGSentence insent
-    fsm <- makeFSM tagsent dsent opts mkSemi 
-    let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
+    fsm <- makeFSM tagsent prunVal mkSemi False
+    let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id
     return b'
     where
           mkSemi pairs = prob probs pairs
 
 
-makeFSM :: Sentence TWord-> TSentence  -> DecodingOpts ->
+
+
+makeFSM :: Sentence TWord  -> (Validity Collins) -> 
            (Pairs Collins -> Counter (CVD TAGDerivation)) -> 
+           Bool -> 
            ParseMonad (Int -> Maybe TWord ->
                        (AdjState TWord Collins (CVD TAGDerivation) , 
                         AdjState TWord Collins (CVD TAGDerivation) ))
-makeFSM insent dsent opts  mkSemi  =  do 
+makeFSM insent val mkSemi collins =  do 
       ldiscache <- mkDistCacheLeft insent
       rdiscache <- mkDistCacheRight insent
-      leftState <- initState (ParseOpts (commaPrune opts) ldiscache (ProbModel mkSemi (validator opts dsent))) [] ALeft
-      rightState <- initState (ParseOpts  (commaPrune opts) rdiscache (ProbModel mkSemi (validator opts dsent))) [] ARight 
+      
+      leftState <- initState (ParseOpts collins ldiscache (ProbModel mkSemi val)) [] ALeft
+      rightState <- initState (ParseOpts collins rdiscache (ProbModel mkSemi val)) [] ARight 
       return (\ i (Just word) -> (leftState i word, rightState i word))
 
 
@@ -199,17 +157,17 @@ getFOM probs (sig, semi) = getPrior sig * getInside semi
           where (Prob p) = getBestScore i 
 
 
-prune probs beamprune wher m = 
+prune probs wher m = 
     --(trace ((printf "Best for %s is : %s %s %s  " (show wher ) (show bestNH) (show bestR) (show bestL)) ++ (show (Cell s))) )  
  s 
      where 
       s = M.filterWithKey (\sig semi -> ( -- getFOM (sig,semi)) > (best / 10000) --
                                          if hasNoAdjoin (sig,semi) then
-                                             getFOM probs (sig,semi) >= (bestNH / beamprune) || isNaN bestNH 
+                                             getFOM probs (sig,semi) >= (bestNH / 10000) || isNaN bestNH 
                                          else if hasAdjoinL (sig,semi) then
-                                             getFOM probs (sig,semi) >= (bestL / beamprune) || isNaN bestL
+                                             getFOM probs (sig,semi) >= (bestL / 10000) || isNaN bestL
                                          else if hasAdjoinR (sig,semi) then
-                                             getFOM probs (sig,semi) >= (bestR / beamprune) || isNaN bestR 
+                                             getFOM probs (sig,semi) >= (bestR / 10000) || isNaN bestR 
                                         else True)
                                         --    (getFOM (sig,semi)) > (bestH / 50000)
                                         --else  (getFOM (sig,semi)) > (bestNH / 50000)
@@ -218,7 +176,7 @@ prune probs beamprune wher m =
       --p = M.filter (\(_,fom) -> fom <= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
 
       hasNoAdjoin (sig, semi) = hasParentPair sig == (False, False) 
-      hasAdjoinL (sig, semi) = hasParentPair sig == (True, False) 
+      hasAdjoinL (sig, semi) = hasParentPair sig == (True, False)
       hasAdjoinR (sig, semi) = hasParentPair sig == (False, True) 
       best = case  map (getFOM probs )$ M.toList m of
                [] -> 0.0
@@ -240,12 +198,6 @@ renderSentences a b = do
            let der2 = getBestDerivation b
            let (Prob sc1) = getBestScore a
            let (Prob sc2) = getBestScore b
-           --let TAGDerivation (_, debug1) = der1  
-           --let TAGDerivation (_, debug2) = der2
-           --let m1 = M.fromList debug1
-           --let m2 = M.fromList debug2
-           --let diff1 = M.difference m1 m2 
-           --let diff2 = M.difference m2 m1
            d1 <- tagDerToTree der1 
            d2 <- tagDerToTree der2 
            let toReadable = (\a -> case a of 

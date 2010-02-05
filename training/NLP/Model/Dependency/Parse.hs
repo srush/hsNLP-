@@ -67,5 +67,5 @@ instance (CreateableSemi semi, Semiring semi, Model semi ~ FirstOrderDep) =>
     type FSMSymbol (AdjState DWord FirstOrderDep semi) = DWord
     type FSMSemiring (AdjState DWord FirstOrderDep semi) = semi 
     next = tryParent
-    finish _ _ = one -- TODO- check this
+    finish _ _ = Just one -- TODO- check this
     isFinal = const True  

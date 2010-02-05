@@ -50,9 +50,10 @@ instance (WFSM fsa) => Show (ESpanEnd fsa) where
     show end = intercalate " " 
                [(show $ hasParent end),
                 (show $ state end),
-                (show $ word end)] 
+                (show $ word end),
+                (show $ split end)] 
 
-expandESpanEnd sp =  (hasParent sp, state sp, word sp) --split sp)  TODO- fix back, 
+expandESpanEnd sp =  (hasParent sp, state sp, word sp, split sp) --   TODO- fix back, 
 
 instance (WFSM fsa) => Eq (ESpanEnd fsa) where 
     (==)  = (==) `on` expandESpanEnd
@@ -71,7 +72,10 @@ data ESpan fsa =
 
 --{{{  ESpan Classes
 instance (WFSM fsa) => Show (ESpan fsa) where
-    show span = printf "s = %s b = %s s = %s wl = %s wr = %s" (showBool $ simple span) (showBoolPair $ hasParentPair span) (show (state $ leftEnd span, state $ rightEnd span)) (show $ word $ leftEnd span) (show $ word $ rightEnd span)
+    show span = printf "spL = %s spR = %s s = %s b = %s s = %s wl = %s wr = %s"                 
+                (show $ split $ leftEnd span) 
+                (show $ split $ rightEnd span) 
+                (showBool $ simple span) (showBoolPair $ hasParentPair span) (show (state $ leftEnd span, state $ rightEnd span)) (show $ word $ leftEnd span) (show $ word $ rightEnd span)
         where showBool True = "1"
               showBool False = "0"
               showBoolPair :: (Bool, Bool) -> String
@@ -79,7 +83,9 @@ instance (WFSM fsa) => Show (ESpan fsa) where
               
 
 instance (WFSM fsa) => Pretty (ESpan fsa) where
-    pPrint span = text $ printf "wl = %s wr = %s s = %s b = %s sim = %s" 
+    pPrint span = text $ printf "spL = %s spR = %s wl = %s wr = %s s = %s b = %s sim = %s" 
+                (show $ split $ leftEnd span) 
+                (show $ split $ rightEnd span) 
                 (show $ word $ leftEnd span) 
                 (show $ word $ rightEnd span)
                 (show (state $ leftEnd span, state $ rightEnd span)) 
@@ -123,7 +129,8 @@ canOptLinkR span =
 optLinkL' span = do -- $ do
       guard $ canOptLinkL span
       (leftEnd', p) <- advance (leftEnd span) (word $ rightEnd span) 
-      let pfin = finish (fromSeal $ state $ rightEnd span) (fromJustNote "split" $ split $ rightEnd span) 
+      let pfin' = finish (fromSeal $ state $ rightEnd span) (fromJustNote "split" $ split $ rightEnd span) 
+      Just pfin <- [pfin']
       return $ (span { simple = True, 
                        leftEnd = leftEnd',
                        rightEnd = (rightEnd span) {hasParent = True,
@@ -141,7 +148,8 @@ optLinkL (span, semi) =do
 --optLinkR' :: (WFSM fsa) => SingleDerivationRule (EItem fsa)
 optLinkR' span = do 
   guard $ canOptLinkR span
-  let pfin = finish (fromSeal $ state $  leftEnd span) (fromJustNote "split" $ split $ leftEnd span) 
+  let pfin' = finish (fromSeal $ state $  leftEnd span) (fromJustNote "split" $ split $ leftEnd span) 
+  Just pfin <- [pfin'] 
   (rightEnd', p) <- advance (rightEnd span)  (word $ leftEnd span)   
   return $ (span {simple = True, 
                   rightEnd = rightEnd',
@@ -174,12 +182,13 @@ canCombine span1 span2 =
 
 combine' span1 span2 = do 
   guard  $ canCombine span1 span2
+  Just pfin <- [pfin']
   return $ (ESpan {simple = False,
                   leftEnd = (leftEnd span1)   {split = leftSp},
                   rightEnd = (rightEnd span2) {split = rightSp}},
              pfin)
         where
-          pfin = if not b2' then -- _ 1 0 1
+          pfin' = if not b2' then -- _ 1 0 1
                      finish (fromSeal $ state $ leftEnd  span2) (fromJustNote "fina" $ split $ leftEnd  span2)
                   else if not b2 then 
                      finish (fromSeal $ state $ rightEnd span1) (fromJustNote "finb" $ split $ rightEnd  span1)   
@@ -259,20 +268,21 @@ accept (span, _) =
 
 type GetFSM fsa = Int -> Sym fsa -> (fsa, fsa) --todo: fix this 
 
-processCell :: (Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
+processCell :: ( Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
                GetFSM fsa -> 
                sent ->  
-               (Symbol sent -> Sym fsa) ->                
+               (Symbol sent -> Sym fsa) ->     
+               ([EItem fsa] -> [EItem fsa]) ->            
                Span -> -- Size of the cell 
                (Span -> [EItem fsa]) -> -- function from cell to contenst 
                ([EItem fsa] -> [EItem fsa]) -> 
                [EItem fsa] -- contents of the new cell 
-processCell getFSA sentence wordConv (i, k) chart beam = 
+processCell getFSA sentence wordConv beamFirst (i, k) chart beam = 
    if k > latticeLength sentence then []
    else
     catMaybes $ map seal $ 
     if k-i == 1 then        
-        (let seedCells = beam $ M.toList $ M.fromListWith mappend $ seed getFSA i 
+        (let seedCells = beam $ beamFirst {-$ M.toList $ M.fromListWith mappend -} $ seed getFSA i 
                         (map wordConv $ getWords sentence i) 
                         (map wordConv  $ getWords sentence (i+1))
         in
@@ -287,15 +297,16 @@ processCell getFSA sentence wordConv (i, k) chart beam =
           left = beam . concatMap (\s ->  optLinkL s)  
           right = beam . concatMap (\s -> optLinkR s )  
 
-eisnerParse :: (Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
+eisnerParse :: ( Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
                GetFSM  fsa -> 
                (Symbol sent -> Sym fsa) -> 
                sent  ->                 
               (Span -> M.Map (ESpan fsa) (Semi fsa) -> M.Map (ESpan fsa) (Semi fsa)) ->
               ([EItem fsa] -> [EItem fsa]) -> 
+              ([EItem fsa] -> [EItem fsa]) -> 
                (Maybe (Semi fsa), Chart (ESpan fsa) (Semi fsa))
-eisnerParse getFSM wordConv sent prune beam = (semi, chart)  
-    where chart = chartParse sent (processCell getFSM sent wordConv) prune beam
+eisnerParse getFSM wordConv sent prune beam beamFirst = (semi, chart)  
+    where chart = chartParse sent (processCell getFSM sent wordConv beamFirst) prune beam
           semi = do
             last <- chartLookup (1, latticeLength sent) chart
             let semiresults = map snd $ filter accept last

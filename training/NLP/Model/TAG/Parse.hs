@@ -83,13 +83,14 @@ tryEmpties split state = tryEmpties' (state,one)
             tryEmpties'  (cacheState $ adjstate {curPos = curPos adjstate + 1, 
                                              curDelta = startDelta,
                                              isAfterComma = False,
-                                             lastInNPB = Nothing}, 
+                                             lastInNPB = Nothing,
+                                             hasBeenRegular = False}, 
                                        semi `times` semi')
 
 -- | This function is called only to finish a tree. 
 -- That is add end symbols to each node until it is complete.
 tryFinish state split =
-    if isComplete endstate then semi else mempty
+    if isComplete endstate then Just semi else Nothing
     where (endstate, semi) = last $ tryEmpties split state
 
 -- | Helper function, perform an adjunction
@@ -98,10 +99,11 @@ doOneAdj baseSemi adjstate (child, atype, dis) = do
     return  (cacheState $ adjstate{curDelta = newDelta,
                       isAfterComma = prevComma oldDelta,
                       lastInNPB = if npbMode then 
-                                      if (predComma adjstate) child' then
+                                      if predComma adjstate child' then
                                           lastInNPB adjstate
                                       else Just $ twWord $ fromJustNote "read" child 
-                                  else Nothing
+                                  else Nothing,
+                      hasBeenRegular = atype == Regular || hasBeenRegular adjstate
                      }, 
              baseSemi `times` s)
           where   
@@ -131,7 +133,8 @@ mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
                           parentWord = getLex $ parentGWord,
                           parentInd  = twInd headWord,
                           spinePos   = pos,
-                          parentTWord = headWord
+                          parentTWord = headWord,
+                          prevRegular = atype == Regular || beenReg
                         }
            
               where          -- NPB Trick 
@@ -150,13 +153,15 @@ mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
                                          childInd  = Just $ twInd child',
                                          adjType   = Just atype,
                                          childTWord = Just child'
+
                                        }
           AdjState {opts  = opts, 
                     side  = side, 
                     curPos= pos,
                     word  = headWord,
                     curDelta  = curDelta,
-                    lastInNPB = npblast
+                    lastInNPB = npblast,
+                    hasBeenRegular = beenReg
                     } = adjstate
 
 

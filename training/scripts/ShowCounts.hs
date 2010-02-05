@@ -8,7 +8,7 @@ import NLP.TreeBank.TreeBank
 import NLP.ParseMonad
 import NLP.Model.TAG.DependencyPrior
 import NLP.ParseMonad
-
+import Debug.Trace
 main = do 
   [adjCountFile, spineCountFile, spineProbFile, pruneFile, testFile, n] <- getArgs
   params <- (readDecodeParams adjCountFile spineCountFile spineProbFile) :: IO (DecodeParams)
@@ -20,10 +20,17 @@ main = do
   let sents = runParseMonad sentsM mappers  
   prunes <- readPruning pruneFile
   let parses =  mapM (\(s,p) -> do
+                        
                         tm <- tripletMapper
-                        Just b <- decodeGold params s
-                        b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {validator=const $ validByDepPrior tm p} ) params s 
-                        return (b', b) ) $ zip sents prunes
+                        Just b <- genDecodeGold (defaultGoldDecoding {validator = (\s e c-> if newValid s e c then 
+                                                                                                if not $ validByDepPrior 1e-6 tm p e c then 
+                                                                                                    trace ("Pruning fail " ++ show e ++ " " ++show c) True
+                                                                                                else
+                                                                                                    True
+                                                                                            else False
+                                                                                  ) } ) params s
+                        b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {beamThres = 1e8, validator=const $ validByDepPrior 1e-6 tm p} ) params s 
+                        return (b', b) ) $ take 5 $ zip sents prunes
   let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]
   

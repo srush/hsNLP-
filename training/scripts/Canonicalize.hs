@@ -6,9 +6,9 @@ import qualified Data.Bimap as BM
 import Data.Text (replace, pack, unpack)
 import NLP.TreeBank.TreeBank
 import Data.Array
-import NLP.Language.English
+import NLP.Language.SimpleLanguage
 import Debug.Trace
-
+import NLP.ParseMonad
 
 isWord tree = 
     if isList tree then
@@ -34,22 +34,26 @@ addBackWords (WordInfoSent wis) tree = list (atom "TOP" : [list $ (tr
           else
               let (child,n') = foldl count ([], n) $ unList tree in
               (ls ++ [list child], n')
-      getAtomsBefore pos' n = 
-          if pos' /= (transFor $ show $ pos $ getWord n) then
+      getAtomsBefore pos' n =
+      --    trace (show "before" ++show n) $  
+          if pos' /= (transFor $ show $ posStr $ getWord n) then
               (getAtomN n) : getAtomsBefore pos' (n+1)
           else
               []
       getAtomN n = 
-          list [atom $ transFor $ show $ pos $ getWord n, 
+    --      trace (show "atomn" ++show n) $ 
+          list [atom $ transFor $ show $ posStr $ getWord n, 
                 atom $ transFor $ show $ wordStr $ getWord n ]
 
       getAtom pos' n = 
-          if pos' /= (transFor $ show $ pos $ getWord n) then
+  --        trace (show "atom" ++ show n) $ 
+          if pos' /= (transFor $ show $ posStr $ getWord n) then
               getAtom pos' (n+1)
           else 
               getAtomN n
       getNewN pos' n =
-          if pos' /= (transFor $ show $ pos $ getWord n) then
+--          trace (show m ++ show pos' ++ show "newn" ++ show n ++ (show $ posSt $ getWord n) ++ show wis) $ 
+          if pos' /= (transFor $ show $ posStr $ getWord n) then
               getNewN pos' (n+1)
           else
               n
@@ -95,6 +99,8 @@ doClean (wi, l) = if l /= "" then
 main = do
   [testFile] <- getArgs
   contents <- readFile testFile
-  let sents = (parseSentences  testFile contents) :: [WordInfoSent English] 
-  interact (unlines .  map (unpack . doClean ) . zip sents . lines)
+  let sents = (parseSentences  testFile contents) :: ParseMonad [WordInfoSent] 
+  dm <- loadMappers $ defaultLoadMap{shouldCollapseWords = False} 
+  let newsents = runParseMonad sents dm  
+  interact (unlines .  map (unpack . doClean ) . zip newsents . lines)
   

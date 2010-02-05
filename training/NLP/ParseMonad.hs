@@ -23,6 +23,7 @@ import Control.Monad.Reader
 import Helpers.Parse 
 import qualified Data.Set as S
 import qualified Data.Bimap as B
+import qualified Data.Map as M
 import Data.Char (ord)
 data Mappers = Mappers {
       map_pos   :: Mapper POS,
@@ -30,6 +31,7 @@ data Mappers = Mappers {
       map_nt    :: Mapper NonTerm,
       map_spine :: Mapper (Spine NonTerm), 
       map_triplet :: Mapper Triplet, 
+      map_nt2triplet :: M.Map (ANonTerm, Maybe ANonTerm, Maybe ANonTerm) ATriplet,
       map_isComma :: S.Set APOS,
       map_isVerb  :: S.Set APOS,
       map_isConj  :: S.Set APOS,
@@ -78,12 +80,16 @@ loadMappers conf = do
   let commaSet = map (toAtomWithMap m1 . mkPOS) $ commas conf 
   let verbSet = map (toAtomWithMap  m1 . mkPOS) $ verbs conf
   let conjSet = map (toAtomWithMap  m1 . mkPOS) $ conj conf
+  let (Mapper mtrip) = m5
+  let nt2triplet = M.fromList [ ((toAtomWithMap m3 a, fmap (toAtomWithMap m3) b, fmap (toAtomWithMap m3) c),Atom i)  | 
+        (Triplet (a,b,c),i) <- B.toList mtrip]
   return $ Mappers {
                map_pos = m1,
                map_word = m2,
                map_nt = m3,
                map_spine = m4,
                map_triplet = m5,
+               map_nt2triplet = nt2triplet,
                map_isComma = S.fromList commaSet,
                map_isVerb = S.fromList verbSet,
                map_isConj = S.fromList conjSet,
@@ -91,18 +97,15 @@ loadMappers conf = do
                map_commonWords = if (shouldCollapseWords conf) then Just common else Nothing
              }
 
-tripletMapper :: ParseMonad (ANonTerm ->Bool, STriplet -> Maybe ATriplet) 
+tripletMapper :: ParseMonad (ANonTerm ->Bool, APOS -> Bool, STriplet -> Maybe ATriplet) 
 tripletMapper = do 
-  m <- ask 
-  let mtrip = map_triplet m
-      mnt   = map_nt m
-      (Mapper bimap) = mtrip
+  m <- ask
+  cfn <- isComma
+  let mtrip = map_nt2triplet m
       npb = map_npb m
-  return ((==) npb , \(a,b,c) -> 
-              let newa = fromAtomWithMap mnt a 
-                  newb = fmap (fromAtomWithMap mnt) b 
-                  newc = fmap (fromAtomWithMap mnt) c 
-              in fmap Atom $ B.lookup (Triplet (newa, newb, newc)) bimap
+     
+  return ((==) npb ,cfn, \a -> 
+            M.lookup a mtrip
          )
 
 

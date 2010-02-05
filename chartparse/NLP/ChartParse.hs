@@ -8,6 +8,7 @@ import Helpers.Common
 import qualified Data.Map as M
 import Data.Array
 import Text.Printf
+import Debug.Trace
 --}}}
 
 type Span = (Int, Int) 

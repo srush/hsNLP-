@@ -2,7 +2,7 @@
 module NLP.Model.ParseState where 
 
 --{{{  Imports
-
+import Debug.Trace
 import NLP.Language.SimpleLanguage
 import NLP.WordLattice
 
@@ -48,23 +48,24 @@ data AdjState w m semi =
       curDelta :: !Delta,
       isAfterComma :: !Bool,
       lastInNPB :: Maybe GWord,
+      hasBeenRegular :: Bool,
       predComma :: w -> Bool,
       predVerb :: w -> Bool,
       labelList :: [ALabel],
       enumId :: Int
     } 
 
---expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, side as)
---expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, side as)
+expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, hasBeenRegular as, side as)
+
 
 -- OPTIMIZATION
-expandAdjState as = (enumId as, lastInNPB as)
+--expandAdjState as = (enumId as, lastInNPB as)
 cacheEnum as = as{ enumId = combineEnum [(fromEnum $  curPos as, 5), (fromEnum $ curDelta as, 10), (fromEnum $ isAfterComma as,5), 
                                          (fromEnum $ side as,5)] }
  
-cacheState = id -- cacheEnum
+cacheState = cacheEnum
 
-initState :: (WordSymbol w) => 
+initState :: (WordSymbol w, Show w) => 
            ParseOpts model semi  ->
            [ALabel] ->
            AdjunctionSide ->
@@ -84,6 +85,7 @@ initState parseOpts  labels side = do
                isAfterComma = False,
                labelList = labels,
                lastInNPB = Nothing,
+               hasBeenRegular = False,
                predComma = predComma. getPOS,
                predVerb = predVerb.getPOS,
                enumId = undefined
@@ -108,9 +110,9 @@ commaPruning state split =
     (not $ afterConj)
         where afterConj = snd $ (distanceCache $ opts state) (ind state, split) 
 
-shouldPrune adjstate split isTryingEmpty = False
+shouldPrune adjstate split isTryingEmpty = 
 --    (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
---    ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
+      ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
 
 mkDistance adjstate split = VerbDistance verb
     where (verb, _) = (distanceCache $ opts adjstate) (ind adjstate, split)

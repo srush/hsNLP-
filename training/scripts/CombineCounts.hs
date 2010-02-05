@@ -1,5 +1,5 @@
-import NLP.Model.Adjunction
-import NLP.Model.Chain
+import NLP.Model.TAG.Adjunction
+import NLP.Probability.Chain
 import System (getArgs) 
 import System.IO
 import Data.Binary

@@ -41,7 +41,7 @@ newtype AC1 = AC1 (AdjunctionContext1 Identity)
 type AdjunctionSubContext1 = AdjunctionContext1 Maybe
 
 mkAdjCon1 ::(forall a. a -> m a) -> FullContext (Collins) -> AdjunctionContext1 m 
-mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _ _ _) = 
+mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _ _ _ _) = 
     M7 (fi a,fi b,fi c,fi d, fi e, fi f, fi g) 
        
 instance Context (AC1 ) where 
@@ -193,7 +193,7 @@ instance JointModel (Collins) where
       childInd   :: Maybe Int, -- Not included in prob
       adjType    :: Maybe AdjunctionType,
       childTWord :: Maybe TWord -- Not included
-    }
+    } deriving Show
  
      data FullContext (Collins) =  AdjunctionFullContext { 
       parentNT   :: ANonTerm, 
@@ -205,8 +205,9 @@ instance JointModel (Collins) where
       parentWord :: AWord,
       parentInd  :: Int, -- not included in prob
       spinePos   :: Int,  -- not included
-      parentTWord :: TWord -- Not included
-    } 
+      parentTWord :: TWord, -- Not included
+      prevRegular :: Bool -- Not included
+    } deriving Show
      
      
      chainRule fullEvent fullContext = 
