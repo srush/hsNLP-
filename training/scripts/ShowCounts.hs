@@ -30,7 +30,7 @@ main = do
                                                                                             else False
                                                                                   ) } ) params s
                         b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {beamThres = 1e8, validator=const $ validByDepPrior 1e-6 tm p} ) params s 
-                        return (b', b) ) $ take 5 $ zip sents prunes
+                        return (b', b) ) $ zip sents prunes
   let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]
   

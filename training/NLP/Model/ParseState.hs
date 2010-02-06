@@ -55,13 +55,13 @@ data AdjState w m semi =
       enumId :: Int
     } 
 
-expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, hasBeenRegular as, side as)
+--expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, hasBeenRegular as, side as)
 
 
 -- OPTIMIZATION
---expandAdjState as = (enumId as, lastInNPB as)
+expandAdjState as = (enumId as, lastInNPB as)
 cacheEnum as = as{ enumId = combineEnum [(fromEnum $  curPos as, 5), (fromEnum $ curDelta as, 10), (fromEnum $ isAfterComma as,5), 
-                                         (fromEnum $ side as,5)] }
+                                         (fromEnum $ side as,5), (fromEnum $ hasBeenRegular as, 5)] }
  
 cacheState = cacheEnum
 

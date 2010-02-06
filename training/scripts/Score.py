@@ -6,8 +6,9 @@ os.system("rm /tmp/test /tmp/gold")
 
 #for i in range(int(sys.argv[2]), int(sys.argv[3])):
 if sys.argv[2] == "C":
-  os.system("scripts/GetGold T < %s/result%s.data | scripts/Canonicalize test2.bak/test2.%s.data +RTS -K1G >> /tmp/test"%("results",sys.argv[1],sys.argv[1]))
-  os.system("scripts/GetGold G < %s/result%s.data | scripts/Canonicalize test2.bak/test2.%s.data +RTS -K1G >> /tmp/gold"%("results",sys.argv[1],sys.argv[1]))
+  for i in range(int(sys.argv[3]), int(sys.argv[4])):
+    os.system("scripts/GetGold T < %s/result%s.data | scripts/Canonicalize test2/test2.%s.data +RTS -K1G >> /tmp/test"%("results",i,i))
+    os.system("scripts/GetGold G < %s/result%s.data | scripts/Canonicalize test2/test2.%s.data +RTS -K1G >> /tmp/gold"%("results",i,i))
 else:
   #os.system("scripts/GetGold G < %s >> /tmp/gold"%(sys.argv[1]))
   #os.system("scripts/GetGold T < %s >> /tmp/test"%(sys.argv[1]))

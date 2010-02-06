@@ -34,6 +34,7 @@ import qualified Data.Traversable as T
 import NLP.Model.TAG.Semi
 import qualified Data.IntMap as IM
 import NLP.ChartParse
+import Data.List
 type DecodeParams = (SpineExist, Probs Collins, Probs CollinsPrior)
 
 readDecodeParams :: String -> String -> String -> IO DecodeParams
@@ -78,8 +79,8 @@ genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do
   dsent <- toTAGDependency insent
   fsm <- makeFSM  sent dsent opts  mkSemi
   let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)                             
-                  (globalThresOne ((beamThres opts)) getSpineProb) (globalThresOne (1e5) getSpineProb)
-  return $ {-trace (show $ chartStats chart)-}  b'
+                  (globalThresList getSpineProb) (globalThresOne (1e5) getSpineProb)
+  return $ trace (show $ chartStats chart)  b'
         where 
               getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
               mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
@@ -185,6 +186,11 @@ globalThresOne beamPrune probs  ps =
           best = case  map (getFOM probs) ps of
                [] -> 0.0
                ls -> maximum $ ls
+
+globalThresList probs ps =  
+    take 50 $ reverse $ sortBy (compare `on` score)  ps  
+        where
+          score p = getFOM probs p 
 
 
 
