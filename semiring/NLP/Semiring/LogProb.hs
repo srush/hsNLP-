@@ -5,18 +5,20 @@ import NLP.Semiring
 
 -- log prob, should only be used in viterbi semiring (add not defined)
 newtype LogProb = LogProb Double
-    deriving (Eq, Num, Real, Fractional, Floating, Ord) 
+    deriving (Eq, Ord) 
 
 convertToProb (LogProb p) = exp(p)
 
 convertToDouble (LogProb p) = p
 
+fromProb p = LogProb $ log p 
+
 instance Show LogProb where 
     show (LogProb p) = show p
 
 instance Multiplicative LogProb where
-    one = 0.0
-    times = (+) 
+    one = LogProb 0.0
+    times (LogProb a) (LogProb b) = LogProb (a + b)
 
 instance Monoid LogProb where 
     mempty = undefined

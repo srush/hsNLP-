@@ -10,6 +10,7 @@ import qualified NLP.Semiring.Derivation as D
 import NLP.Grammar.Dependency
 import NLP.Semiring
 import NLP.Semiring.Prob
+import NLP.Semiring.LogProb
 import NLP.Model.CreateableSemi
 import NLP.Probability.Chain
 import NLP.Semiring.Viterbi
@@ -27,7 +28,7 @@ mkDerivationCell word =
     DerivationCell word 
 
 instance CreateableSemi (CVD TAGDerivation) where 
-    type Counter (CVD TAGDerivation) = Double
+    type Counter (CVD TAGDerivation) = LogProb
     type Model (CVD TAGDerivation) = Collins
     mkSemiSmall p = CVD $ viterbiHelp p (TAGDerivation $ Dependency mempty)
     mkSemi p event context = CVD $  

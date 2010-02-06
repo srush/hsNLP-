@@ -5,6 +5,7 @@ module NLP.Model.CreateableSemi where
 import Helpers.Common hiding (Derivation)
 import NLP.Semiring
 import qualified NLP.Semiring.Derivation as D
+import NLP.Semiring.LogProb
 import NLP.Semiring.Prob
 import NLP.Semiring.Viterbi
 import NLP.Semiring.ViterbiNBestDerivation
@@ -47,7 +48,9 @@ instance (Monoid monoid) => CreateableSemi (CD monoid model) where
 
 
 viterbiHelp prob tdep = 
-    mkViterbi $ Weighted (Prob prob, D.mkDerivation tdep)
+    mkViterbi $ Weighted (prob, D.mkDerivation tdep)
 
-newtype CVD der = CVD (ViterbiDerivation Prob der)
-    deriving (Show, Monoid, Multiplicative, Semiring, BestScorer der Prob)
+newtype CVD der = CVD (ViterbiDerivation LogProb der)
+    deriving (Show, Monoid, Multiplicative, Semiring, BestScorer der LogProb)
+
+

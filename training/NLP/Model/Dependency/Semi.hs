@@ -6,6 +6,7 @@ import Helpers.Common
 import NLP.Language.SimpleLanguage
 import NLP.Grammar.Dependency
 import NLP.Model.Dependency.Wrap
+import NLP.Semiring.LogProb
 
 newtype DependencyDerivation = DependencyDerivation (ParseDerivation (ALabel)) 
     deriving (Eq, Monoid)
@@ -17,7 +18,7 @@ instance Pretty (DependencyDerivation) where
     pPrint (DependencyDerivation der) = text $ show der
 
 instance CreateableSemi (CVD DependencyDerivation) where 
-    type Counter (CVD DependencyDerivation) = Double
+    type Counter (CVD DependencyDerivation) = LogProb
     type Model (CVD DependencyDerivation) = FirstOrderDep
     mkSemiSmall p = CVD $ viterbiHelp p (DependencyDerivation mempty)
     mkSemi p event context = 

@@ -15,6 +15,7 @@ import NLP.Probability.Chain
 import qualified Data.Map as M
 import NLP.ChartParse.Eisner.Inside as EI
 import NLP.Semiring.Prob
+import NLP.Semiring.LogProb
 import NLP.Grammar.TAG
 import NLP.Model.ParseState
 import NLP.Grammar.Dependency
@@ -50,14 +51,14 @@ readDecodeParams adjCountFile spineCountFile spineProbFile = do
 
 
 data DecodingOpts = DecodingOpts {
-      extraDepScore :: (Pairs (Collins) -> Counter (CVD TAGDerivation)),
+      extraDepScore :: (Pairs (Collins) -> Counter (CVD TAGDerivation) -> Counter (CVD TAGDerivation)),
       validator :: TSentence -> Validity Collins ,
       beamThres :: Double,
       commaPrune :: Bool
     }
 
 defaultDecoding =  DecodingOpts {
-                     extraDepScore = const 0.0,
+                     extraDepScore = const id,
                      validator = const allValid,
                      beamThres = 10000,
                      commaPrune = True
@@ -83,7 +84,7 @@ genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do
   return $ trace (show $ chartStats chart)  b'
         where 
               getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
-              mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
+              mkSemi pairs = extraDepScore opts pairs $ LogProb $ (log  $ getProb pairs)
               getSpineProb = memoize False (prob probSpine) -- OPTIMIZATION
 
 memoizeIntInt :: (a -> (Int,Int)) -> (a -> b) -> (a -> b)
@@ -144,7 +145,7 @@ newValid sent  event context =
 decodeGold = genDecodeGold defaultGoldDecoding
 
 defaultGoldDecoding =  DecodingOpts {
-                     extraDepScore = const 0.0,
+                     extraDepScore = const id,
                      validator = newValid,
                      beamThres = 1e100,
                      commaPrune = False
@@ -160,7 +161,7 @@ genDecodeGold opts (spineCounts, probs, probSpine) insent = do
     let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
     return b'
     where
-          mkSemi pairs = prob probs pairs
+          mkSemi pairs = fromProb $ prob probs pairs
 
 
 makeFSM :: Sentence TWord-> TSentence  -> DecodingOpts ->
@@ -175,9 +176,10 @@ makeFSM insent dsent opts  mkSemi  =  do
       rightState <- initState (ParseOpts  (commaPrune opts) rdiscache (ProbModel mkSemi (validator opts dsent))) [] ARight 
       return (\ i (Just word) -> (leftState i word, rightState i word))
 
+getBestLogScore = convertToProb . getBestScore
 
 globalThres n wher m =
-    M.filter (\p -> getBestScore p >= n/100000) $  m    
+    M.filter (\p -> getBestLogScore p >= n/100000) $  m    
 
 globalThresOne beamPrune probs  ps =  
     filter (\p -> {-score p >= (n/100000) && -} score p >= (best/beamPrune))  ps  
@@ -202,7 +204,7 @@ getFOM probs (sig, semi) = getPrior sig * getInside semi
                      (if hasParent $ rightEnd sig then 1.0 else 
                           (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) $ EI.word $ rightEnd sig)) 
       getInside i  =  p
-          where (Prob p) = getBestScore i 
+          where p = getBestLogScore i 
 
 
 prune probs beamprune wher m = 
@@ -244,8 +246,8 @@ prune probs beamprune wher m =
 renderSentences a b = do
            let der1 = getBestDerivation a
            let der2 = getBestDerivation b
-           let (Prob sc1) = getBestScore a
-           let (Prob sc2) = getBestScore b
+           let (sc1) = getBestLogScore a
+           let (sc2) = getBestLogScore b
            --let TAGDerivation (_, debug1) = der1  
            --let TAGDerivation (_, debug2) = der2
            --let m1 = M.fromList debug1

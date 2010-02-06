@@ -13,7 +13,7 @@ import NLP.Model.Dependency.Format
 import NLP.Model.Dependency.Parse
 import NLP.Grammar.Dependency
 import NLP.Grammar.DependencySent
-
+import NLP.Semiring.LogProb
 import NLP.Semiring.ViterbiNBestDerivation
 import NLP.Probability.Chain
 import qualified Data.Map as M
@@ -31,10 +31,14 @@ import System.IO.Unsafe
 import Control.Concurrent.MVar
 import NLP.ParseMonad
 import qualified Data.Traversable as T
-import NLP.Model.TAG.Semi
-
+import NLP.Model.Dependency.Semi
+import NLP.Model.CreateableSemi
 import Debug.Trace
 type DecodeParams = (Probs FirstOrderDep)
+
+
+getBestLogScore :: (BestScorer m LogProb s) => s -> Double
+getBestLogScore = convertToProb . getBestScore
 
 readDecodeParams :: String -> IO DecodeParams
 readDecodeParams adjCountFile = do
@@ -61,23 +65,23 @@ decodeSentence :: DecodeParams ->  WordInfoSent ->
 decodeSentence = genDecodeSentence defaultDecoding
                          
 
-globalThresOne :: (BestScorer m Prob s) => Prob -> [(i,s)] -> [(i,s)] 
+globalThresOne :: (BestScorer m LogProb s) => Double -> [(i,s)] -> [(i,s)] 
 globalThresOne beamPrune ps =  
-    filter (\(_,p) -> (getBestScore p) >= (best / beamPrune)) $ ps  
+    filter (\(_,p) -> (getBestLogScore p) >= (best / beamPrune)) $ ps  
         where
-          best = case map (getBestScore.snd) ps of
+          best = case map (getBestLogScore.snd) ps of
                [] -> 0.0
                ls -> maximum $ ls
 
 
 simplePrune beamPrune ps =  
-    M.filter (\p -> {-score p >= (n/100000) && -} getBestScore p >= (best/beamPrune))  ps  
+    M.filter (\p -> {-score p >= (n/100000) && -} getBestLogScore p >= (best/beamPrune))  ps  
         where
           ps' = M.elems ps 
           score p = p 
           best = case ps' of
                [] -> 0.0
-               ls -> maximum $ map getBestScore ls
+               ls -> maximum $ map getBestLogScore ls
 
 
 genDecodeSentence :: DecodingOpts  ->
@@ -87,12 +91,12 @@ genDecodeSentence  opts probs insent = do
   testsent <- toDependency (labeler opts) insent 
   sent <- toDepSentence insent
   fsm <- makeFSM  sent testsent opts mkSemi
-  let (b',chart)= eisnerParse fsm id sent (\wher -> simplePrune 1e7) (globalThresOne 1e7) -- (\_ i-> i) id --
+  let (b',chart)= eisnerParse fsm id sent (\wher -> simplePrune 1e7) (globalThresOne 1e7) id -- (\_ i-> i) id --
       
   return b' -- $  trace (show chart) b'
         where 
           getProb = memoize $ prob probs 
-          mkSemi pairs = getProb pairs
+          mkSemi pairs = fromProb $ getProb pairs
 
 memoize :: Ord a => (a -> b) -> (a -> b) 
 memoize f =
@@ -128,10 +132,10 @@ decodeGold opts probs insent = do
     let actualsent = dSentence dsent 
     tagsent <- toDepSentence insent
     fsm <- makeFSM tagsent dsent opts mkSemi 
-    let (b',_)= eisnerParse fsm id actualsent (\ _ i -> i) id
+    let (b',_)= eisnerParse fsm id actualsent (\ _ i -> i) id id
     return b'
     where
-          mkSemi pairs = prob probs pairs
+          mkSemi pairs = fromProb $ prob probs pairs
 
 makeFSM :: Sentence DWord -> DSentence  -> DecodingOpts -> 
            (Pairs FirstOrderDep -> Counter (CVD DependencyDerivation)) -> 
@@ -152,8 +156,8 @@ makeFSM insent dsent opts mkSemi  =  do
 renderSentences a b = do
            let der1 = getBestDerivation a
            let der2 = getBestDerivation b
-           let (Prob sc1) = getBestScore a
-           let (Prob sc2) = getBestScore b
+           let ( sc1) = getBestLogScore a
+           let ( sc2) = getBestLogScore b
            d1 <- depDerToTree der1 
            d2 <- depDerToTree der2 
            let toReadable = (\a -> case a of 
