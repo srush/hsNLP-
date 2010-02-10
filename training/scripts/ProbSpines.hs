@@ -27,8 +27,8 @@ main = do
   let myroot = runParseMonad (root 0) dm
   print "full count done"
   let counts = mconcat  $ 
-               parMap rwhnf (\sents ->  mconcat $ [ mconcat $ 
-                   (simpleObserve (PrEv myroot) (PrCon ()) : (map (\wi -> simpleObserve (PrEv $ mkTAGWord  (GWord (word wi, pos wi), aspine wi) (tspine wi) 0 ) $ PrCon ()) $ elems sent)) 
+               parMap rwhnf (\sents ->  mconcat $ [ countPrior $  
+                   (myroot: (map (\wi -> mkTAGWord  (GWord (word wi, pos wi), aspine wi) (tspine wi) 0 ) $ elems sent)) 
                    | WordInfoSent sent <- sents
                  ] ) newsent
   encodeFile file2 (counts::Observation (CollinsPrior))

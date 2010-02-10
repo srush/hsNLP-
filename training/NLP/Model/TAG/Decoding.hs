@@ -51,17 +51,19 @@ readDecodeParams adjCountFile spineCountFile spineProbFile = do
 
 
 data DecodingOpts = DecodingOpts {
-      extraDepScore :: (Pairs (Collins) -> Counter (CVD TAGDerivation) -> Counter (CVD TAGDerivation)),
+      extraDepScore :: (Pairs (Collins) -> LogProb -> LogProb),
       validator :: TSentence -> Validity Collins ,
       beamThres :: Double,
-      commaPrune :: Bool
+      commaPrune :: Bool,
+      listPruning :: Bool
     }
 
 defaultDecoding =  DecodingOpts {
                      extraDepScore = const id,
                      validator = const allValid,
                      beamThres = 10000,
-                     commaPrune = True
+                     commaPrune = True,
+                     listPruning = True
                    }
 
 decodeSentence :: 
@@ -80,11 +82,12 @@ genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do
   dsent <- toTAGDependency insent
   fsm <- makeFSM  sent dsent opts  mkSemi
   let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)                             
-                  (globalThresList getSpineProb) (globalThresOne (1e5) getSpineProb)
-  return $ trace (show $ chartStats chart)  b'
+                  (if (listPruning opts) then globalThresList getSpineProb else globalThresOne (beamThres opts) getSpineProb) (globalThresOne (1e5) getSpineProb)
+  return $ {- trace (show $ chartStats chart) -}  b'
         where 
               getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
-              mkSemi pairs = extraDepScore opts pairs $ LogProb $ (log  $ getProb pairs)
+              mkSemi e c = extraDepScore opts pairs $ LogProb $ (log $ getProb pairs)
+                  where pairs = chainRule e c
               getSpineProb = memoize False (prob probSpine) -- OPTIMIZATION
 
 memoizeIntInt :: (a -> (Int,Int)) -> (a -> b) -> (a -> b)
@@ -148,7 +151,8 @@ defaultGoldDecoding =  DecodingOpts {
                      extraDepScore = const id,
                      validator = newValid,
                      beamThres = 1e100,
-                     commaPrune = False
+                     commaPrune = False,
+                     listPruning = False
                    }
 
 
@@ -161,11 +165,11 @@ genDecodeGold opts (spineCounts, probs, probSpine) insent = do
     let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
     return b'
     where
-          mkSemi pairs = fromProb $ prob probs pairs
+          mkSemi e c = fromProb $ prob probs $ chainRule e c
 
 
 makeFSM :: Sentence TWord-> TSentence  -> DecodingOpts ->
-           (Pairs Collins -> Counter (CVD TAGDerivation)) -> 
+           (Counter (CVD TAGDerivation)) -> 
            ParseMonad (Int -> Maybe TWord ->
                        (AdjState TWord Collins (CVD TAGDerivation) , 
                         AdjState TWord Collins (CVD TAGDerivation) ))

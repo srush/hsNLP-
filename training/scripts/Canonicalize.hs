@@ -16,18 +16,19 @@ isWord tree =
     else
         False
 
-addBackWords (WordInfoSent wis) tree = list (atom "TOP" : [list $ (tr
-                                                                    ++ map getAtomN [k..m])]) 
+addBackWords (WordInfoSent wis) tree = 
+    trace (show wis) $ list ([atom "TOP"] ++  (tr ++ map getAtomN [k..m])) 
+            
     where 
       (tr, k) = count ([], 1) tree
       (1,m) = bounds wis
-      getWord n =  wis ! n  
+      getWord n =  trace (show n) $ wis ! n  
       count :: ([Sexpr String], Int) -> Sexpr String -> ([Sexpr String], Int) 
       count (ls, n) tree  = 
           if isAtom tree then
               (ls ++ [tree], n)
           else if isWord tree && isList tree then
-              let [pos, word] = map unAtom $ unList tree
+              let [pos, word] = trace (show $ map unAtom $ unList tree) $ map unAtom $ unList tree
                   newn = getNewN pos n
               in 
               (ls ++ getAtomsBefore pos n ++ [getAtom pos n], newn+1)
@@ -41,22 +42,24 @@ addBackWords (WordInfoSent wis) tree = list (atom "TOP" : [list $ (tr
           else
               []
       getAtomN n = 
-    --      trace (show "atomn" ++show n) $ 
+          trace (show "atomn" ++show n) $ 
           list [atom $ transFor $ show $ posStr $ getWord n, 
-                atom $ transFor $ show $ wordStr $ getWord n ]
+                atom $ transFor $ unWord $ wordStr $ getWord n ]
 
       getAtom pos' n = 
-  --        trace (show "atom" ++ show n) $ 
+          trace (show "atom" ++ show n) $ 
           if pos' /= (transFor $ show $ posStr $ getWord n) then
               getAtom pos' (n+1)
           else 
               getAtomN n
       getNewN pos' n =
---          trace (show m ++ show pos' ++ show "newn" ++ show n ++ (show $ posSt $ getWord n) ++ show wis) $ 
+          trace (show "newn " ++ (show pos') ++ (show $ posStr $ getWord n)) $ --trace (show m ++ show pos' ++ show "newn" ++ show n ++ (show $ posSt $ getWord n) ++ show wis) $ 
           if pos' /= (transFor $ show $ posStr $ getWord n) then
               getNewN pos' (n+1)
           else
               n
+
+      unWord (Word word) = word
 clean tree = 
     if isAtom tree then [tree]
     else
@@ -77,7 +80,9 @@ trans = BM.fromList [(',' , "*COMMA*"),
                       ( '/' , "*FSLASH*"),
                       ( '%' , "*PERCENT*"),
                       ( ';' , "*SEMI*"),
-                      ( '#' , "*POUND*")]
+                      ( '#' , "*POUND*"),
+                      ( '?' , "*QUES*")
+                    ]
 
 transFor  = 
     concatMap (\c -> case BM.lookup c trans of

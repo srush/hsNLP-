@@ -26,25 +26,26 @@ class CreateableSemi a where
     type Model a 
 --    mkSemi ::  Counter a -> TWord -> (Maybe (TWord)) -> Int -> AdjunctionType -> a
     mkSemi :: Counter a -> FullEvent (Model a) -> FullContext (Model a) -> a
-    mkSemiSmall :: Counter a -> a
+    --mkSemiSmall :: Counter a -> a
 
 newtype CProb model = CProb Prob
     deriving (Monoid, Multiplicative, Semiring)
 
+
 instance CreateableSemi (CProb model) where
-    type Counter (CProb model) = Double
+    type Counter (CProb model) = FullEvent model -> FullContext model -> Double
     type Model (CProb model) = model
-    mkSemi p _ _  = CProb $ Prob p
-    mkSemiSmall p = CProb $ Prob p 
+    mkSemi p e c  = CProb $ Prob $ p e c
+    --mkSemiSmall p = CProb $ Prob p 
 
 newtype CD monoid model = CD (D.Derivation monoid)
     deriving (Monoid, Multiplicative, Semiring, Pretty, Show)
 
 instance (Monoid monoid) => CreateableSemi (CD monoid model) where 
     type Model (CD monoid model) = model
-    type Counter (CD monoid model) = monoid
-    mkSemiSmall p = CD $ D.mkDerivation p
-    mkSemi p _ _ = CD $ D.mkDerivation p
+    type Counter (CD monoid model) = FullEvent model -> FullContext model -> monoid 
+    --mkSemiSmall p = CD $ D.mkDerivation p
+    mkSemi p e c = CD $ D.mkDerivation $ p e c
 
 
 viterbiHelp prob tdep = 

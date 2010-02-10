@@ -103,11 +103,13 @@ doOneAdj baseSemi adjstate (child, atype, dis) = do
                                           lastInNPB adjstate
                                       else Just $ twWord $ fromJustNote "read" child 
                                   else Nothing,
-                      hasBeenRegular = atype == Regular || hasBeenRegular adjstate
+                      hasBeenRegular = atype == Regular || hasBeenRegular adjstate,
+                      curPos = (curPos adjstate) + (if isRoot then 1 else 0)
                      }, 
              baseSemi `times` s)
           where   
-            npbMode = isWrapNPB $ stateNT adjstate
+            npbMode = (predNPB adjstate)  $ stateNT adjstate
+            isRoot = (predRoot adjstate)  $ stateNT adjstate
             child' = fromJustNote "real" child
             oldDelta = curDelta adjstate
             newDelta = if (predComma adjstate) child' then withPrevComma oldDelta
@@ -140,7 +142,7 @@ mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
               where          -- NPB Trick 
                 (parentGWord, vdis') = 
                     case lastInNPB adjstate of 
-                      (Just w) -> (w, VerbDistance False)
+                      (Just w) -> (w, vdis) -- TODO- check this 
                       Nothing -> (twWord headWord, vdis) 
 
           fullEvent  = case child of

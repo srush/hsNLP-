@@ -8,12 +8,18 @@ module NLP.ParseMonad (ParseMonad,
                        runParseMonad,
                        isVerb,
                        isComma,
+                       isPunc,
                        isConj,
                        collapseWord,
                        testPM,
                        tripletMapper,
+                       testParseMonad,
+                       isNPB,
+                       isRoot,
                        module NLP.Atom)
     where 
+
+--{{{  Imports
 import Control.Monad.Trans
 import NLP.Atom
 import NLP.Language.SimpleLanguage
@@ -21,10 +27,13 @@ import NLP.Grammar.Spine
 import Helpers.Common hiding (char)
 import Control.Monad.Reader
 import Helpers.Parse 
+import Helpers.Test
 import qualified Data.Set as S
 import qualified Data.Bimap as B
 import qualified Data.Map as M
 import Data.Char (ord)
+--}}}
+
 data Mappers = Mappers {
       map_pos   :: Mapper POS,
       map_word  :: Mapper Word,
@@ -35,6 +44,7 @@ data Mappers = Mappers {
       map_isComma :: S.Set APOS,
       map_isVerb  :: S.Set APOS,
       map_isConj  :: S.Set APOS,
+      map_isPunc  :: S.Set APOS,
       map_npb  :: ANonTerm,
       map_commonWords :: Maybe (S.Set Word)
     }
@@ -52,11 +62,12 @@ data LoadMapConf = LoadMapConf {
       commas :: [String],
       verbs :: [String],
       conj :: [String],
+      punc :: [String],
       npb :: String,
       shouldCollapseWords :: Bool
     }
 
-defaultLoadMap = LoadMapConf "maps/" [",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] ["CC"] "NPB" True
+defaultLoadMap = LoadMapConf "maps/" [",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] ["CC"] [".", "``", "''"]  "NPB" True
 
 testPM pm = do 
   l <- loadDebugMappers
@@ -80,6 +91,7 @@ loadMappers conf = do
   let commaSet = map (toAtomWithMap m1 . mkPOS) $ commas conf 
   let verbSet = map (toAtomWithMap  m1 . mkPOS) $ verbs conf
   let conjSet = map (toAtomWithMap  m1 . mkPOS) $ conj conf
+  let puncSet = map (toAtomWithMap  m1 . mkPOS) $ punc conf
   let (Mapper mtrip) = m5
   let nt2triplet = M.fromList [ ((toAtomWithMap m3 a, fmap (toAtomWithMap m3) b, fmap (toAtomWithMap m3) c),Atom i)  | 
         (Triplet (a,b,c),i) <- B.toList mtrip]
@@ -93,6 +105,7 @@ loadMappers conf = do
                map_isComma = S.fromList commaSet,
                map_isVerb = S.fromList verbSet,
                map_isConj = S.fromList conjSet,
+               map_isPunc = S.fromList puncSet,
                map_npb    = toAtomWithMap m3 $ mkNonTerm $ npb conf ,
                map_commonWords = if (shouldCollapseWords conf) then Just common else Nothing
              }
@@ -108,12 +121,9 @@ tripletMapper = do
             M.lookup a mtrip
          )
 
-
-collapseWord :: Word -> ParseMonad Word
-collapseWord w = do 
-  mapper <- ask 
-  let m = map_commonWords mapper
-  return $ case m of 
+collapseWordMap :: Maybe (S.Set Word) -> Word -> Word 
+collapseWordMap m w =
+    case m of 
              Nothing -> w 
              Just common ->
                   if isNum w then
@@ -124,6 +134,12 @@ collapseWord w = do
       where isNum (Word w ) = ord a >= ord '0' && ord a <= ord '9'                
                 where a = w!!0
 
+collapseWord :: Word -> ParseMonad Word
+collapseWord w = do 
+  mapper <- ask 
+  let m = map_commonWords mapper
+  return $ collapseWordMap m w
+
 instance (MonadAtom POS ParseMonad) where 
     getMapper = map_pos `liftM` ask
 instance (MonadAtom Word ParseMonad) where 
@@ -133,19 +149,42 @@ instance (MonadAtom NonTerm ParseMonad) where
 instance (MonadAtom (Spine NonTerm) ParseMonad) where 
     getMapper = map_spine `liftM` ask
 
-isComma :: ParseMonad (APOS -> Bool)
-isComma = do
+isGetter :: (Mappers-> S.Set APOS) ->  ParseMonad (APOS -> Bool)
+isGetter get = do
   m <- ask
-  return $ \pos -> S.member pos (map_isComma m)
+  return $ \pos -> S.member pos (get m)
 
 
-isVerb :: ParseMonad (APOS -> Bool)
-isVerb  = do
-  m <- ask
-  return $ \pos -> S.member pos (map_isVerb m) 
+isComma = isGetter map_isComma
+isVerb = isGetter map_isVerb
+isConj = isGetter map_isConj
+isPunc = isGetter map_isPunc
 
-isConj :: ParseMonad (APOS -> Bool)
-isConj  = do
+isNPB :: ParseMonad (ANonTerm -> Bool)
+isNPB = do 
   m <- ask
-  return $ \pos -> S.member pos (map_isConj m) 
-       
+  return $ (== (map_npb m))
+
+
+isRoot :: ParseMonad (ANonTerm -> Bool)
+isRoot = do 
+  a <- toAtom $ read "ROOT"
+  return $ (== a)
+
+--{{{  TESTS
+
+testParseMonad = testGroup "ParseMonad props" [
+                  testCase "collapse" test_collapseWord
+                 ]
+
+
+test_collapseWord = do 
+  let tests = [("common", "hello", "hello"),
+               ("uncommon", "hello2", "*UNK*"),
+               ("number", "123", "*NUM*"),
+               ("still number", "0.1", "*NUM*")]
+  mapM_ (\(a,b,c)  -> assertEqual a (wm $ mkWord b) (mkWord c)) tests  
+         where common = Just $ S.fromList $ map mkWord ["hello", "dog", "0.1"]
+               wm = collapseWordMap common 
+
+--}}}

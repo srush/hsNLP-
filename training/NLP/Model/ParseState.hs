@@ -15,6 +15,7 @@ import NLP.Model.CreateableSemi
 import Helpers.Common
 import NLP.Probability.Chain
 import Helpers.MkEnum
+import Helpers.Test
 --}}}
 
 -- | General state handler for dependency like parsers 
@@ -31,7 +32,7 @@ type Validity m = FullEvent m -> FullContext m -> Bool
 allValid _ _ = True
 
 data ProbModel m s = ProbModel {
-      probs :: (Pairs m -> Counter s),
+      probs :: Counter s,
 --      extra :: FlipProbs,
       validity :: Validity m
     }
@@ -51,12 +52,13 @@ data AdjState w m semi =
       hasBeenRegular :: Bool,
       predComma :: w -> Bool,
       predVerb :: w -> Bool,
+      predNPB :: ANonTerm -> Bool,
+      predRoot :: ANonTerm -> Bool,
       labelList :: [ALabel],
       enumId :: Int
     } 
 
 --expandAdjState as = (curPos as, curDelta as, isAfterComma as, lastInNPB as, hasBeenRegular as, side as)
-
 
 -- OPTIMIZATION
 expandAdjState as = (enumId as, lastInNPB as)
@@ -71,9 +73,11 @@ initState :: (WordSymbol w, Show w) =>
            AdjunctionSide ->
            ParseMonad (Int -> w ->
                        (AdjState w model semi))  
-initState parseOpts  labels side = do
+initState parseOpts labels side = do
   predComma<- isComma
   predVerb <- isVerb
+  predNPB  <- isNPB
+  predRoot  <- isRoot
   return $ (\ind tagword -> 
                 cacheState $ AdjState {
                opts = parseOpts,
@@ -88,6 +92,8 @@ initState parseOpts  labels side = do
                hasBeenRegular = False,
                predComma = predComma. getPOS,
                predVerb = predVerb.getPOS,
+               predNPB = predNPB,
+               predRoot = predRoot,
                enumId = undefined
                    }
            )
@@ -108,14 +114,14 @@ commaPruning state split =
     (side state == ARight) &&
     (isAfterComma state) && 
     (not $ afterConj)
-        where afterConj = snd $ (distanceCache $ opts state) (ind state, split) 
+        where afterConj = endsWithComma $ (distanceCache $ opts state) (ind state, split) 
 
-shouldPrune adjstate split isTryingEmpty = 
+shouldPrune adjstate split isTryingEmpty = False
 --    (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
-      ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
+--      ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
 
-mkDistance adjstate split = VerbDistance verb
-    where (verb, _) = (distanceCache $ opts adjstate) (ind adjstate, split)
+mkDistance adjstate split = verb
+    where verb = containsVerb $ (distanceCache $ opts adjstate) (ind adjstate, split)
 
 class (JointModel a) => ParseModel a where 
     type Req1 a 
@@ -127,8 +133,18 @@ findSemi :: (ParseModel model, CreateableSemi semi, Model semi ~ model ) =>
             AdjState (MyWord model) model semi -> Req1 model -> [semi]
 findSemi adjstate extra = do 
     guard $ (validity $ model opt) fullEvent fullContext
-    return $ mkSemi p fullEvent fullContext
+    return $ mkSemi (probs $ model opt) fullEvent fullContext
         where                          
           (fullEvent, fullContext) = mkEventAndContext adjstate extra 
-          p = (probs $ model opt) (chainRule fullEvent fullContext)  -- TODO
           opt = opts adjstate
+
+
+--{{{  TESTS
+
+testParseState = testGroup "ParseState props" [
+           
+        ]
+
+
+
+--}}}

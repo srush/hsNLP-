@@ -18,8 +18,10 @@ import Debug.Trace
 import NLP.Model.TAG.Adjunction
 import NLP.Probability.Chain
 import NLP.Language.SimpleLanguage
-import Counts 
+import NLP.Model.TAG.Counts 
 import NLP.ParseMonad
+
+
 main = do 
   [file1, file2] <- getArgs
   counts <- readAndCount file1 file2
@@ -37,7 +39,7 @@ readAndCount file1 file2 = do
       where 
         countSome dm (ls,n) = runParseMonad  (do
                              ls' <- sequence (ls:: [ParseMonad WordInfoSent])
-                             counts <- mapM  (\wis -> toTAGDependency wis >>= countTAG) (ls'::[WordInfoSent]) 
+                             counts <- mapM  (\wis -> toTAGDependency wis >>= countTAG observation) (ls'::[WordInfoSent]) 
                              return $ trace (show n) $ 
                                     mconcat $ map fst counts) dm
         

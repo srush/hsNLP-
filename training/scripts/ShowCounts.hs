@@ -20,17 +20,19 @@ main = do
   let sents = runParseMonad sentsM mappers  
   prunes <- readPruning pruneFile
   let parses =  mapM (\(s,p) -> do
-                        
                         tm <- tripletMapper
                         Just b <- genDecodeGold (defaultGoldDecoding {validator = (\s e c-> if newValid s e c then 
-                                                                                                if not $ validByDepPrior 1e-6 tm p e c then 
+                                                                                                if not $ validByDepPrior 1e-8 tm p e c then 
                                                                                                     trace ("Pruning fail " ++ show e ++ " " ++show c) True
                                                                                                 else
                                                                                                     True
                                                                                             else False
                                                                                   ) } ) params s
-                        b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {beamThres = 1e8, validator=const $ validByDepPrior 1e-6 tm p} ) params s 
-                        return (b', b) ) $ zip sents prunes
+                        b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5 , validator=const $ validByDepPrior 1e-8 tm p} ) params s 
+                        b'' <- case b' of 
+                                 Just b -> return $ Just  b
+                                 Nothing -> genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5 } ) params s 
+                        return (b'', b)) $ zip sents prunes
   let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]
   
@@ -38,7 +40,8 @@ main = do
   -- putStrLn $ chartStats $ snd $ head results
 
   sequence $ runParseMonad (mapM (\(b,a) ->  renderSentences a b) results) mappers 
-
+      where isNothing Nothing = True
+            isNothing _ = False
 
       --print "The fixed parse answer"
   --putStrLn $ ("G" ++ (show $ tagDerToTree  $ getBestDerivation b'''))

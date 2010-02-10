@@ -26,7 +26,7 @@ instance Parsable POS where
 newtype NonTerm = NonTerm String
     deriving (Eq, Ord,Binary)
 
-isWrapNPB = const False
+--isWrapNPB = const False
 
 type ANonTerm = Atom NonTerm
 mkNonTerm = NonTerm

@@ -163,12 +163,14 @@ instance Pretty (AE3) where
 
 data Collins = Collins
 
+
+
 instance JointModel (Collins) where 
      data Pairs (Collins) =  
          Pairs {probInfo :: ((AE1, AC1),
                              (AE2, AC2),
                              (AE3, AC3)),
-                decisionInfo :: Maybe (Int, Int),
+                decisionInfo :: Maybe (Int, Int), -- Child, Head (m, h)
                 enumVal :: (Int,Int)
                }
          deriving (Eq, Ord, Show)

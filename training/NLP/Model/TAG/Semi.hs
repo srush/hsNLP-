@@ -28,10 +28,10 @@ mkDerivationCell word =
     DerivationCell word 
 
 instance CreateableSemi (CVD TAGDerivation) where 
-    type Counter (CVD TAGDerivation) = LogProb
+    type Counter (CVD TAGDerivation) = FullEvent Collins -> FullContext Collins -> LogProb
     type Model (CVD TAGDerivation) = Collins
-    mkSemiSmall p = CVD $ viterbiHelp p (TAGDerivation $ Dependency mempty)
-    mkSemi p event context = CVD $  
+    --mkSemiSmall p = CVD $ viterbiHelp p (TAGDerivation $ Dependency mempty)
+    mkSemi probs event context = CVD $  
         case childTWord event of 
              Nothing -> 
                  viterbiHelp p (TAGDerivation (Dependency mempty))
@@ -39,7 +39,7 @@ instance CreateableSemi (CVD TAGDerivation) where
                  viterbiHelp p $ TAGDerivation
                       (singletonDep (parentInd context) (twInd child') $ 
                           (AdjunctionInfo (spinePos context) (fromJustNote "child" $ NLP.Model.TAG.Adjunction.adjType event) (mkDerivationCell child')))   
-
+        where p = probs event context
 
 instance Show (TAGDerivation) where 
     show = render . pPrint

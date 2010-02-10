@@ -14,6 +14,7 @@ import NLP.Model.TAG.Wrap
 import NLP.Language.SimpleLanguage
 import NLP.Probability.Chain
 import Helpers.Common
+import Helpers.Test hiding (Counts)
 --}}}
 
 
@@ -23,16 +24,16 @@ import Helpers.Common
 
 -- | A GWord context is smoo
 
-type SubGWord = (Maybe (AWord), Maybe (APOS))
+type SubGWord = (Maybe AWord, Maybe APOS)
   
-instance Context (GWord) where 
-    type Sub (GWord ) = (SubGWord)
-    type SubMap (GWord) = M.Map
+instance Context GWord where 
+    type Sub GWord  = (SubGWord)
+    type SubMap GWord = M.Map
     decompose gword = [(Nothing, Just $ getPOS gword),
                        (Just $ getLex gword, Nothing)]
      
-instance Event (GWord ) where type EventMap (GWord) = M.Map
-instance Event (ASpine) where type EventMap (ASpine) = M.Map
+instance Event GWord  where type EventMap (GWord) = M.Map
+instance Event ASpine where type EventMap (ASpine) = M.Map
 
 
 -- | The Prior is made up of the unigram probability of a GWord
@@ -62,8 +63,8 @@ instance JointModel CollinsPrior where
                       
     prob (PriorProbs (udist, cdist)) = subProb
         where 
-          subProb (PrPair (word,spine)) = p * (cdist  word spine)
-              where p' = (udist $ word)
+          subProb (PrPair (word, spine)) = p * (cdist  word spine)
+              where p' = udist $ word
                     p = if isNaN p' then (1e-19) else max p' (1e-19)
 
 --           subProb' tagword = unsafePerformIO $ do
@@ -81,3 +82,24 @@ instance JointModel CollinsPrior where
         PriorProbs (mle $ finish ucounts, 
                     estimateGeneralLinear (simpleLinear [0.7, 0.2, 0.1]) ccounts) 
     
+
+
+countPrior tagwords = 
+    mconcat $ 
+    do
+      tword  <- tagwords
+      return $ simpleObserve (PrEv tword) $ PrCon ()
+
+
+
+--{{{  TESTS
+
+testPrior = testGroup "Prior props" [
+
+        ]
+
+
+
+
+
+--}}}

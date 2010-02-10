@@ -1,10 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
-module NLP.Grammar.Dependency where 
+module NLP.Grammar.Dependency (Dependency(..), getHead, singletonDep, rootInd, DEdge(..), toList, splitMap, convertToTree, flattenDep, hasDependency, hasDependencyAndLabel,testDep) where 
+
+--{{{  Imports
 import Helpers.Common
 import qualified Data.Map as M
 import Data.List
 import qualified Data.Tree as T
-
+import Helpers.Test
+--}}}
 
 --{{{  AdjunctionSide
 -- | AdjunctionSide tells us from which direction we should adjoin a new tree
@@ -30,7 +33,7 @@ instance Pretty AdjunctionSide where pPrint = text . show
 --   Children to parents 
 newtype Dependency label = 
     Dependency (M.Map Int (DEdge label))
-    deriving (Eq, Monoid) -- not sure why this needs to be ord
+    deriving (Eq, Monoid) 
 
 --{{{ Dependency Classes 
 instance (Show label) => Show (Dependency label) where 
@@ -73,7 +76,7 @@ type SplitMap info = M.Map Int ([DEdge info], [DEdge info])
 toList :: Dependency info -> [(Int, Int)]
 toList (Dependency m) = do
   (i, dedge) <- M.toList m
-  return (i, to dedge)
+  return (i, to dedge) -- Child, parent
 
 -- | Takes a map from children to head and reverses it 
 -- so it faces from head to children  
@@ -114,6 +117,42 @@ hasDependencyAndLabel (Dependency dm) head child label =
 
 --{{{ TESTS
 
+runTests = defaultMain [testDep]
+
+data BinTree a = Leaf | BinTree Int a (BinTree a) (BinTree a)
+               deriving Show
+bintreeToDep (BinTree head _ l r) = 
+    mappend (btd head l) (btd head r)
+        where btd h bintree = 
+                  case bintree of 
+                    BinTree c i l r -> mconcat [singletonDep h c i, btd c l, btd c r]
+                    Leaf -> mempty
+bintreeToDep _ = mempty 
+-- | make a binary tree 
+arbTree l u =
+    if l+1 == u then 
+        return Leaf
+    else if l + 1 == u -1 then do
+        i <- arbitrary
+        return $ BinTree (l+1) i Leaf Leaf
+    else do
+      me <- choose (l+1, u-1)
+      left <- arbTree l me 
+      right <- arbTree me u
+      i <- arbitrary
+      return $ BinTree me i left right
+
+instance (Arbitrary a) => Arbitrary (Dependency a) where 
+    arbitrary = do  
+        n <- choose (1,20)
+        tree <- arbTree 0 n
+        return $ bintreeToDep tree 
+
+testDep = testGroup "Dependency props" [
+         testProperty "splitMap" prop_splitMap,
+         testProperty "reverseMap" prop_reverseMap
+        ]
+
 prop_splitMap a = 
     all (\(m, (left, right)) -> all ((< m).to) left && all ((> m).to) right) $ M.toList splitm
     where
@@ -122,6 +161,7 @@ prop_splitMap a =
       m = reverseMap a 
 
 prop_reverseMap a =  and $ map (\ (node, DEdge head _) -> elem node $ map to $ (M.!) revm head) $ M.toList m
-    where revm = reverseMap a
-          (Dependency m) = a 
+     where revm = reverseMap a
+           (Dependency m) = a 
+           types = a::Dependency ()
 --}}}

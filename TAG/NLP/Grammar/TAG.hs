@@ -1,12 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module NLP.Grammar.TAG where 
 
 --{{{ Imports
 import NLP.Grammar.Dependency
 import Helpers.Common
-import NLP.Grammar.Spine
+import NLP.Grammar.Spine as S
 import qualified Data.Map as M
 import Data.Array
+import Helpers.Test
 --}}}
 
 --{{{  AdjunctionType
@@ -76,8 +78,6 @@ data TAGWord nt twdata = TAGWord {
 } deriving (Eq,Ord)
 
 
-    
-
 mkTAGWord :: w -> Spine nt -> Int -> TAGWord nt w
 mkTAGWord w s ind = TAGWord s w ind
 
@@ -90,11 +90,7 @@ instance (Show w, Show nt) => Pretty (TAGWord nt w) where
     pPrint (TAGWord word spine ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 
 
 --}}} 
-
---mkTAGWord :: GWord -> Spine -> Int -> TAGWord
---mkTAGWord (w,pos) s ind = TAGWord s (w,pos) (isPOSVerb pos) (isPOSComma pos) (isPOSConj pos) ind
 --}}}
-
 
 -- | Predicate - does the adjunction of two tagword at a certain pos agree with the TAG sentence
 valid :: (TAGSentence nt w) -> TAGWord nt w -> Maybe (TAGWord nt w) -> Int -> AdjunctionType -> Bool
@@ -109,7 +105,7 @@ valid (TAGSentence sent dep) head (Just child) pos atype =
 -- | Takes a spine and an ordered list of adjunctions, 
 --   returns the list of adjunctions with epsilons inserted 
 alignWithSpine :: Spine nt -> [DEdge (AdjunctionInfo a)] -> [(Int, [Maybe (AdjunctionInfo a)])] 
-alignWithSpine (Spine spine) adjs =
+alignWithSpine sp adjs =
     [(pos, getAdj nt pos ++ [Nothing]) | 
      (nt, pos) <- zip spine [0..]] 
     where 
@@ -119,5 +115,25 @@ alignWithSpine (Spine spine) adjs =
           case M.lookup ind indexedAdj of
             Nothing -> [] 
             Just adjs -> map Just adjs  
+      spine = S.toList sp
+
+--{{{  TESTS
 
 
+instance (Arbitrary a, Arbitrary b) => Arbitrary (TAGWord a b) where 
+    arbitrary = do 
+      ind <- choose (1,20)
+      spine <- arbitrary
+      info <- arbitrary
+      return $ mkTAGWord info spine ind
+
+runTests = defaultMain [testTAG]
+
+testTAG = testGroup "TAG props" [
+           testProperty "tag word" prop_mkTAGWord
+        ]
+
+prop_mkTAGWord tw = tw == mkTAGWord (twData tw) (twSpine tw) (twInd tw) 
+    where types = tw :: TAGWord Int Char
+
+--}}}

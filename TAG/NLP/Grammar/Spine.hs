@@ -1,13 +1,15 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
-module NLP.Grammar.Spine where 
---import NLP.Grammar.NonTerm 
-import Helpers.MkEnum
+module NLP.Grammar.Spine (mkSpine, Spine, top, lastOfSpine, getNonTerm, lookupNonTerm, parseSpine, toList, testSpine) where 
+
+--{{{  Imports
+
 import Helpers.Common hiding (char)
 import Helpers.Parse
+import Helpers.Test
 import Control.Applicative
 import Data.Traversable
 import Data.Foldable
---import NLP.Language
+--}}}
 
 newtype Spine nt = Spine [nt] 
     deriving (Eq, Ord, Binary, NFData, Functor, Foldable, Traversable)
@@ -18,21 +20,6 @@ mkSpine nts = Spine nts
 
 instance (Show n) => Show (Spine n) where 
     show (Spine nts) = intercalate "+" $ ["*"] ++ map show nts
-
--- instance (Language l) => Enum (Spine l) where 
---     fromEnum (Spine s i) = i  
---     toEnum n = Spine (mkToEnumList maxBound n) n
-
--- -- WARNING, assumes that spines are size <= 4
--- instance (Language l) => Bounded (Spine l) where 
---     minBound = toEnum 0 
---     maxBound = toEnum $ computeMaxBound $ map fromEnum (replicate 4 (maxBound ::NonTermWrap l))
-
--- instance Eq (Spine l)  where 
---     (==) (Spine _ i) (Spine _ i') = i == i' 
-
--- instance Ord (Spine l)where 
---     compare (Spine _ i) (Spine _ i') = compare i i' 
 
 instance (Show l) => Pretty (Spine l) where 
      pPrint (Spine sp)  = text $ intercalate "->" $ map show $ reverse sp 
@@ -62,26 +49,33 @@ parseSpine parseNT = do
                   `sepBy` char '+'
       return $ mkSpine $ catMaybes nonterms
 
-
 --{{{  TESTS
+runTests = defaultMain [testSpine]
 
+instance (Arbitrary nt) =>  Arbitrary (Spine nt) where
+     arbitrary = do
+       i <- choose (0,3)
+       nts <- vectorOf i arbitrary 
+       return $ mkSpine nts
 
--- instance (Language l) => Arbitrary (Spine l) where
---     arbitrary = do
---       i <- choose (0,3)
---       nts <- vectorOf i arbitrary 
---       return $ mkSpine nts
+testSpine = testGroup "Spine props" [
+         testProperty "top" prop_top,
+         testProperty "last" prop_lastOfSpine,
+         testProperty "mkSpine" prop_mkSpine
+        ]
 
---prop_enumSpine a = checkEnum
---    where types = (a::Spine ) 
+prop_top (sp::Spine Int) = 
+    if null ls then top sp == Nothing
+    else top sp == (Just $ last ls)
+    where ls = toList sp
+
+prop_lastOfSpine (sp::Spine Int) = 
+    lastOfSpine sp == (length ls)
+    where ls = toList sp
+
+prop_mkSpine (sp::Spine Int) =
+    sp == (mkSpine ls)
+    where ls = toList sp
+
 --}}}
 
--- hasNP (Spine spine _) = any ((==) (NonTermWrap NP)) spine
--- hasNPorNPCC (Spine spine _) = any (\nt -> (nt == (NonTermWrap NP)) || (nt == (NonTermWrap NP_CC))) spine
--- posNP (Spine spine _) = fromJustNote "posnp" $ elemIndex (NonTermWrap NP) spine
-
--- addNPB s@(Spine spine _) = mkSpine (take pos spine ++ [NonTermWrap NPB] ++ drop pos spine) 
---    where pos = posNP s
-
--- isNPB (NonTermWrap NPB) = True
--- isNPB _ = False

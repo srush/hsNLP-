@@ -24,6 +24,7 @@ library
                          NLP.Model.TAG.Decoding,
                          NLP.Model.TAG.Derivation,
                          NLP.Model.TAG.DependencyPrior,
+                         NLP.Model.TAG.Counts,
 
                          NLP.Model.Dependency.Model
                          NLP.Model.Dependency.Wrap
@@ -31,6 +32,7 @@ library
                          NLP.Model.Dependency.Semi,
                          NLP.Model.Dependency.Format,
                          NLP.Model.Dependency.Decoding,
+                         NLP.Model.Dependency.Derivation,
 
                          NLP.Model.CreateableSemi
                          NLP.Model.ParseState
@@ -64,7 +66,7 @@ library
                      DebugTraceHelpers,
                      process,
                      MonadRandom,
-                     TAG,
+                     TAG > 0.1,
                      simplelanguage,
                      monoids,
                      bimap,
