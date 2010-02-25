@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns, StandaloneDeriving #-}
 module NLP.Probability.Chain (simpleObserve,
                               JointModel (..),
-                              M2(..), M3(..), M4(..), M5(..), M7(..), HolderPretty, hPretty
+                              M2(..), M3(..), M4(..), M5(..), M7(..), HolderPretty, holderPretty, hPretty
                              ) where 
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 

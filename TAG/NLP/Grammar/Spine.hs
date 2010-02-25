@@ -12,17 +12,16 @@ import Data.Foldable
 --}}}
 
 newtype Spine nt = Spine [nt] 
-    deriving (Eq, Ord, Binary, NFData, Functor, Foldable, Traversable)
+    deriving (Eq, Ord, Binary, NFData, Functor, Foldable, Traversable, Show, Read)
 mkSpine nts = Spine nts 
 
 --{{{  Spine Classes
 
+--instance (Show n) => Show (Spine n) where 
+--    show (Spine nts) = intercalate "+" $ ["*"] ++ map show nts
 
-instance (Show n) => Show (Spine n) where 
-    show (Spine nts) = intercalate "+" $ ["*"] ++ map show nts
-
-instance (Show l) => Pretty (Spine l) where 
-     pPrint (Spine sp)  = text $ intercalate "->" $ map show $ reverse sp 
+instance (Pretty l) => Pretty (Spine l) where 
+     pPrint (Spine sp)  = hcat $ punctuate (text "+") $ [text "*"] ++ map pPrint sp
 --}}}
 
 -- Returns the non-terminal at the top of the spine (nothing if it has an empty spine)

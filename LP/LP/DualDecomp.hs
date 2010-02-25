@@ -7,7 +7,7 @@ import qualified Data.Set as S
 type Lambda a = M.Map a Double 
 type Result a = S.Set a 
 
-update :: (Ord a, Show a) => Master a b -> Int -> Result a -> Result a -> Lambda a -> Lambda a 
+update :: (Ord n, Show n) => Master n a b -> Int -> Result n -> Result n -> Lambda n -> Lambda n 
 update master i y1 y2 lambda = 
     insertManyWith (+) (decayRate master (alpha master) i) (S.toList adds) $   
     insertManyWith (+) (- (decayRate master (alpha master) i)) (S.toList subs) lambda  
@@ -25,15 +25,15 @@ combine theta lambda dif scale node =
           
 data Slave node a=
     Slave {
-      getMAP :: Lambda node -> Int -> IO (Double, S.Set node, Maybe a)
+      getMAP :: Lambda node -> Int -> IO (Double, S.Set node, a)
     }
                
-data DecompState = Done | InProcess
+data DecompState = Done Int | InProcess
 
-data Master node a = 
+data Master node a b = 
     Master {
-      slaves :: (Slave node a,
-                 Slave node a),
+      slaves :: (Slave node a ,
+                 Slave node b),
       ratio  :: Double,
       --theta :: Theta node,
       lambda :: Lambda node,
@@ -43,12 +43,12 @@ data Master node a =
       lastMAP :: S.Set node,
       lastMAPs :: (S.Set node,S.Set node),
 
-      lastResults :: (Maybe a, Maybe a), 
+      resultHistory :: [(a, b)], 
       alpha :: Double,
       decayRate :: Double -> Int -> Double
     } 
 
-instance (Show node) => Show (Master  node a) where  
+instance (Show node) => Show (Master node a b) where  
     show master = 
         show (step master) ++ " " ++  show (lambda master) 
 
@@ -59,7 +59,7 @@ initialize slaves ratio alpha decay =
              step   = 0, 
              obj    = [],
              state  = InProcess,
-             lastResults = (Nothing, Nothing),
+             resultHistory = [],
              lastMAP= mempty,
              lastMAPs = (mempty, mempty),
              ratio  = ratio,
@@ -67,16 +67,21 @@ initialize slaves ratio alpha decay =
              decayRate = decay
              } 
 
-takeStep :: (Show a, Ord a) => Master a b -> IO (Master a b)
+getRoundConverged master = 
+    case state master of 
+      Done i -> Just i
+      InProcess -> Nothing
+
+takeStep :: (Show n, Ord n) => Master n a b -> IO (Master n a b)
 takeStep master = do 
   ((obj1, obj2) ,(map1, map2), (best1, best2)) <- maps
-  putStrLn $ "round" ++ show i
+  --putStrLn $ "round" ++ show i
   return $ master {
     lambda = update master i map1 map2 (lambda master),
     step = i + 1,
     obj = (obj1, obj2):(obj master),
-    state = if map1 == map2 then Done else InProcess,
-    lastResults = (best1, best2), 
+    state = if map1 == map2 then Done i else InProcess,
+    resultHistory = (best1, best2):resultHistory master, 
     lastMAP = S.difference map1 map2,
     lastMAPs = (S.difference map1 map2,
                 S.difference map2 map1)

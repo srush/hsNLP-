@@ -46,6 +46,7 @@ library
                    Helpers.MkEnum
                    Helpers.Arbitrary
                    Helpers.Parse
+                   Helpers.Test
     ghc-options: -O2                     
     build-Depends:   base       >= 3   && < 4,                     
                  containers >= 0.1 && < 0.3,
@@ -56,6 +57,10 @@ library
                  text,
                     fsm,
                     chartparse >= 0.3,
+                     test-framework,
+                    test-framework-hunit,
+                    test-framework-quickcheck2,
+
                      pretty,
                      prettyclass,
                      safe,

@@ -96,7 +96,7 @@ genDecodeSentence  opts probs insent = do
   return b' -- $  trace (show chart) b'
         where 
           getProb = memoize $ prob probs 
-          mkSemi pairs = fromProb $ getProb pairs
+          mkSemi c e = fromProb $ getProb $ chainRule c e 
 
 memoize :: Ord a => (a -> b) -> (a -> b) 
 memoize f =
@@ -135,10 +135,10 @@ decodeGold opts probs insent = do
     let (b',_)= eisnerParse fsm id actualsent (\ _ i -> i) id id
     return b'
     where
-          mkSemi pairs = fromProb $ prob probs pairs
+          mkSemi e c = fromProb $ prob probs $ chainRule e c
 
 makeFSM :: Sentence DWord -> DSentence  -> DecodingOpts -> 
-           (Pairs FirstOrderDep -> Counter (CVD DependencyDerivation)) -> 
+           (Counter (CVD DependencyDerivation)) -> 
            ParseMonad (Int -> DWord ->
                        (AdjState DWord FirstOrderDep (CVD DependencyDerivation) , 
                         AdjState DWord FirstOrderDep (CVD DependencyDerivation) ))

@@ -25,7 +25,7 @@ tagRoot = do
   aroot <- toAtom $ mkWord "ROOT"
   apos <- toAtom $ mkPOS "ROOT"
 
-  let non = read "ROOT"
+  let non = mkNonTerm "ROOT"
   anon <- toAtom non
   let spine =  mkSpine [anon]
   aspine <- toAtom $  mkSpine [non] 

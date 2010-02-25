@@ -1,4 +1,4 @@
-module NLP.Grammar.DependencySent (DependencySentence) where 
+module NLP.Grammar.DependencySent (DependencySentence(..)) where 
 
 
 --{{{  Imports

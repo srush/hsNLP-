@@ -7,6 +7,8 @@ import System
 import NLP.TreeBank.TreeBank
 import NLP.ParseMonad
 import NLP.Model.TAG.DependencyPrior
+import NLP.Model.CreateableSemi
+import NLP.Model.TAG.Semi
 import NLP.ParseMonad
 import Debug.Trace
 main = do 
@@ -18,20 +20,21 @@ main = do
   let sentsM =  mapM (parseSentence testFile. unlines) $ 
                separate "" $ lines contents
   let sents = runParseMonad sentsM mappers  
+
   prunes <- readPruning pruneFile
   let parses =  mapM (\(s,p) -> do
                         tm <- tripletMapper
-                        Just b <- genDecodeGold (defaultGoldDecoding {validator = (\s e c-> if newValid s e c then 
+                        Just b <- (genDecodeGold (defaultGoldDecoding {validator = (\s e c-> if newValid s e c then 
                                                                                                 if not $ validByDepPrior 1e-8 tm p e c then 
                                                                                                     trace ("Pruning fail " ++ show e ++ " " ++show c) True
                                                                                                 else
                                                                                                     True
                                                                                             else False
-                                                                                  ) } ) params s
-                        b' <- genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5 , validator=const $ validByDepPrior 1e-8 tm p} ) params s 
+                                                                                  ) } ) params s) :: ParseMonad (Maybe (CVD TAGDerivation)) 
+                        b' <- (genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5, validator=const $ validByDepPrior 1e-8 tm p} ) params s) :: ParseMonad (Maybe (CVD TAGDerivation)) 
                         b'' <- case b' of 
                                  Just b -> return $ Just  b
-                                 Nothing -> genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5 } ) params s 
+                                 Nothing -> genDecodeSentence (defaultDecoding {listPruning = False, beamThres = 1e5 } ) params s 
                         return (b'', b)) $ zip sents prunes
   let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]
@@ -39,7 +42,7 @@ main = do
   
   -- putStrLn $ chartStats $ snd $ head results
 
-  sequence $ runParseMonad (mapM (\(b,a) ->  renderSentences a b) results) mappers 
+  sequence $ runParseMonad (mapM (\(b,a) -> renderSentences a b) results) mappers 
       where isNothing Nothing = True
             isNothing _ = False
 

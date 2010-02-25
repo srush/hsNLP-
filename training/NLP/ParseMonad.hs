@@ -54,8 +54,8 @@ newtype ParseMonad a = ParseMonad (Reader Mappers a)
 
 runParseMonad (ParseMonad pm) mappers = runReader pm mappers
 
-instance Read (Spine NonTerm) where 
-    readsPrec _ = makeParseRead $ parseSpine parser
+instance AtomRead (Spine NonTerm) where 
+    atomRead = makeParseAtomRead $ parseSpine parser
 
 data LoadMapConf = LoadMapConf {
       directory :: String,
@@ -67,7 +67,7 @@ data LoadMapConf = LoadMapConf {
       shouldCollapseWords :: Bool
     }
 
-defaultLoadMap = LoadMapConf "maps/" [",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] ["CC"] [".", "``", "''"]  "NPB" True
+defaultLoadMap = LoadMapConf "maps/" [",", ":"]  [ "VB", "VBD", "VBG","VBN", "VBP", "VBZ"] ["CC", "-LRB-", "-RRB-"] [".", "``", "''"]  "NPB" True
 
 testPM pm = do 
   l <- loadDebugMappers
@@ -77,7 +77,7 @@ loadDebugMappers = loadMappers defaultLoadMap
 
 loadSet file = do 
   contents <- readFile file
-  return $ S.fromList $ map read $ lines contents
+  return $ S.fromList $ map atomRead $ lines contents
 
 loadMappers :: LoadMapConf -> IO (Mappers)
 loadMappers conf = do
@@ -127,10 +127,10 @@ collapseWordMap m w =
              Nothing -> w 
              Just common ->
                   if isNum w then
-                      read "*NUM*"
+                      mkWord "*NUM*"
                   else if S.member w common  then 
                       w 
-                  else read "*UNK*" 
+                  else mkWord "*UNK*" 
       where isNum (Word w ) = ord a >= ord '0' && ord a <= ord '9'                
                 where a = w!!0
 
@@ -168,7 +168,7 @@ isNPB = do
 
 isRoot :: ParseMonad (ANonTerm -> Bool)
 isRoot = do 
-  a <- toAtom $ read "ROOT"
+  a <- toAtom $ mkNonTerm "ROOT"
   return $ (== a)
 
 --{{{  TESTS

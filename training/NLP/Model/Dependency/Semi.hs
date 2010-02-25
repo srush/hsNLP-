@@ -7,7 +7,7 @@ import NLP.Language.SimpleLanguage
 import NLP.Grammar.Dependency
 import NLP.Model.Dependency.Wrap
 import NLP.Semiring.LogProb
-
+import NLP.Probability.Chain
 newtype DependencyDerivation = DependencyDerivation (ParseDerivation (ALabel)) 
     deriving (Eq, Monoid)
 
@@ -18,8 +18,8 @@ instance Pretty (DependencyDerivation) where
     pPrint (DependencyDerivation der) = text $ show der
 
 instance CreateableSemi (CVD DependencyDerivation) where 
-    type Counter (CVD DependencyDerivation) = LogProb
+    type Counter (CVD DependencyDerivation) = FullEvent FirstOrderDep -> FullContext FirstOrderDep -> LogProb
     type Model (CVD DependencyDerivation) = FirstOrderDep
-    mkSemiSmall p = CVD $ viterbiHelp p (DependencyDerivation mempty)
+    --mkSemiSmall p = CVD $ viterbiHelp p (DependencyDerivation mempty)
     mkSemi p event context = 
-        CVD $ viterbiHelp p $ DependencyDerivation $ singletonDep (parentInd context) (childInd event) (childLabel event) 
+        CVD $ viterbiHelp (p event context) $ DependencyDerivation $ singletonDep (parentInd context) (childInd event) (childLabel event) 

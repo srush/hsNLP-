@@ -103,7 +103,7 @@ data AdjunctionInfo a  =
     AdjunctionInfo {adjPos :: Int, -- adjunction position
                     adjType :: AdjunctionType, -- sister adjunction? 
                     adjInfo :: a } 
-    deriving (Show, Eq)
+    deriving (Show, Read, Eq)
 
 
 

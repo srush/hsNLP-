@@ -26,8 +26,8 @@ instance Pretty (ParseTree (Either NonTerm (Word,POS))) where
     pPrint (ParseTree t) = phelp t 
         where 
           phelp (Node (Right (word,pos)) []) = 
-              lparen <> (text $ show $ pos) <+> (text $ show $ word) <> rparen 
+              lparen <> (pPrint pos) <+> (pPrint $ word) <> rparen 
           phelp (Node (Left nt) rest) =  
-              (lparen <> (text $ show nt))
+              (lparen <> (pPrint  nt))
               <+>
               (hsep $ map phelp rest) <> rparen

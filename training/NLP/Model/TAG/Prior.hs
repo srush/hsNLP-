@@ -80,7 +80,7 @@ instance JointModel CollinsPrior where
 
     estimate (PriorObs (ucounts, ccounts) ) = 
         PriorProbs (mle $ finish ucounts, 
-                    estimateGeneralLinear (simpleLinear [0.7, 0.2, 0.1]) ccounts) 
+                    mkDist $ estimateGeneralLinear (simpleLinear [0.7, 0.2, 0.1]) ccounts) 
     
 
 

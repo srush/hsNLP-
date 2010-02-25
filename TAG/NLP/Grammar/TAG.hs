@@ -16,18 +16,15 @@ import Helpers.Test
 --   Sister comes from a single position, 
 --   regular duplicates the node in the head tree 
 data AdjunctionType = Sister | Regular
-    deriving  (Eq, Ord, Enum, Bounded)
+    deriving  (Eq, Ord, Enum, Bounded, Show, Read)
 
 --{{{AdjunctionType Classes 
 
 instance Pretty AdjunctionType where 
-    pPrint Sister = text "SIS" 
-    pPrint Regular = text "REG" 
+    pPrint Sister = text "s" 
+    pPrint Regular = text "a" 
 
 
-instance Show AdjunctionType where 
-    show Sister = "s"
-    show Regular = "a"
 
 $( derive makeBinary ''AdjunctionType ) 
 $( derive makeArbitrary ''AdjunctionType ) 
@@ -43,7 +40,7 @@ data AdjunctionInfo a  =
     AdjunctionInfo {adjPos :: Int, -- adjunction position
                     adjType :: AdjunctionType, -- sister adjunction? 
                     adjInfo :: a } 
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Read)
 
 --{{{AdjunctionInfo Classes
 instance Functor AdjunctionInfo where 
@@ -75,7 +72,7 @@ data TAGWord nt twdata = TAGWord {
       twSpine :: Spine nt,
       twData  :: twdata,
       twInd   :: Int 
-} deriving (Eq,Ord)
+} deriving (Eq,Ord, Show, Read)
 
 
 mkTAGWord :: w -> Spine nt -> Int -> TAGWord nt w
@@ -83,8 +80,8 @@ mkTAGWord w s ind = TAGWord s w ind
 
 --{{{ TAGWord Classes
 
-instance (Show w, Show nt) => Show (TAGWord nt w) where 
-    show = render . pPrint
+--instance (Show w, Show nt) => Show (TAGWord nt w) where 
+--    show = render . pPrint
 
 instance (Show w, Show nt) => Pretty (TAGWord nt w) where 
     pPrint (TAGWord word spine ind) = (text $ show ind)  <+> (text " ") <+> (text $ show word) <+> (text $ show spine) 

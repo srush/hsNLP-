@@ -20,8 +20,8 @@ library
                          NLP.Probability.ConditionalDistribution
                          NLP.Probability.EM
                          NLP.Probability.Example.Trigram 
-                         NLP.Probability.Chain
-    other-modules:       NLP.Probability.SmoothTrie
+                         NLP.Probability.Chain,
+                         NLP.Probability.SmoothTrie
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
                      binary,

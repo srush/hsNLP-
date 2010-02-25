@@ -10,8 +10,8 @@ module NLP.Probability.Observation (
   observations,
   inc,
   Observed(..),
-  finish
-
+  finish,
+  showObsPretty
 
                                    ) where 
 import Data.Monoid
@@ -39,6 +39,13 @@ class (M.Map (EventMap event) event) => Event event where
     type EventMap event :: * -> * -> *
 
 pShow fn (Counts counts) = vcat $ map (\(e,count) -> (fn e) <+> equals <+> double count ) $ M.toList counts 
+
+showObsPretty :: (Event event, Monad m) => (event -> m Doc) -> Counts event -> m Doc  
+showObsPretty fn mcounts = do 
+  res <- mapM (\(e,count) -> do
+                 me <- (fn e)
+                 return (me <+> equals <+> double count) ) $ M.toList $ counts mcounts
+  return $ vcat res 
 
 instance (Event event, Pretty event) => Pretty (Counts event) where 
     pPrint = pShow pPrint

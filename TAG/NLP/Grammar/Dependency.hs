@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
-module NLP.Grammar.Dependency (Dependency(..), getHead, singletonDep, rootInd, DEdge(..), toList, splitMap, convertToTree, flattenDep, hasDependency, hasDependencyAndLabel,testDep) where 
+module NLP.Grammar.Dependency (Dependency(..), getHead, singletonDep, rootInd, DEdge(..), toList, splitMap, convertToTree, flattenDep, hasDependency, hasDependencyAndLabel,testDep, AdjunctionSide(..)) where 
 
 --{{{  Imports
 import Helpers.Common
@@ -21,8 +21,8 @@ $( derive makeNFData ''AdjunctionSide)
 $( derive makeArbitrary ''AdjunctionSide)
 
 instance Show AdjunctionSide where 
-    show ALeft = "Left"
-    show ARight = "Right"
+    show ALeft = "L"
+    show ARight = "R"
 
 instance Pretty AdjunctionSide where pPrint = text . show
 
@@ -33,11 +33,11 @@ instance Pretty AdjunctionSide where pPrint = text . show
 --   Children to parents 
 newtype Dependency label = 
     Dependency (M.Map Int (DEdge label))
-    deriving (Eq, Monoid) 
+    deriving (Eq, Monoid, Show, Read) 
 
 --{{{ Dependency Classes 
-instance (Show label) => Show (Dependency label) where 
-    show (Dependency dep) = "Dep: " ++ (show $ M.toList dep) 
+--instance (Show label) => Show (Dependency label) where 
+--    show (Dependency dep) = "Dep: " ++ (show $ M.toList dep) 
 
 instance Functor Dependency where 
     fmap f (Dependency d1) = Dependency $ M.map (\(DEdge h info ) -> DEdge h (f info) ) d1 
@@ -60,11 +60,11 @@ singletonDep head child info = Dependency $ M.singleton child (DEdge head info)
 -- | DependencyEdge - the node that it points to and the label on the endge
 data DEdge label = DEdge {to :: Int,
                           info :: label}  
-    deriving (Eq)
+    deriving (Eq, Show, Read)
 
 --{{{ DEdge Classes 
-instance (Show label) => Show (DEdge label) where 
-    show dedge = (show $ to dedge) ++ " lab: " ++ (show $ info dedge)   
+--instance (Show label) => Show (DEdge label) where 
+--    show dedge = (show $ to dedge) ++ " lab: " ++ (show $ info dedge)   
 
 instance (Eq a) => Ord (DEdge a) where 
     compare = compare `on` to

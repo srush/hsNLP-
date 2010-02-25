@@ -30,4 +30,7 @@ else:
 
   os.system("scripts/GetGold G < %s >> /tmp/gold"%(sys.argv[1]))
   os.system("scripts/GetGold T < %s >> /tmp/test"%(sys.argv[1]))
-os.system("~/EVALB/evalb /tmp/gold /tmp/test ~/EVALB/sample/sample.prm")
+
+os.system("cat /tmp/gold | python scripts/Unquote.py | python scripts/Unline.py > /tmp/gold2 ")
+os.system("cat /tmp/test | python scripts/Unquote.py | python scripts/Unline.py > /tmp/test2 ")
+os.system("~/EVALB/evalb /tmp/gold2 /tmp/test2 -p ~/EVALB/COLLINS.prm")

@@ -108,6 +108,22 @@ instance  (Ord w) => Ord (AdjState w a b) where
     {-# INLINE compare #-}
     compare = compare `on` expandAdjState
 
+--{{{  Comma Pruning explanation
+
+-- The second form of pruning employed is using a comma constraint. Collins observed
+-- that in the Penn Treebank data, 96% of the time, when a constituent contained a
+-- comma, the word immediately following the end of the constituent's span was either a
+-- comma or the end of the sentence. So, for speed reasons, the decoder rejects all theories
+-- that would generate constituents that violate this comma constraint. There is a subtlety
+-- to Collins' implementation of this form of pruning, however. Commas are quite
+-- common within parenthetical phrases. Accordingly, if a comma in an input sentence
+-- occurs after an open parenthesis and before a closing parenthesis or the end of the sentence,
+-- it is not considered a comma for the purposes of the comma constraint. Another
+-- subtlety is that the comma constraint should effectively not be employed when pursuing
+-- theories of an NPB subtree. As it turns out, using the comma constraint also affects
+-- accuracy, as shown in §7.1.
+
+--}}}
 
 -- | Implements comma pruning 
 commaPruning state split = 
@@ -116,9 +132,9 @@ commaPruning state split =
     (not $ afterConj)
         where afterConj = endsWithComma $ (distanceCache $ opts state) (ind state, split) 
 
-shouldPrune adjstate split isTryingEmpty = False
+shouldPrune adjstate split isTryingEmpty = 
 --    (isTryingEmpty && (prevComma $ curDelta adjstate)) || 
---      ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
+    ((useCommaPruning $ opts adjstate)  && commaPruning adjstate split)
 
 mkDistance adjstate split = verb
     where verb = containsVerb $ (distanceCache $ opts adjstate) (ind adjstate, split)

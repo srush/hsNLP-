@@ -38,6 +38,18 @@ instance (Monoid holder, M.Map map letter) => Monoid (SmoothTrie map letter hold
     mappend (SmoothTrie m) (SmoothTrie m') = SmoothTrie (T.unionWith mappend m m')
     mconcat sumtries = SmoothTrie $ T.unionsWith mappend $ [s | SmoothTrie s <-sumtries]
 
+mPretty showEvent showCond (SmoothTrie t) = printRows 1 
+         where 
+           tlist = T.toList t
+           printRows n = if null oflen then return $ empty 
+                         else do 
+                           ofls <- mapM (\(k,v) -> do {pk<-showCond k; pv <- showEvent v; return (pk,pv) }) oflen
+                           pr <- printRows (n + 1)
+                           return (hang (text "Row " <> int n) 4  
+                                  $ (vcat $ map (\(k,v) -> k <+>v) ofls) $$ pr) 
+               where oflen = filter ((== n).length.fst) tlist  
+
+
 lookup ks (SmoothTrie t) = T.lookup ks t 
 
 {-# INLINE lookupWithDefault #-}

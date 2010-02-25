@@ -8,7 +8,7 @@ import NLP.TreeBank.TreeBank
 import Data.Array
 import NLP.Language.SimpleLanguage
 import Debug.Trace
-import NLP.ParseMonad
+import NLP.ParseMonad hiding (unAtom)
 
 isWord tree = 
     if isList tree then
@@ -17,18 +17,18 @@ isWord tree =
         False
 
 addBackWords (WordInfoSent wis) tree = 
-    trace (show wis) $ list ([atom "TOP"] ++  (tr ++ map getAtomN [k..m])) 
+    list ([atom "TOP"] ++  (tr ++ map getAtomN [k..m])) 
             
     where 
       (tr, k) = count ([], 1) tree
       (1,m) = bounds wis
-      getWord n =  trace (show n) $ wis ! n  
+      getWord n =   wis ! n  
       count :: ([Sexpr String], Int) -> Sexpr String -> ([Sexpr String], Int) 
       count (ls, n) tree  = 
           if isAtom tree then
               (ls ++ [tree], n)
           else if isWord tree && isList tree then
-              let [pos, word] = trace (show $ map unAtom $ unList tree) $ map unAtom $ unList tree
+              let [pos, word] =  map unAtom $ unList tree
                   newn = getNewN pos n
               in 
               (ls ++ getAtomsBefore pos n ++ [getAtom pos n], newn+1)
@@ -42,18 +42,18 @@ addBackWords (WordInfoSent wis) tree =
           else
               []
       getAtomN n = 
-          trace (show "atomn" ++show n) $ 
+          
           list [atom $ transFor $ show $ posStr $ getWord n, 
                 atom $ transFor $ unWord $ wordStr $ getWord n ]
 
       getAtom pos' n = 
-          trace (show "atom" ++ show n) $ 
+
           if pos' /= (transFor $ show $ posStr $ getWord n) then
               getAtom pos' (n+1)
           else 
               getAtomN n
       getNewN pos' n =
-          trace (show "newn " ++ (show pos') ++ (show $ posStr $ getWord n)) $ --trace (show m ++ show pos' ++ show "newn" ++ show n ++ (show $ posSt $ getWord n) ++ show wis) $ 
+          
           if pos' /= (transFor $ show $ posStr $ getWord n) then
               getNewN pos' (n+1)
           else

@@ -129,6 +129,6 @@ instance JointModel FirstOrderDep  where
          Probs (est $! obs1, est $! obs2) 
          where  
            est :: (Event a, Context b) => CondObserved a b -> CondDistribution a b 
-           est = estimateGeneralLinear (wittenBell 5)
+           est = mkDist . estimateGeneralLinear (wittenBell 5)
 
 

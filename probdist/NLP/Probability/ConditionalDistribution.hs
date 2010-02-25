@@ -12,7 +12,9 @@ module NLP.Probability.ConditionalDistribution (
                                                 estimateGeneralLinear,
                                                 Weighting,
                                                 wittenBell, 
-                                                simpleLinear 
+                                                simpleLinear,
+                                                DebugDist,
+                                                mkDist
                                                 ) where 
 import qualified Data.ListTrie.Base.Map as M
 import Data.List (inits)
@@ -21,7 +23,7 @@ import qualified NLP.Probability.SmoothTrie as ST
 import NLP.Probability.Distribution
 import NLP.Probability.Observation 
 import Data.Binary
-
+import Text.PrettyPrint.HughesPJClass
 -- $CondDistDesc
 -- Say we want to estimate a conditional distribution based on a very large set of observed data.
 -- Naively, we could just collect all the data and estimate a large table, but
@@ -42,6 +44,8 @@ import Data.Binary
 -- 
 
 
+
+
 -- | The set of observations of event conditioned on context. event must be an instance of Event and context of Context 
 type CondObserved event context = (ST.SmoothTrie (SubMap context) (Sub context) (Counts event))
 
@@ -53,8 +57,10 @@ class (M.Map (SubMap a) (Sub a)) => Context a where
     type Sub a  
     -- | A map over subcontexts (for efficiency) 
     type SubMap a :: * -> * -> * 
+
     -- | A function to enumerate subcontexts of a context  
     decompose ::  a -> [Sub a] 
+
 
 -- | A CondObserved set for a single event and context. 
 condObservations :: (Context context, Event event) => 
@@ -74,10 +80,12 @@ condObservationCounts context counts =
     
 
 type CondDistribution event context = context -> Distribution event
-
+type DebugDist event context  =(context -> event -> [(Double,Double)])
 
 type Weighting = forall a. [Maybe (Observed a)] -> [Double]
 
+mkDist :: DebugDist event context -> CondDistribution event context
+mkDist dd context event = sum $ map (uncurry (*)) $ dd context event
 
 -- | General Linear Interpolation. Produces a Conditional Distribution from observations.
 --   It requires a GeneralLambda function which tells it how to weight each level of smoothing. 
@@ -88,10 +96,10 @@ type Weighting = forall a. [Maybe (Observed a)] -> [Double]
 estimateGeneralLinear :: (Event event, Context context) => 
                          Weighting -> 
                          CondObserved event context -> 
-                         CondDistribution event context
+                         DebugDist event context
 estimateGeneralLinear genLambda cstat = conFun 
     where
-      conFun context = (\event -> sum $ zipWith (*) lambdas $ map (probE event) stats) 
+      conFun context = (\event -> zip lambdas $ map (probE event) stats) 
           where stats = reverse $ 
                         Nothing : (map (\k -> Just $ ST.lookupWithDefault (finish mempty) k cstat')  $ 
                                   tail $ inits $ decompose context)
@@ -122,4 +130,5 @@ wittenBell n ls = wittenBell' ls 1.0
           if total cur > 0 then (l*mult : wittenBell' ls ((1-l)*mult)) 
           else (0.0: wittenBell' ls mult)  
               where l = lambdaWBC n cur
+
 

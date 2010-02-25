@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell, FlexibleContexts #-}
 module NLP.Model.Distance (mkDistCacheLeft, mkDistCacheRight, testDist,
-                          Delta, VerbDistance, prevComma, adjacent, withPrevComma, resetDelta, startDelta ,
+                          Delta, VerbDistance(..), prevComma, adjacent, withPrevComma, resetDelta, startDelta ,
                          DisCache, SurfaceFeature(..),
                                  mkVerbDis
                           ) where 
@@ -104,15 +104,16 @@ instance Enum Delta where
     toEnum n =  fromJustNote "delta" $ BM.lookup n deltaMap
 
 instance Pretty Delta where 
-    pPrint = text . show 
-
+    pPrint (Delta (comma, _ ,adj))= 
+        text $ (if adj then "+A+ " else "") ++
+               (if comma then "+C+" else "")
 resetDelta = Delta (False, False, False)
 
 instance Pretty VerbDistance where 
     pPrint d = text $ showBool (spansVerb d)
         where
-          showBool True = "1"
-          showBool False = "0"
+          showBool True = "+V+"
+          showBool False = ""
 
 mkVerbDis = VerbDistance 
 

@@ -1,5 +1,5 @@
 name:                TAG
-version:             0.2
+version:             0.3
 synopsis:            
 description:         
 category:            Natural Language Processing
@@ -19,7 +19,7 @@ library
     ghc-options: -O2                    
     other-modules:   Helpers.Common
                      Helpers.Parse
-
+                     Helpers.Test
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
                      derive,
@@ -33,4 +33,8 @@ library
                      bimap,
                      array,
                      parsec >= 3.0,
-                     deepseq
+                     deepseq,
+                     HUnit,
+                     test-framework,
+                    test-framework-hunit,
+                    test-framework-quickcheck2

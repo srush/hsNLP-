@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns  #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, TypeFamilies #-}
 module NLP.Model.TAG.Decoding where 
 -- Various functions to help with decoding, super hacky right now
 -- TODO: clean up constants in this file 
@@ -36,7 +36,9 @@ import NLP.Model.TAG.Semi
 import qualified Data.IntMap as IM
 import NLP.ChartParse
 import Data.List
-type DecodeParams = (SpineExist, Probs Collins, Probs CollinsPrior)
+import qualified Data.Set as S
+
+type DecodeParams = (SpineExist, Probs Collins, ProbsDebug, Probs CollinsPrior)
 
 readDecodeParams :: String -> String -> String -> IO DecodeParams
 readDecodeParams adjCountFile spineCountFile spineProbFile = do
@@ -46,7 +48,8 @@ readDecodeParams adjCountFile spineCountFile spineProbFile = do
   let probSpine = estimate spineCounts2
   --print counts
   let probs = estimate counts
-  return $! (spineCounts, probs, probSpine)
+  let probsDebug = estimateDebug counts
+  return $! (spineCounts, probs,probsDebug, probSpine)
    
 
 
@@ -66,27 +69,31 @@ defaultDecoding =  DecodingOpts {
                      listPruning = True
                    }
 
-decodeSentence :: 
+decodeSentence :: (TAGDecodeSemi semi,  Model semi ~ Collins, Counter semi ~ TAGCounter) => 
                   DecodeParams ->  WordInfoSent -> 
-                  ParseMonad (Maybe (CVD TAGDerivation))
+                  ParseMonad (Maybe semi)
 decodeSentence = genDecodeSentence defaultDecoding
                          
 
-genDecodeSentence ::
+genDecodeSentence ::(TAGDecodeSemi semi,
+                    Model semi ~ Collins, Counter semi ~ TAGCounter
+                    ) => 
                   DecodingOpts  ->
                   DecodeParams  ->   WordInfoSent -> 
-                  ParseMonad (Maybe (CVD TAGDerivation))
-genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do 
+                  ParseMonad (Maybe semi)
+genDecodeSentence  opts (spineCounts, probs,probsDebug, probSpine) insent = do 
   testsent <- toTAGTest spineCounts insent 
   sent <- toTAGSentence insent
   dsent <- toTAGDependency insent
-  fsm <- makeFSM  sent dsent opts  mkSemi
-  let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)                             
+  fsm <- makeFSM  sent dsent opts  (mkSemi,mkSemiDebug)
+  let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)
                   (if (listPruning opts) then globalThresList getSpineProb else globalThresOne (beamThres opts) getSpineProb) (globalThresOne (1e5) getSpineProb)
   return $ {- trace (show $ chartStats chart) -}  b'
         where 
               getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
               mkSemi e c = extraDepScore opts pairs $ LogProb $ (log $ getProb pairs)
+                  where pairs = chainRule e c
+              mkSemiDebug e c = probDebug probsDebug pairs
                   where pairs = chainRule e c
               getSpineProb = memoize False (prob probSpine) -- OPTIMIZATION
 
@@ -145,6 +152,9 @@ memoize tra f =
 newValid sent  event context = 
     valid sent (parentTWord context) (childTWord event) (spinePos context) (fromJustDef Sister $ NLP.Model.TAG.Adjunction.adjType event)
 
+decodeGold ::(TAGDecodeSemi semi, Model semi ~ Collins, Counter semi ~ TAGCounter
+                ) => 
+                DecodeParams -> WordInfoSent -> ParseMonad (Maybe semi)
 decodeGold = genDecodeGold defaultGoldDecoding
 
 defaultGoldDecoding =  DecodingOpts {
@@ -156,8 +166,9 @@ defaultGoldDecoding =  DecodingOpts {
                    }
 
 
-genDecodeGold :: DecodingOpts -> DecodeParams -> WordInfoSent -> ParseMonad (Maybe (CVD TAGDerivation))
-genDecodeGold opts (spineCounts, probs, probSpine) insent = do
+genDecodeGold ::(TAGDecodeSemi semi, Counter semi ~ TAGCounter,Model semi ~ Collins) => 
+                DecodingOpts -> DecodeParams -> WordInfoSent -> ParseMonad (Maybe semi)
+genDecodeGold opts (spineCounts, probs, probsDebug, probSpine) insent = do
     dsent <- toTAGDependency insent
     let actualsent = tSentence dsent 
     tagsent <- toTAGSentence insent
@@ -165,14 +176,17 @@ genDecodeGold opts (spineCounts, probs, probSpine) insent = do
     let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
     return b'
     where
-          mkSemi e c = fromProb $ prob probs $ chainRule e c
+          mkSemi  = (\ e c -> fromProb $ prob probs $ chainRule e c,
+                     \ e c -> probDebug probsDebug $ chainRule e c)
+                              
 
 
-makeFSM :: Sentence TWord-> TSentence  -> DecodingOpts ->
-           (Counter (CVD TAGDerivation)) -> 
+makeFSM :: (TAGDecodeSemi semi, Counter semi ~ TAGCounter,Model semi ~ Collins) => 
+           Sentence TWord-> TSentence  -> DecodingOpts ->
+           (Counter semi) -> 
            ParseMonad (Int -> Maybe TWord ->
-                       (AdjState TWord Collins (CVD TAGDerivation) , 
-                        AdjState TWord Collins (CVD TAGDerivation) ))
+                       (AdjState TWord Collins semi , 
+                        AdjState TWord Collins semi ))
 makeFSM insent dsent opts  mkSemi  =  do 
       ldiscache <- mkDistCacheLeft insent
       rdiscache <- mkDistCacheRight insent
@@ -180,8 +194,10 @@ makeFSM insent dsent opts  mkSemi  =  do
       rightState <- initState (ParseOpts  (commaPrune opts) rdiscache (ProbModel mkSemi (validator opts dsent))) [] ARight 
       return (\ i (Just word) -> (leftState i word, rightState i word))
 
+getBestLogScore :: (BestScorer a LogProb semi) => semi -> Double
 getBestLogScore = convertToProb . getBestScore
 
+globalThres :: (BestScorer a LogProb semi, Ord k) => Double -> b -> M.Map k semi -> M.Map k semi
 globalThres n wher m =
     M.filter (\p -> getBestLogScore p >= n/100000) $  m    
 
@@ -247,33 +263,65 @@ prune probs beamprune wher m =
                ls -> maximum $ ls
 
 
+
+toNiceSent der1 = do 
+    d1 <- tagDerToTree der1 
+    d1' <- T.mapM toReadable d1 
+    return $ show $ d1'
+
+renderDebug a b = do  
+  let db1ls = getDebug a 
+  let db2ls = getDebug b
+
+  let dbs1 = M.fromList $ map (\(e,c,pd,p) -> (chainRule e c,(pd,p))) db1ls   
+  let dbs2 = M.fromList $ map (\(e,c,pd,p) -> (chainRule e c,(pd,p))) db2ls   
+
+  let diff1 = M.difference dbs1 dbs2
+  let diff2 = M.difference dbs2 dbs1
+  db1 <-  processDebug $ M.toList diff1
+  db2 <-  processDebug $ M.toList diff2
+  return $ do 
+             putStrLn "Unique in GOLD"
+             putStrLn $ render $ db1
+             putStrLn "Unique in DECODE"
+             putStrLn $ render $ db2
+      where processDebug d = do
+                    db <- mapM (\(a,(pd,p)) -> do {dump<-dumpPairs a; return $ dump $$ pPrint pd $$ (text "Total: " <+> (text $ show p))} )  d
+                    return $ vcat db
+
+
+toReadable a = case a of 
+                 Left anonterm -> do
+                        nonterm <- fromAtom $ anonterm  
+                        return $ Left nonterm 
+                 Right gword -> do
+                        word <- fromAtom $ getLex gword
+                        pos <- fromAtom $ getPOS gword
+                        return $ Right (word, pos)
+
 renderSentences a b = do
            let der1 = getBestDerivation a
            let der2 = getBestDerivation b
            let (sc1) = getBestLogScore a
            let (sc2) = getBestLogScore b
+
+
+
            --let TAGDerivation (_, debug1) = der1  
            --let TAGDerivation (_, debug2) = der2
            --let m1 = M.fromList debug1
            --let m2 = M.fromList debug2
-           --let diff1 = M.difference m1 m2 
-           --let diff2 = M.difference m2 m1
+
            d1 <- tagDerToTree der1 
            d2 <- tagDerToTree der2 
-           let toReadable = (\a -> case a of 
-                                     Left anonterm -> do
-                                       nonterm <- fromAtom $ anonterm  
-                                       return $ Left nonterm 
-                                     Right gword -> do
-                                       word <- fromAtom $ getLex gword
-                                       pos <- fromAtom $ getPOS gword
-                                       return $ Right (word, pos))
                                          
            d1' <- T.mapM toReadable d1 
            d2' <- T.mapM toReadable d2
 
            let st1 = (render $ niceParseTree $ d1')
            let st2 = (render $ niceParseTree $ d2')
+
+
 
            return $ do 
              --let ldiff  = getDiff (lines st1) (lines st2) 
@@ -282,13 +330,18 @@ renderSentences a b = do
              putStrLn $ "Second" ++ (printf "%.3e" sc2) 
              --putStrLn $ render $ vcat $ map (pPrint . snd) $ M.toList diff2
              --putStrLn $ show ldiff
+
+
              putStrLn $ st1
              putStrLn $ st2
              putStrLn $ show $ getBestDerivation b
 
              putStrLn $ ("G" ++ " " ++ (show $ d1'))
              putStrLn $ ("T" ++ " " ++ (show $ d2'))
-
+--                         return $ vcat dp
+-- do
+--                        dp <- mapM (\(e,c,p) -> dumpPairs $ chainRule e c) d 
+--                        return $ vcat dp
 basicParams :: IO DecodeParams
 basicParams = 
     readDecodeParams "/tmp/curcounts" "/tmp/cspines" "/tmp/pspines"

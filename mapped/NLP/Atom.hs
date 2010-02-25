@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, ScopedTypeVariables, FlexibleContexts, UndecidableInstances #-}
 module NLP.Atom where
 import qualified Data.Text as T
 import qualified Data.Bimap as B
@@ -18,7 +18,7 @@ import Control.DeepSeq
 newtype Mapper s = Mapper (B.Bimap s Int)  
 
 newtype Atom s = Atom Int
-    deriving (Show, Eq, Ord, Binary, NFData)
+    deriving (Show, Read, Eq, Ord, Binary, NFData)
 
 newtype AtomM s a = AtomM (Reader (Mapper s) a)
     deriving (Monad, MonadReader (Mapper s))
@@ -50,6 +50,8 @@ enumerate = do
   (Mapper m) <- getMapper
   return $ B.keys m
 
+class AtomRead a where 
+    atomRead :: String -> a
 
 instance (Ord s) => MonadAtom s (AtomM s)  where 
     getMapper = ask
@@ -64,13 +66,13 @@ instance Enum (Atom a) where
     fromEnum (Atom a) = a
     toEnum = Atom
 
-readMapped :: (Ord a, Read a) => String -> Mapper a
+readMapped :: (Ord a, AtomRead a) => String -> Mapper a
 readMapped contents = 
     Mapper bm
         where all = map (T.split " ") $ T.lines $ T.pack contents
-              bm = B.fromList $ map (\ [b, a] -> (read $ T.unpack a, read $ T.unpack b)) all
+              bm = B.fromList $ map (\ [b, a] -> (atomRead $ T.unpack a, readNote "int atom read" $ T.unpack b)) all
                    
-loadMapper :: (Ord a, Read a) => String -> IO (Mapper a)
+loadMapper :: (Ord a, AtomRead a) => String -> IO (Mapper a)
 loadMapper file = do 
   readMapped `liftM` readFile file 
 
@@ -84,3 +86,15 @@ showAtom :: (MonadAtom s m, Ord s, Show s) => Atom s -> m String
 showAtom a = do 
   t <- fromAtom a 
   return $ show t
+
+class  (Monad m) => UnAtom atom unatom m | atom -> unatom where 
+    unAtom :: atom -> m unatom
+
+instance (UnAtom b a m) => UnAtom (Maybe b) (Maybe a) m where 
+    unAtom Nothing = return Nothing 
+    unAtom (Just a) = Just `liftM` unAtom a 
+
+instance (Show a, Ord a, MonadAtom a m) => UnAtom (Atom a) a m where 
+    unAtom a = fromAtom a
+
+ 

@@ -97,7 +97,12 @@ tryFinish state split =
 doOneAdj baseSemi adjstate (child, atype, dis) = do 
     s <- findSemi adjstate (child, atype, dis)
     return  (cacheState $ adjstate{curDelta = newDelta,
-                      isAfterComma = prevComma oldDelta,
+                                   
+                     -- Bikel - Another subtlety is that the comma constraint should effectively 
+                     -- not be employed when pursuing theories of an NPB subtree
+
+                      isAfterComma = prevComma oldDelta && not npbMode,
+
                       lastInNPB = if npbMode then 
                                       if predComma adjstate child' then
                                           lastInNPB adjstate
@@ -140,10 +145,18 @@ mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
                         }
            
               where          -- NPB Trick 
+
+--{{{  Bikel explanation
+-- Another crucial point
+-- about the vi predicate is that it does not include verbs that appear within base NPs. Put
+-- another way, in order to emulate Collins' model, we need to amend the dnition of cv
+-- by stipulating that cv(NPB) = False 
+--}}}
                 (parentGWord, vdis') = 
                     case lastInNPB adjstate of 
-                      (Just w) -> (w, vdis) -- TODO- check this 
+                      (Just w) -> (w, VerbDistance False) -- TODO- check this 
                       Nothing -> (twWord headWord, vdis) 
+
 
           fullEvent  = case child of
                          Nothing -> emptyAdjunction

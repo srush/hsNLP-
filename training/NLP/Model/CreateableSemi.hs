@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, TypeSynonymInstances, ScopedTypeVariables, FlexibleInstances, GeneralizedNewtypeDeriving #-} 
+{-# LANGUAGE TypeFamilies, TypeSynonymInstances, ScopedTypeVariables, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-} 
 module NLP.Model.CreateableSemi where 
 
 --{{{  Imports
@@ -21,7 +21,7 @@ instance (Pretty d, Monoid d ) => Pretty (D.Derivation d) where
 
 type ParseDerivation a = Dependency a 
 
-class CreateableSemi a where 
+class (Semiring a, Show a) => CreateableSemi a where 
     type Counter a
     type Model a 
 --    mkSemi ::  Counter a -> TWord -> (Maybe (TWord)) -> Int -> AdjunctionType -> a
@@ -29,7 +29,7 @@ class CreateableSemi a where
     --mkSemiSmall :: Counter a -> a
 
 newtype CProb model = CProb Prob
-    deriving (Monoid, Multiplicative, Semiring)
+    deriving (Monoid, Multiplicative, Semiring, Show)
 
 
 instance CreateableSemi (CProb model) where
@@ -41,7 +41,7 @@ instance CreateableSemi (CProb model) where
 newtype CD monoid model = CD (D.Derivation monoid)
     deriving (Monoid, Multiplicative, Semiring, Pretty, Show)
 
-instance (Monoid monoid) => CreateableSemi (CD monoid model) where 
+instance (Show monoid , Monoid monoid) => CreateableSemi (CD monoid model) where 
     type Model (CD monoid model) = model
     type Counter (CD monoid model) = FullEvent model -> FullContext model -> monoid 
     --mkSemiSmall p = CD $ D.mkDerivation p
@@ -53,5 +53,14 @@ viterbiHelp prob tdep =
 
 newtype CVD der = CVD (ViterbiDerivation LogProb der)
     deriving (Show, Monoid, Multiplicative, Semiring, BestScorer der LogProb)
+
+newtype CVDDebug a der = CVDDebug (ViterbiDerivation LogProb ([a],der))
+    deriving (Show, Monoid, Multiplicative, Semiring)
+
+instance (Monoid der) => BestScorer der LogProb (CVDDebug a der)  where 
+    getBestDerivation (CVDDebug c) = snd $ getBestDerivation c 
+    getBestScore (CVDDebug c) = getBestScore c
+
+getDebug (CVDDebug c) = fst $ getBestDerivation c 
 
 

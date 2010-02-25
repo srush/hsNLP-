@@ -12,7 +12,7 @@ library
     exposed-modules: NLP.Atom
                      
     other-modules:   
-                     
+                                          
 
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,

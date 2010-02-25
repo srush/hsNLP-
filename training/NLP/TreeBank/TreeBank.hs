@@ -153,7 +153,7 @@ parseSentence file contents =
 testData :: [(String, WordInfo) ]
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (Atom 2) (mkWord "in") (Atom 1) (mkPOS "IN") 20 (Atom 1) (mkSpine [Atom 2]) (mkSpine [read "PP"])  0 Sister)] 
+ WordInfo 23 (Atom 2) (mkWord "in") (Atom 1) (mkPOS "IN") 20 (Atom 1) (mkSpine [Atom 2]) (mkSpine [mkNonTerm "PP"])  0 Sister)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]

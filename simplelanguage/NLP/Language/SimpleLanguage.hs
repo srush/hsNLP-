@@ -9,14 +9,14 @@ class Parsable a where
     parser :: Parser a
 
 newtype POS = POS String 
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show, Read)
+
 type APOS = Atom POS 
 mkPOS = POS
 
-instance Show POS where 
-    show (POS p) = p
-instance Read POS where 
-    readsPrec _ =  makeParseRead parser
+instance AtomRead POS where 
+    atomRead =  makeParseAtomRead parser
+
 ignore a = do {a; return ()}
 spaceSep p = manyTill p (ignore space <|> eof)
  
@@ -24,54 +24,55 @@ instance Parsable POS where
     parser = POS `liftM` spaceSep anyChar
 
 newtype NonTerm = NonTerm String
-    deriving (Eq, Ord,Binary)
+    deriving (Eq, Ord, Binary, Show, Read)
 
 --isWrapNPB = const False
 
 type ANonTerm = Atom NonTerm
 mkNonTerm = NonTerm
 
-instance Show NonTerm where 
-    show (NonTerm p) = p
-
 instance Pretty NonTerm where 
-    pPrint = text .show
+    pPrint (NonTerm n) = text n 
 
-instance Read NonTerm where 
-    readsPrec _ =  makeParseRead parser
+instance AtomRead NonTerm where 
+    atomRead =  makeParseAtomRead parser
 
 instance Parsable NonTerm where 
     parser = NonTerm `liftM` (many1 $ choice [upper, char '_'])
 
 newtype Label = Label String 
+    deriving (Show, Read)
+
 type ALabel = Atom Label
 mkLabel = Label
 
-instance Read Label where 
-    readsPrec _ =  makeParseRead parser
+instance AtomRead Label where 
+    atomRead =  makeParseAtomRead parser
 
 instance Parsable Label where 
     parser = Label `liftM` spaceSep anyChar
 
 newtype Word = Word String
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show, Read)
+
+instance Pretty Word where 
+    pPrint (Word w) = text w
+
+
+instance Pretty POS where 
+    pPrint (POS p) = text p
+
 mkWord = Word
 type AWord = Atom Word
-
-instance Read Word where 
-    readsPrec _ =  makeParseRead parser
 
 instance Parsable Word where 
     parser = Word `liftM` spaceSep anyChar
 
-
-instance Show Word where 
-    show (Word p) = p
-
-
+instance AtomRead Word where 
+    atomRead =  makeParseAtomRead parser
 
 newtype GWord = GWord (AWord, APOS)
-    deriving (Eq, Ord, Show, Binary)
+    deriving (Eq, Ord, Show, Binary, Read)
 
 class WordSymbol a where 
     getPOS :: a -> APOS
@@ -87,11 +88,8 @@ instance Pretty (Atom a) where
 
 
 newtype Triplet = Triplet (NonTerm, Maybe NonTerm, Maybe NonTerm)
-    deriving (Eq,Ord)
+    deriving (Eq,Ord, Show, Read)
  
-instance Show Triplet where 
-     show = render .pPrint
-
 instance Pretty Triplet where 
     pPrint (Triplet (a,b,c)) = 
         hcat $ punctuate (text "+") $ map pPrint [Just a,b,c] 
@@ -103,8 +101,9 @@ instance Parsable Triplet where
                    `sepBy` char '+'
       return $ Triplet (fromJustNote "first" a,b,c) 
 
-instance Read Triplet where 
-    readsPrec _ =  makeParseRead parser
+instance AtomRead Triplet where 
+    atomRead =  makeParseAtomRead parser
+
 
 type ATriplet = Atom Triplet
 type STriplet = (Atom NonTerm, Maybe ANonTerm, Maybe ANonTerm)
