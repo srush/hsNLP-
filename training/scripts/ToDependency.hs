@@ -8,7 +8,6 @@ main = do
       "mapped" -> do
           a <- convertFile infile  "../terry/data/ptb/ftags.map" "../terry/data/ptb/ctags.map" "../terry/data/ptb/words.map"
           putStrLn a                                                                                                                
-
       "gold" -> do
           a <- convertGoldFile infile
           putStrLn a                                                                                                                

@@ -47,7 +47,7 @@ newtype AC1 = AC1 (AdjunctionContext1 Identity)
 type AdjunctionSubContext1 = AdjunctionContext1 Maybe
 
 mkAdjCon1 ::(forall a. a -> m a) -> FullContext (Collins) -> AdjunctionContext1 m 
-mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _ _ _ _) = 
+mkAdjCon1 fi (AdjunctionFullContext a b c d e f g _ _ _ _ _ _ ) = 
     M7 (fi a,fi b,fi c,fi d, fi e, fi f, fi g) 
        
 instance Context (AC1 ) where 
@@ -310,6 +310,7 @@ instance JointModel (Collins) where
                              (AE2, AC2),
                              (AE3, AC3)),
                 decisionInfo :: Maybe (Int, Int), -- Child, Head (m, h)
+                makesBaseNP :: (Bool, (Int, Int)), -- (is base np, covers)
                 enumVal :: (Int,Int)
                }
          deriving (Eq, Ord, Show)
@@ -347,7 +348,10 @@ instance JointModel (Collins) where
       parentInd  :: Int, -- not included in prob
       spinePos   :: Int,  -- not included
       parentTWord :: TWord, -- Not included
-      prevRegular :: Bool -- Not included
+      -- weirder things
+      prevRegular :: Bool, -- Not included
+      splitPoint  :: Int, -- Not included
+      inNPB       :: Bool -- Not included
     } deriving (Show,Eq)
      
      
@@ -356,6 +360,9 @@ instance JointModel (Collins) where
                 (e2, AC2 $ mkAdjCon2 Identity fullContext e1),
                 (e3, AC3 $ mkAdjCon3 Identity fullContext e1 e2))
                (fmap (\cInd -> (cInd, parentInd fullContext)) $ childInd fullEvent)
+               (inNPB fullContext, sortPair (parentInd fullContext, splitPoint fullContext))
+               -- if pos of spine should be NPB and word is end then NPB 
+               -- else split
                (combineEnum [(fromEnum $ parentNT fullContext, 60),
                              (fromEnum $ headNT fullContext, 60),
                              (fromEnum $ adjSide fullContext, 3),
@@ -374,12 +381,12 @@ instance JointModel (Collins) where
          where e1 = mkEvent1 fullEvent
                e2 = mkEvent2 fullEvent
                e3 = mkEvent3 fullEvent
-
+               sortPair (a,b) = (min a b, max a b)
                     
-     observe (Pairs (a,b,c)_ _) = 
+     observe (Pairs {probInfo = (a,b,c)}) = 
          Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
 
-     prob (Probs (p1,p2,p3)) (Pairs (a,b,c) _ _) =           
+     prob (Probs (p1,p2,p3)) (Pairs {probInfo = (a,b,c)}) =           
          ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
 
      estimate (Observation (!obs1,  !obs2,  !obs3)) = 
@@ -396,7 +403,7 @@ estimateDebug (Observation (!obs1,  !obs2,  !obs3)) =
            est =  estimateGeneralLinear (wittenBell 5)
 
 probDebug :: ProbsDebug -> Pairs Collins -> ProbDebug
-probDebug (p1,p2,p3) (Pairs (a,b,c) _ _) =           
+probDebug (p1,p2,p3) (Pairs {probInfo = (a,b,c)}) =           
          ProbDebug [((uncurry $ flip p1) a), ((uncurry $ flip p2) b), ((uncurry $ flip p3) c)]
 
 type ProbsDebug = (DebugDist AE1 AC1,

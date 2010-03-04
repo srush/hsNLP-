@@ -51,6 +51,7 @@ parseWordTripSent = do
 
 type TripletPrune = (Int, M.Map (Int,Int, ATriplet) Double) 
 
+type TripletMapper = (ANonTerm -> Bool, APOS -> Bool, STriplet -> Maybe ATriplet)
 cacheDependency :: WordTripSent -> TripletPrune
 cacheDependency (WordTripSent wts) = 
     (snd(bounds wts)+1, M.fromList $ do 
@@ -58,7 +59,7 @@ cacheDependency (WordTripSent wts) =
   (head, triplet, score) <- deps wt
   return $ ((wt_ind wt, head, triplet), score))
 
-validByDepPrior :: Double -> (ANonTerm -> Bool, APOS -> Bool, STriplet -> Maybe ATriplet) -> TripletPrune -> Validity Collins
+validByDepPrior :: Double -> TripletMapper -> TripletPrune -> Validity Collins
 validByDepPrior cutoff (isnpb, isComma, mapper) (root,pruner) event context =
     if parentInd context == root then True 
     else

@@ -22,5 +22,13 @@ makeParseAtomRead parsecRead = either (error "parse failed") id . parse parsecRe
 
 lexer = (P.makeTokenParser emptyDef) 
 
-nat  = P.natural lexer
-float  = P.float lexer
+nat  = 
+  P.natural lexer
+
+float  = do 
+  p <- optionMaybe (char '-')
+  f <- P.naturalOrFloat lexer
+  let f2 = case f of 
+             Right a -> a
+             Left b -> fromIntegral b
+  return $ maybe f2 (const $ -f2) p 

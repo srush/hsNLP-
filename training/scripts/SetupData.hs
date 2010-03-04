@@ -10,14 +10,14 @@ main = do
   [file1] <- getArgs
   cont <- readFile file1
   sentbundle <- getSentences file1
-  dm <- loadDebugMappers
+  dm <- loadMappers $ defaultLoadMap {shouldCollapseWords = False}
   let (isComma', isPunc') = runParseMonad (do {c<-isComma;p<- isPunc;return (c,p)}) dm
-      np = read "NP" 
-      npb = read "NPB"
+      np = mkNonTerm "NP" 
+      npb = mkNonTerm "NPB"
   sequence_ $ 
          map (\sents -> do  
-                  putStrLn $ intercalate "\n\n" $ 
-                           map (show . toWIS . augmentNP np npb . reapply 20 (liftNode (isComma' . pos)) . reapply 5 (removeFront (isComma' . pos)) . reapply 5 (removeEnd (isComma' . pos)) .  filterNode (isPunc' . pos) . fromWIS . (\s -> runParseMonad s dm)) sents
+                  putStrLn $ render $ vcat $ punctuate (text "\n") $ 
+                           map (pPrint . toWIS . augmentNP np npb . reapply 20 (liftNode (isComma' . pos)) . reapply 5 (removeFront (isComma' . pos)) . reapply 5 (removeEnd (isComma' . pos)) .  filterNode (isPunc' . pos) . fromWIS . (\s -> runParseMonad s dm)) sents
                   putStrLn ""
    ) sentbundle
   where

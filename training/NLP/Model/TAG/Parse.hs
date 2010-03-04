@@ -60,7 +60,7 @@ tryAdjunction state child split = do
   atype <- [Sister, Regular]
 
   -- do each possible adjunction
-  doOneAdj semi state' (child, atype, mkDistance state' split)
+  doOneAdj semi state' (child, atype, mkDistance state' split, split)
 
 
 -- | This helper function is given an Adjunction state and a split point.  
@@ -74,7 +74,7 @@ tryEmpties split state = tryEmpties' (state,one)
             block $ isComplete adjstate
 
             -- Tells us if this 
-            semi' <- findSemi adjstate (Nothing, Sister, (mkDistance adjstate split))
+            semi' <- findSemi adjstate (Nothing, Sister, mkDistance adjstate split, split)
 
             -- Should we prune this node?
             block $ shouldPrune adjstate split True
@@ -94,8 +94,8 @@ tryFinish state split =
     where (endstate, semi) = last $ tryEmpties split state
 
 -- | Helper function, perform an adjunction
-doOneAdj baseSemi adjstate (child, atype, dis) = do 
-    s <- findSemi adjstate (child, atype, dis)
+doOneAdj baseSemi adjstate (child, atype, dis, split) = do 
+    s <- findSemi adjstate (child, atype, dis, split)
     return  (cacheState $ adjstate{curDelta = newDelta,
                                    
                      -- Bikel - Another subtlety is that the comma constraint should effectively 
@@ -122,11 +122,11 @@ doOneAdj baseSemi adjstate (child, atype, dis) = do
 
 
 instance ParseModel Collins where 
-    type Req1 Collins = (Maybe (TWord), AdjunctionType, VerbDistance)
+    type Req1 Collins = (Maybe (TWord), AdjunctionType, VerbDistance, Int)
     type MyWord Collins = TWord
     mkEventAndContext = mkEventAndContextTAG
 
-mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
+mkEventAndContextTAG adjstate (child, atype, vdis, split) = (fullEvent, fullContext)
     where  
           fullContext = AdjunctionFullContext {
                           parentNT = stateNT adjstate,
@@ -141,7 +141,9 @@ mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
                           parentInd  = twInd headWord,
                           spinePos   = pos,
                           parentTWord = headWord,
-                          prevRegular = atype == Regular || beenReg
+                          prevRegular = atype == Regular || beenReg,
+                          inNPB      = npbMode,
+                          splitPoint = split
                         }
            
               where          -- NPB Trick 
@@ -178,7 +180,7 @@ mkEventAndContextTAG adjstate (child, atype, vdis) = (fullEvent, fullContext)
                     lastInNPB = npblast,
                     hasBeenRegular = beenReg
                     } = adjstate
-
+          npbMode = (predNPB adjstate)  $ stateNT adjstate
 
 instance (CreateableSemi semi, Semiring semi, Model semi ~ Collins) => 
     WFSM (AdjState TWord Collins semi) where 

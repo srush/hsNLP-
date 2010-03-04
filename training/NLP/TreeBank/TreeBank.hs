@@ -29,6 +29,7 @@ data WordInfo =
       ind    :: Int, 
       word   :: AWord,
       wordStr :: Word,
+      wordOrig :: Word,
       pos    :: APOS,
       posStr :: POS,
       adjoinInd :: Int,
@@ -55,6 +56,21 @@ instance Show (WordInfo) where
                show . adjPos,
                show . sister
               ]
+
+instance Pretty WordInfo where 
+    pPrint wi = 
+        hcat $ punctuate (text "\t") $ 
+        map (\f -> f wi) 
+              [int . ind,
+               pPrint . wordStr,
+               pPrint . posStr,
+               pPrint . adjoinInd,
+               text . const "HOLDER",
+               pPrint . spine, 
+               pPrint . adjPos,
+               pPrint . sister
+              ]
+
 --}}}
 
 -- parsing Xavier's tree files with spines
@@ -85,6 +101,7 @@ parseWordInfo =  do
 
         return $ WordInfo {
                    ind  = fromIntegral n,
+                   wordOrig = word,
                    wordStr =  newword,
                    word = aword,
                    pos = apos,
@@ -116,6 +133,9 @@ parseWordInfoSent = do
 
 instance Show (WordInfoSent) where 
     show (WordInfoSent wis) = intercalate "\n" $ map show $ elems wis
+
+instance Pretty WordInfoSent where 
+    pPrint (WordInfoSent wis) =  vcat $ map pPrint $ elems wis
            
  
 --parseWordInfo :: String -> Either ParseError (WordInfo) 
@@ -153,7 +173,7 @@ parseSentence file contents =
 testData :: [(String, WordInfo) ]
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (Atom 2) (mkWord "in") (Atom 1) (mkPOS "IN") 20 (Atom 1) (mkSpine [Atom 2]) (mkSpine [mkNonTerm "PP"])  0 Sister)] 
+ WordInfo 23 (Atom 2) (mkWord "in") (mkWord "in") (Atom 1) (mkPOS "IN") 20 (Atom 1) (mkSpine [Atom 2]) (mkSpine [mkNonTerm "PP"])  0 Sister)] 
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]

@@ -46,8 +46,8 @@ convertToDependency   wordMap  posMap ctagMap (WordInfoSent wis) =
                 (int $ ind wi) <+> 
                 (int $ fromJustNote "word fail "$ B.lookupR (show $ wordStr wi) wordMap) <+>  
                 (text "_") <+>
-                (int $ fromJustNote "word fail" $ B.lookupR (take 2 $ show $ posStr wi) ctagMap) <+>
-                (int $ fromJustNote "word fail" $ B.lookupR (show $ posStr wi) posMap) <+>
+                (int $ fromJustNote "pos fail" $ B.lookupR (take 2 $ show $ posStr wi) ctagMap) <+>
+                (int $ fromJustNote "pos fail" $ B.lookupR (show $ posStr wi) posMap) <+>
 
                 (text "_") <+>
                 (int $ adjoinInd wi) <+> 
@@ -88,24 +88,24 @@ convertGoldFile sentFile = do
 
 convertToPOS :: WordInfoSent -> Doc
 convertToPOS (WordInfoSent wis) = 
-    hcat $ punctuate space  $ map (\wi -> 
-                (pPrint $  wordStr wi) <>  
-                (text "/") <>
-                ((\a -> if isEmpty a then text "*" else a) $ hcat $  punctuate (text "-") $ map pPrint $ toList $ spine wi)
+    vcat $ map (\wi -> 
+                (pPrint $  wordStr wi) <+>  
+                (pPrint $  posStr wi) <+>  
+                --(text "O")
+                (((\a -> if isEmpty a then text "O" else text "B-" <> a) $ hcat $  punctuate (text "-") $ map pPrint $ toList $ spine wi))
                 ) $ elems wis
 
 convertToWords :: WordInfoSent -> Doc
 convertToWords (WordInfoSent wis) = 
     hcat $ punctuate space  $ map (\wi -> 
-                (pPrint $  wordStr wi) <>  
-                ) $ elems wis
+                (pPrint $  wordStr wi)) $ elems wis
 
 
 convertFilePOS :: String -> IO String
 convertFilePOS sentFile = do
    dm <- loadMappers $ defaultLoadMap{shouldCollapseWords = False} 
    sents <- readSentences sentFile
-   return $ render $ vcat  $ map (convertToPOS) (runParseMonad sents dm)
+   return $ render $ vcat $ punctuate (text "\n") $ map (convertToPOS) (runParseMonad sents dm)
 
 convertFileWord :: String -> IO String
 convertFileWord sentFile = do
