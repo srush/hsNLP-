@@ -5,7 +5,7 @@ import NLP.Semiring
 -- | The 'Counting' semiring keeps track of the number of paths 
 --   or derivations led to a given output.
 newtype Counting = Counting Integer
-    deriving (Eq, Show, Num, Ord) 
+    deriving (Eq, Show, Num, Ord, Enum, Real, Integral) 
 
 instance Multiplicative Counting where
     one = 1

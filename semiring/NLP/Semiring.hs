@@ -9,7 +9,10 @@ module NLP.Semiring(
   Semiring, 
   WeightedSemiring, 
   Weighted(..), 
-  getWeight, getInfo                   ) where
+  getWeight, getInfo,                   
+  module Data.Monoid,
+  module Data.Monoid.Multiplicative
+) where
  
 import Data.Monoid
 import Data.Monoid.Multiplicative 

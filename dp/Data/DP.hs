@@ -1,259 +1,170 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns #-}
-module Data.DP where 
+
+{-| A compact embedded language for specifying dynamic programs \(DPs\) for optimization.
+
+<http://en.wikipedia.org/wiki/Dynamic_programming>
+
+The style of the language is meant to invoke the formal mathematical 
+recursions common in CLRS and other algorithm texts, while still providing 
+the flexibility for several styles of solver. 
+
+For solvers, see "Data.DP.Solvers". For example DPs, see "Data.DP.Examples". 
+
+-}
+
+module Data.DP ( 
+
+-- * Terminology
+{-|
+
+[Dynamic Program]  an optimization problem where each subsolution is a recursive combination of subsolutions. This property is known as optimal substructure.
+
+[Chart/Table] - A data structure for memoizing the results of subproblems. For simple DPs, the chart is indexed by the subproblem and holds its solution.
+
+[Item]  A pair of (subproblem key, value). 
+
+[Cell] A further division of the chart into sets of items. Useful when there is sparsity of relevant items. Implemented in chart-cell DPs.
+
+[Semiring] Informally, a type paired with a (+) and (*) operation. In Haskell, this is expressed with the 'Semiring' class, we use 'monoid' for plus, and 'multiplicative' for times, thus (+) -> 'mappend', 0 -> 'mempty', (*) -> 'times', 1 -> @'one'@. See the semiring library for a collection of useful semirings.   
+
+This library provides a specification language for DPs defined using arbitrary semirings. It's
+goal is to abstract the details of the solver from the mathematical specification of the DP.
+
+There are currently two types of DPs covered by the specification language -
+simple and chart-cell. 
+-}
+
+  module NLP.Semiring,
+
+-- * Simple
+
+{-|
+Simple DPs can be represented entirely by arrays
+where each index represents a subproblem and its contents the result of 
+the subproblem. In addition to a semiring, simple DPs only have two operations, @f@ and @constant@. 
+@f@ references value in the DP chart and @constant@ lifts a semiring value into the DP.  
+
+Perhaps the simplest example is the fibonacci sequence. First, a naive recusive definition -  
+
+> fibNaive 0 = 1
+> fibNaive 1 = 1
+> fibNaive i = (fibNaive (i-2)) + (fibNaive (i-1))
+
+Now as a DP -
+
+> fib 0 = one
+> fib 1 = one
+> fib i = (f (i-2)) `mappend` (f (i-1))
+
+Since our definition is not recursive, we replace fib with @f@ so that it can be intercepted by a solver and memoized (or perhaps not)
+Other changes are just cosmetic. Notice that we replace the num literals and + with their semiring counterparts. 
+
+If we wanted, add some other literal say. 
+
+> fibNaive i = (fibNaive (i-2)) + (fibNaive (i-1)) + i
+
+We would write - 
+
+> fib i = (fib (i-2)) `mappend` (fib (i-1)) `mappend` (constant i)
+
+The final type is @fib :: SimpleDP Int Counting@, this means that we are indexing on Int and using the Counting semiring
+(where + and * are defined as is). Fib can then be used with a solver to produce the final value.  
+
+-}
+                 DPSubValue, 
+                 f, 
+                 constant, 
+                 SimpleDP, 
+
+-- * Chart-Cell
+{-|
+Chart-Cell DPs are a generalization of simple DPs, and are slightly more complicated, 
+but can be much efficient in practice when there is sparsity in the sub-structure of the DP. 
+
+For instance, assume that we have a DP for an HMM, indexed on the current position and its current state. 
+If we represent this with a simple DP we get a chart of size /O(|pos| * |state|)/. In practice, though |state|
+may be very large and very sparse for a given problem. So instead of having a cell for each (pos,state) pair, 
+we instead want a cell for each pos containing a set of states. 
+
+Chart-Cell DPs give this kind of representation. They allow you to specify a chart containing 
+cells containing sets of items. Each item represents an answer to a sub-problem.  
+
+Here's the HMM example. First, we write it in its Simple form- 
+
+> hmmSimple trans (0, Start) = one
+> hmmSimple trans (i, State curState) = 
+>     mconcat $ 
+>          [ f (i-1, trans ) `times` 
+>            constant (lastState `trans` curState) | 
+>            lastState <- states] 
+
+Notice how the chart is indexed by position and state, at each index we look back at all possible incoming states. 
+So /O(|pos|*|state|)/ indices and /O(|state|)/ at each index.  
+
+Here's the Chart-Cell version -  
+
+> hmmCC allTrans 0 = mkItem Start one
+> hmmCC allTrans i = 
+>    getCell (i-1) (\(lastState, lastScore) -> 
+>        mkCell $ [ mkItem (State newState)
+>                   (lastScore `times` constant score) | 
+>                  (newState, score) <- allTrans lastState]) 
+
+We now index the chart by just position, and index each cell by the state. This method has the same worst-case complexity, 
+but in practice can be much faster since there can be sparsity (either natural or introduced by pruning) at certain states. 
+-}
+                 DPItem,
+                 DPCell,
+                 mkItem,
+                 mkCell, 
+                 Item, 
+                 getCell, 
+                 DP,
+                 -- * Conversion 
+                 fromSimple
+                 
+               ) where 
 
 --{{{  Imports
 import qualified Data.Map as M 
-import Data.Array 
-import Data.Monoid
 import NLP.Semiring
-import NLP.Semiring.Counting
-import NLP.Semiring.Prob
-import NLP.Semiring.Viterbi
-import NLP.Semiring.Derivation
-import NLP.Semiring.ViterbiNBestDerivation
-import Control.Applicative
 import Safe
-import Control.Monad.State.Strict
-import Control.Monad
-import Data.List
-import Debug.Trace
+import Data.DP.Internals
+import Control.Monad.Identity
 --}}}
 
---{{{  DP Structure
+type SimpleDP ind val = ind -> DPSubValue ind (Identity val)
 
--- getInd :: DPMonad ind cell ind  
--- getInd = ind `liftM` get 
+-- | Retrieve the solution of subproblem of the DP for a given index.
+--   Note: The ordering and storage of this retrieval is determined by the
+--   solver used. 
+f :: ind -> DPSubValue ind (Identity val)
+f =  DPNode ()
 
--- getCells :: ind -> DPMonad ind cell [cell] 
--- getCells = (cells `liftM` get) 
-
--- newtype DPMonad ind val a = DPMonad (State (DPState ind) a)
---     deriving (Monad, MonadState (DPState ind))
-
-type DP ind cell val = ind -> DPComplex ind cell val
-type SimpleDP ind val = ind -> DPTree ind () val
-
--- instance (Monoid value) => Monoid (DPMonad index value) where 
---      mappend = lift2 mappend
---      mempty  = return zero
-
--- instance (Multiplicative value) => Multiplicative (DPMonad index value) where 
---      times = lift2 times
---      one  = return one
-
-data DPOpt = Plus | Times
-
-optFunc Plus = mappend
-optFunc Times = times
-
-data DPComplex index cell value = 
-    Request index (cell ->  DPComplex index cell value) | 
-    Many [DPComplex index cell value] |
-    Name cell (DPTree index cell value) 
-
-data DPTree index cell value = 
-    DPNode cell index | 
-    Constant value | 
-    Opt DPOpt (DPTree index cell value) (DPTree index cell value) 
-
-instance (Monoid value) => Monoid (DPTree index cell value) where 
-    mappend = Opt Plus
-    mempty  = Constant mempty
-
-instance (Multiplicative value) => Multiplicative (DPTree index cell value) where 
-    times = Opt Times
-    one  = Constant one
-
-f = DPNode ()
-chart = DPNode
-getCells = Request 
+-- | Lift a semiring value into a DPSubValue. 
+constant :: CellVal cell -> DPSubValue index cell
 constant = Constant
 
---}}}
 
-data DPState ind cell val = DPState { 
-     dpLookup :: ind -> M.Map cell val
-}
+-- | A dynamic program. 
+type DP index cell = index -> DPCell index cell 
 
-findCells ind = do 
-  state <- get
-  return $ dpLookup state ind 
+-- | Groups several items into a cell. Items with the same key are combined with @mappend@
+mkCell :: [DPItem index cell] -> DPCell index cell
+mkCell = Many
 
-reduceComplex (Name n a) = do
-  ared <- reduce a 
-  return [(n, ared)]  
-reduceComplex (Many a) = do
-  rs <- mapM reduceComplex a
-  return $ concat rs
-reduceComplex (Request ind fn) = do
-  cells <- findCells ind
-  reduceComplex $ Many $ map fn $ M.keys cells
+-- | Create a new item. (@'mkItem' key val@) will create an item subindexed by key with value val.mkItem :: CellKey cell -> DPSubValue index cell -> DPItem index cell
+mkItem = DPItem 
 
-reduce (Constant a)  = return a
-reduce (Opt opt a b) = (liftM2 $ optFunc opt) (reduce a) (reduce b)
-reduce (DPNode n i)   = do 
-  cells <- findCells i
-  return $ fromJustNote "cell" $ M.lookup n cells
+-- | Lookup a cell from the chart. @'getCell' ind fn@ will lookup index @ind@ and then call @fn@  
+--   repeatedly with each item in the cell. It then concats the resulting items, combining 
+--   similarly keyed items with @mappend@
+--   Use instead of @f@ for Chart-Cell DPs 
+getCell
+  :: index
+     -> (Item index cell -> DPCell index cell)
+     -> DPCell index cell
+getCell = Request
 
-
-solveDPStrict :: (Semiring val, Ord cell) => MemoDPChart chart ind (M.Map cell val) -> SolveDPOrder chart ind cell val   
-solveDPStrict solver dp ordering = runState (last `liftM` mapM manage ordering) (mdc_empty solver)     
-    where  
-      manage i = do 
-        chart <- get
-        let res = M.fromListWith mappend $ evalState (reduceComplex $ dp i) (DPState (\a -> fromJustNote "" $ ((mdc_lookupMaybe solver) a chart)))
-        put $ (mdc_insert solver) i res chart
-        return res
-      
-solveDPOrdered :: (Semiring val, Ord cell) => OrderedDPChart chart ind (M.Map cell val) -> SolveDPOrder chart ind cell val   
-solveDPOrdered solver dp ordering = ((odc_lookup solver) (last ordering) chart, chart) 
-    where chart = 
-              (odc_create solver) $ do 
-                i <- ordering
-                let res = evalState (reduceComplex $ dp i) (DPState (\a -> ((odc_lookup solver) a chart)))
-                return $ (i, M.fromListWith mappend res) 
- 
-data OrderedDPChart chart ind val  = OrderedDPChart {
-      odc_lookup :: ind -> chart ind val -> val,
-      odc_create :: [(ind, val)] -> chart ind val
-    }
-
-type SolveDPOrder chart ind cell val = DP ind cell val -> [ind] -> (M.Map cell val, chart ind (M.Map cell val)) 
-
-arrayOrderedChart bounds = OrderedDPChart {
-                     odc_create = array bounds, 
-                     odc_lookup = (\a b -> b ! a) 
-                   }
-
-mapOrderedChart :: (Ord ind) => OrderedDPChart M.Map ind val  
-mapOrderedChart = OrderedDPChart {
-                     odc_create = M.fromList,
-                     odc_lookup = (\a b -> (M.!) b a)
-                   }
-
-data MemoDPChart chart ind val  = MemoDPChart {
-      mdc_lookupMaybe :: ind -> chart ind val -> Maybe val,
-      mdc_insert :: ind -> val -> chart ind val -> chart ind val,
-      mdc_empty  :: chart ind val 
-    }
-
-type SolveDPMemo chart ind cell val = DP ind cell val -> ind -> (val, chart ind val) 
- 
-mapMemoChart :: (Ord ind) => MemoDPChart M.Map ind val                     
-mapMemoChart = MemoDPChart {
-                 mdc_empty = M.empty,
-                 mdc_lookupMaybe = M.lookup,
-                 mdc_insert = M.insert
-               }
-
-wrapSimple :: SimpleDP a b -> DP a () b
-wrapSimple simple i = Name () (simple i) 
-
-fib :: SimpleDP Int Counting  
-fib 0 = one
-fib 1 = one
-fib i = (f (i-2)) `mappend` (f (i-1))
-
-type Bigram = (String, String)
-
-bigrams = 
-   [(("a", "b"), 0.5), 
-    (("b", "b"), 0.4), 
-    (("b", "a"), 0.3), 
-    (("c", "d"), 0.2), 
-    (("d", "c"), 0.1),
-    (("SOS", "a"), 0.2) 
-   ] 
-
-bigramsStartWith word =
-    filter ((== word) . fst. fst ) bigrams 
-
-ngram :: DP Int String (ViterbiDerivation Prob [Bigram])
-ngram 0 = Name "SOS" $ constant one
-ngram i = 
-    Request (i-1) (\word -> 
-        Many $ do
-          (bigram,score) <- bigramsStartWith word 
-          return $ Name (snd bigram) $ 
-                 ((chart word (i-1)) `times` (constant $ mkViterbi $ Weighted (Prob score, mkDerivation [bigram]))))
-
-data NMap key val = NMap Int (M.Map key val)
-    deriving (Show)
-
-nmapInsert :: (Ord key) =>  key -> val -> NMap key val -> NMap key val 
-nmapInsert a v (NMap n m) = NMap n $ M.insert a v (if M.size m == n then M.delete (fst $ M.findMin m) m else m)  
-
-nmapLookupMaybe a (NMap _ m) = Just $  (M.!) m a
-
-
-nmapMemo n = MemoDPChart {
-                mdc_insert = nmapInsert,
-                mdc_empty = NMap n M.empty,
-                mdc_lookupMaybe = nmapLookupMaybe
-              }
-
-
-
-newtype MaxInt = MaxInt Int
-    deriving (Show)  
-
-instance Monoid MaxInt where 
-    mappend (MaxInt a) (MaxInt b) = MaxInt $ max a b
-    mempty = MaxInt 0
-
-instance Multiplicative MaxInt where 
-    one = MaxInt 1
-    times (MaxInt a) (MaxInt b) = MaxInt (a + b) 
-
-instance Semiring MaxInt
-
-
--- --     primeDP basis ixs = do
--- --       dpState <- get 
--- --       let dp = fn dpState
--- --       let chart = createChart $ basis ++ [evalDP dp chart i | i <- ixs] 
--- --       put $ dpState {chart = chart}
--- --       return ()
--- --           where evalDP dp@(DP s) chart i =  evalState s (DPState i dp chart )
-                
-                  
--- instance (DPMemo chart ind) => MonadDP (DP chart ind val) chart ind where 
-    
---     f j = do       
---       dpState <- get
---       case memoLookup j (chart dpState) of 
---         Nothing -> do 
---           put $ dpState {curIndex = j}
---           v <- fn dpState  
---           DPState {chart = m'} <- get
---           put $ dpState {chart = M.insert j v m'}
---           return v
---         Just v -> 
---           return v
-
--- -- runChartDP :: (MonadDP dp) => dp -> [(Index dp, Val dp)] -> [Index dp] -> dp (Val dp)      
--- -- runChartDP boundaries order = evalState dp    
--- --     where chart = chartBasis 
-          
-
-
--- combine :: (MonadDP m, Semiring s) => m s -> m s -> m s
--- combine a b = do 
---   a' <- a
---   b' <- b
---   return $ a' `times` b' 
-
-
--- merge :: (MonadDP m, Semiring s) => m s -> m s -> m s
--- merge a b = do 
---   a' <- a
---   b' <- b
---   return $ a' `mappend` b' 
-
--- (-*-) :: (MonadDP m, Semiring s) => m s -> m s -> m s
--- (-*-) = combine
--- (-+-) :: (MonadDP m, Semiring s) => m s -> m s -> m s
--- (-+-) = merge
-
--- const ::(MonadDP m) => s -> m s
--- const = return 
+-- | Convert a Simple DP to a General DP 
+fromSimple :: SimpleDP a b -> DP a (Identity b)
+fromSimple simple i = mkCell [mkItem () (simple i)] 
