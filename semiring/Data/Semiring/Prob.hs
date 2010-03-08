@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module NLP.Semiring.Prob where 
-import NLP.Semiring
+module Data.Semiring.Prob where 
+import Data.Semiring
 
 -- | The 'Prob' semiring keeps track of the likelihood of the known output 
 --   by keeping track of the probability of all paths. 

@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module NLP.Semiring.Counting where
-import NLP.Semiring
+module Data.Semiring.Counting where
+import Data.Semiring
 
 -- | The 'Counting' semiring keeps track of the number of paths 
 --   or derivations led to a given output.

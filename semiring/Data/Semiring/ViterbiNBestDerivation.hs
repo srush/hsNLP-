@@ -1,11 +1,11 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances #-}
-module NLP.Semiring.ViterbiNBestDerivation where
-import NLP.Semiring
+module Data.Semiring.ViterbiNBestDerivation where
+import Data.Semiring
 import Data.List 
-import NLP.Semiring.Viterbi
-import NLP.Semiring.ViterbiNBest
-import NLP.Semiring.Prob
-import NLP.Semiring.Derivation
+import Data.Semiring.Viterbi
+import Data.Semiring.ViterbiNBest
+import Data.Semiring.Prob
+import Data.Semiring.Derivation
 
 -- | The 'ViterbiNBestDerivation' is an example of a more complicated semiring
 --   built up from smaller components. It keeps track of the top N scoring paths 

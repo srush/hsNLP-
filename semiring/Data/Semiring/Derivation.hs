@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleContexts, UndecidableInstances #-}
-module NLP.Semiring.Derivation (Derivation(..), MultiDerivation(..), DualDerivation(..), mkDerivation, fromDerivation, mkDualDerivation, fromDualDerivation) where
-import NLP.Semiring
-import NLP.Semiring.Helpers
+module Data.Semiring.Derivation (Derivation(..), MultiDerivation(..), DualDerivation(..), mkDerivation, fromDerivation, mkDualDerivation, fromDualDerivation) where
+import Data.Semiring
+import Data.Semiring.Helpers
 import qualified Data.Set as S 
 import Data.Monoid
 import Data.Maybe (isNothing)

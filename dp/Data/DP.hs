@@ -33,7 +33,7 @@ There are currently two types of DPs covered by the specification language -
 simple and chart-cell. 
 -}
 
-  module NLP.Semiring,
+  module Data.Semiring,
 
 -- * Simple
 
@@ -126,8 +126,7 @@ but in practice can be much faster since there can be sparsity (either natural o
 
 --{{{  Imports
 import qualified Data.Map as M 
-import NLP.Semiring
-import Safe
+import Data.Semiring
 import Data.DP.Internals
 import Control.Monad.Identity
 --}}}

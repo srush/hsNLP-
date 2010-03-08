@@ -1,5 +1,5 @@
 name:                semiring
-version:             0.2
+version:             0.3
 synopsis:            Semirings, ring-like structures used for dynamic programming applications 
 description:         This provides a type class for semirings and 
                      implementations of the common semirings used in natural language 
@@ -18,20 +18,21 @@ flag testing
     default: False
 
 library
-    exposed-modules:     NLP.Semiring
-                         NLP.Semiring.Boolean
-                         NLP.Semiring.Prob
-                         NLP.Semiring.LogProb
-                         NLP.Semiring.Viterbi
-                         NLP.Semiring.ViterbiNBest
-                         NLP.Semiring.Counting
-                         NLP.Semiring.Derivation
-                         NLP.Semiring.ViterbiNBestDerivation
-    other-modules:       NLP.Semiring.Helpers
+    exposed-modules:     Data.Semiring
+                         Data.Semiring.Boolean
+                         Data.Semiring.Prob
+                         Data.Semiring.LogProb
+                         Data.Semiring.Viterbi
+                         Data.Semiring.ViterbiNBest
+                         Data.Semiring.Counting
+                         Data.Semiring.Max
+                         Data.Semiring.Derivation
+                         Data.Semiring.ViterbiNBestDerivation
+    other-modules:       Data.Semiring.Helpers
     if flag(testing)
         buildable: False
 
-    build-Depends:   base       >= 3   && < 4,
+    build-Depends:   base      ,
                      containers >= 0.1 && < 0.3,
                      monoids    >= 0.2.0.2 && < 0.3,
                      Boolean

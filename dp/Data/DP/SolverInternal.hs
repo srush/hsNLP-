@@ -1,17 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleContexts, FlexibleInstances, TypeFamilies, KindSignatures #-}
-module Data.DP.Solver where 
+module Data.DP.SolverInternal where 
 
 --{{{  
 import Data.DP 
 import qualified Data.Map as M 
-import NLP.Semiring
+import Data.Semiring
 import Safe 
 import Control.Monad.Identity
 --}}}
 
-newtype DPBase  (monad :: * -> *) solver   (chart :: * -> * -> *) ind cell internal = DPBase (solver monad chart ind cell internal)
+newtype DPSolver  (monad :: * -> *) solver   (chart :: * -> * -> *) ind cell internal = DPSolver (solver monad chart ind cell internal)
 
-type SameDPBase m solver chart ind cell = DPBase m solver chart ind cell cell
+type DPSolverSame m solver chart ind cell = DPSolver m solver chart ind cell cell
 
 data SolveState = SolveState
 
@@ -22,35 +22,31 @@ class DPSolveBase s where
     type Internal s 
     type DPMonad s :: * -> * 
     
-instance (Monad m) => DPSolveBase (DPBase m s ch ind cell int) where 
-    type Chart (DPBase m s ch ind cell int) = ch 
-    type DCell (DPBase m s ch ind cell int) = cell
-    type Ind   (DPBase m s ch ind cell int) = ind
-    type Internal   (DPBase m s ch ind cell int) = int
-    type DPMonad   (DPBase m s ch ind cell int) = m
+instance (Monad m) => DPSolveBase (DPSolver m s ch ind cell int) where 
+    type Chart (DPSolver m s ch ind cell int) = ch 
+    type DCell (DPSolver m s ch ind cell int) = cell
+    type Ind   (DPSolver m s ch ind cell int) = ind
+    type Internal   (DPSolver m s ch ind cell int) = int
+    type DPMonad   (DPSolver m s ch ind cell int) = m
 
 
-class (DPSolveBase s, Monad (DPMonad s)) => DPSolve s where 
+class (DPSolveBase s, Monad (DPMonad s)) => SolveDP s where 
     type Frame s
     startSolver :: 
                (DCell s -> (DPMonad s) (DCell s))  -> 
-               s -> 
-               Frame s ->
-               DP (Ind s) (DCell s) -> 
-               (DPMonad s) (DPSolution (Chart s) (Ind s) (DCell s) (Internal s))
+               SolveFn s
 
 data DPSolution chart ind cell internal = DPSolution {
+      -- | The solution of the full dynamic program, i.e. the value at the last index computed 
       getResult :: cell,
+      -- | The entire DP chart. The type is defined by the solver used.
       getChart :: chart ind internal
 }
 
 type DPSimpleSolution chart ind val = DPSolution chart ind (Identity val)
 
--- 
+type SolveSimpleFn s b =      
+    s -> Frame s -> DP (Ind s) b -> DPMonad s (DPSolution (Chart s) (Ind s) (DCell s) (Internal s))
 
-getSimpleResult :: Identity (DPSolution chart ind (Identity r) z) -> r  
-getSimpleResult = runIdentity . getResult . runIdentity  
-
--- 
-solveDP solver dp frame = startSolver return solver dp frame  
-solveSimpleDP a b c = solveDP a b (fromSimple c)
+type SolveFn s =      
+    s -> Frame s -> DP (Ind s) (DCell s) -> DPMonad s (DPSolution (Chart s) (Ind s) (DCell s) (Internal s))

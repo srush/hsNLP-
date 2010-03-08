@@ -1,7 +1,7 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module NLP.Semiring.ViterbiNBest where
-import NLP.Semiring
-import NLP.Semiring.Helpers
+module Data.Semiring.ViterbiNBest where
+import Data.Semiring
+import Data.Semiring.Helpers
 import Data.List 
 
 

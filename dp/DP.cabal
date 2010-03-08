@@ -17,17 +17,22 @@ cabal-version:       >= 1.2
 
 library
     exposed-modules:     Data.DP,
-                         Data.DP.Solver,   
                          Data.DP.Solvers,   
-                         Data.DP.Solver.LazyOrdered,   
-                         Data.DP.Solver.Memo, 
-                         Data.DP.Solver.Strict,   
-                         Data.DP.Solver.Naive,
+                         Data.DP.Solvers.BottomUpLazy,   
+                         Data.DP.Solvers.TopDown, 
+                         Data.DP.Solvers.BottomUpStrict,   
+                         Data.DP.Solvers.Recursive,
+                         Data.DP.Solvers.Beam,
                          Data.DP.Examples,
-                         Data.DP.Examples.Fibonacci
+                         Data.DP.Examples.Fibonacci,
+                         Data.DP.Examples.CheckerBoard,
+                         Data.DP.Examples.HMM,
+                         Data.DP.Examples.Bigram
+                         
 
     other-modules : 
-                         Data.DP.Internals
+                         Data.DP.Internals,
+                         Data.DP.SolverInternal
                             
     ghc-options: -O2                        
 
@@ -37,6 +42,6 @@ library
                      QuickCheck > 2.0,
                      array,
                      list-tries,
-                     semiring >= 0.2,
+                     semiring >= 0.3,
                      mtl > 1.1
 

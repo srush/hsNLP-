@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module NLP.Semiring.LogProb where 
-import NLP.Semiring
+module Data.Semiring.LogProb where 
+import Data.Semiring
 
 
 -- log prob, should only be used in viterbi semiring (add not defined)

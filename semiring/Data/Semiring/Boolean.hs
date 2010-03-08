@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module NLP.Semiring.Boolean where
-import NLP.Semiring
+module Data.Semiring.Boolean where
+import Data.Semiring
 import qualified Data.Boolean as B
 import Data.Boolean ((&&*),(||*)) 
 newtype Boolean = Boolean Bool

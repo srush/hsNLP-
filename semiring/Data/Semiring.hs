@@ -1,11 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module NLP.Semiring(
+module Data.Semiring(
   -- * Semiring
   --                    
   -- $SemiringDesc
 
-  Multiplicative(..), 
-  Monoid(..), 
+
   Semiring, 
   WeightedSemiring, 
   Weighted(..), 
