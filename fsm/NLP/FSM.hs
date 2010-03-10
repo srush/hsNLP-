@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts #-} 
 module NLP.FSM where 
-import NLP.Semiring
+import Data.Semiring
 
 
 class (FSMState (State a)) => WFSM a where 

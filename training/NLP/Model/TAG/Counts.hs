@@ -6,11 +6,11 @@ import NLP.Grammar.TAG
 import NLP.Model.TAG.Parse 
 import NLP.ChartParse.Eisner.Inside
 import NLP.ChartParse.Eisner.Outside
-import NLP.Semiring.Derivation
+import Data.Semiring.Derivation
 import NLP.TreeBank.TreeBank
 import Control.Exception
 import NLP.Model.Distance
-import NLP.Semiring.ViterbiNBestDerivation
+import Data.Semiring.ViterbiNBestDerivation
 import Debug.Trace
 import Helpers.Common
 import NLP.Model.TAG.Format

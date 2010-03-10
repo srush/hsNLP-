@@ -9,7 +9,7 @@ import NLP.Probability.Chain
 import NLP.Model.CreateableSemi
 import NLP.Model.Distance
 import NLP.FSM
-import NLP.Semiring
+import Data.Semiring
 import NLP.Language.SimpleLanguage
 import Debug.Trace
 

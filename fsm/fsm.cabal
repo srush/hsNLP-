@@ -1,5 +1,5 @@
 name:                fsm
-version:             0.1
+version:             0.2
 synopsis:            Finite State Machines
 description:         Finite State Machines
 category:            Natural Language Processing
@@ -36,7 +36,7 @@ library
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
                      monoids    >= 0.2.0.2 && < 0.3,
-                     semiring,
+                     semiring >= 0.3,
                      QuickCheck >= 2,
                      HUnit,
                      test-framework,

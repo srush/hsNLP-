@@ -1,5 +1,5 @@
 name:                chartparse
-version:             0.3
+version:             0.3.1
 synopsis:            A framework for building chart parsers 
 description:         This provides a simple framework for building probabilistic 
                      chart parsers.
@@ -32,7 +32,7 @@ library
     build-Depends:   base       >= 3   && < 4,
                      containers >= 0.1 && < 0.3,
                      array,
-                     semiring,
+                     semiring >= 0.3,
                      fsm,
                      pretty,
                      prettyclass,

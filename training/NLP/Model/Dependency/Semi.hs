@@ -6,7 +6,7 @@ import Helpers.Common
 import NLP.Language.SimpleLanguage
 import NLP.Grammar.Dependency
 import NLP.Model.Dependency.Wrap
-import NLP.Semiring.LogProb
+import Data.Semiring.LogProb
 import NLP.Probability.Chain
 newtype DependencyDerivation = DependencyDerivation (ParseDerivation (ALabel)) 
     deriving (Eq, Monoid)

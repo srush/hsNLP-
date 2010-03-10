@@ -10,7 +10,7 @@ import Data.Binary
 import Data.List
 
 import NLP.ChartParse.Eisner.Inside
-import NLP.Semiring.Derivation
+import Data.Semiring.Derivation
 import Control.Exception
 import Control.Parallel.Strategies
 import DataHelpers
@@ -26,7 +26,7 @@ main = do
   [file1, file2] <- getArgs
   counts <- readAndCount file1 file2
   print "full count done"
-  encodeFile file2 (counts::(Observation Collins))
+  encodeFile file2 (counts::(ChainedObs Collins))
 
 readAndCount file1 file2 = do
   newsents <- getSentences file1

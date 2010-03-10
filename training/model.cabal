@@ -1,5 +1,5 @@
 name:                model
-version:             0.1.2
+version:             0.1.4
 synopsis:            
 description:         
 category:            Natural Language Processing
@@ -51,7 +51,7 @@ library
     build-Depends:   base       >= 3   && < 4,                     
                  containers >= 0.1 && < 0.3,
                  array,
-                 semiring,
+                 semiring >= 0.3,
                  estimators >= 0.1.2,
                  binary,
                  text,

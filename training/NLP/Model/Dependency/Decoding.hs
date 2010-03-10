@@ -13,12 +13,12 @@ import NLP.Model.Dependency.Format
 import NLP.Model.Dependency.Parse
 import NLP.Grammar.Dependency
 import NLP.Grammar.DependencySent
-import NLP.Semiring.LogProb
-import NLP.Semiring.ViterbiNBestDerivation
+import Data.Semiring.LogProb
+import Data.Semiring.ViterbiNBestDerivation
 import NLP.Probability.Chain
 import qualified Data.Map as M
 import NLP.ChartParse.Eisner.Inside as EI
-import NLP.Semiring.Prob
+import Data.Semiring.Prob
 import NLP.Model.ParseState
 import NLP.Grammar.Dependency
 import NLP.Model.Distance
@@ -34,7 +34,7 @@ import qualified Data.Traversable as T
 import NLP.Model.Dependency.Semi
 import NLP.Model.CreateableSemi
 import Debug.Trace
-type DecodeParams = (Probs FirstOrderDep)
+type DecodeParams = (ChainedProbs FirstOrderDep)
 
 
 getBestLogScore :: (BestScorer m LogProb s) => s -> Double
@@ -43,7 +43,7 @@ getBestLogScore = convertToProb . getBestScore
 readDecodeParams :: String -> IO DecodeParams
 readDecodeParams adjCountFile = do
   !counts <- decodeFile adjCountFile
-  let probs = estimate counts
+  let probs = estimateDependency counts
   return $! probs
 
 data DecodingOpts = DecodingOpts {
@@ -95,7 +95,7 @@ genDecodeSentence  opts probs insent = do
       
   return b' -- $  trace (show chart) b'
         where 
-          getProb = memoize $ prob probs 
+          getProb = prob probs 
           mkSemi c e = fromProb $ getProb $ chainRule c e 
 
 memoize :: Ord a => (a -> b) -> (a -> b) 

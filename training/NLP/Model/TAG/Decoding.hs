@@ -10,12 +10,12 @@ import NLP.Model.TAG.Wrap
 import NLP.Model.TAG.Prior
 import NLP.Model.TAG.Semi
 import NLP.Model.ParseTree
-import NLP.Semiring.ViterbiNBestDerivation
+import Data.Semiring.ViterbiNBestDerivation
 import NLP.Probability.Chain
 import qualified Data.Map as M
 import NLP.ChartParse.Eisner.Inside as EI
-import NLP.Semiring.Prob
-import NLP.Semiring.LogProb
+import Data.Semiring.Prob
+import Data.Semiring.LogProb
 import NLP.Grammar.TAG
 import NLP.Model.ParseState
 import NLP.Grammar.Dependency
@@ -38,23 +38,23 @@ import NLP.ChartParse
 import Data.List
 import qualified Data.Set as S
 
-type DecodeParams = (SpineExist, Probs Collins, ProbsDebug, Probs CollinsPrior)
+type DecodeParams = (SpineExist, Probs PairsCollins, ProbsDebug, Probs PrPair)
 
 readDecodeParams :: String -> String -> String -> IO DecodeParams
 readDecodeParams adjCountFile spineCountFile spineProbFile = do
-  counts <- decodeFile adjCountFile
+  counts <- decodeFile adjCountFile 
   spineCounts <- decodeFile spineCountFile
-  spineCounts2 <- decodeFile spineProbFile
-  let probSpine = estimate spineCounts2
+  spineCounts2 <- decodeFile spineProbFile 
+  let probSpine = estimatePrior spineCounts2
   --print counts
-  let probs = estimate counts
-  let probsDebug = estimateDebug counts
-  return $! (spineCounts, probs,probsDebug, probSpine)
+  let probs = estimateCollins (counts )
+  let probsDebug = estimateDebug (counts)
+  return $! (spineCounts, (probs) ,probsDebug, (probSpine))
    
 
 
 data DecodingOpts = DecodingOpts {
-      extraDepScore :: (Pairs (Collins) -> LogProb -> LogProb),
+      extraDepScore :: (Chained (Collins) -> LogProb -> LogProb),
       validator :: TSentence -> Validity Collins ,
       beamThres :: Double,
       commaPrune :: Bool,
@@ -173,7 +173,7 @@ genDecodeGold opts (spineCounts, probs, probsDebug, probSpine) insent = do
     let actualsent = tSentence dsent 
     tagsent <- toTAGSentence insent
     fsm <- makeFSM tagsent dsent opts mkSemi 
-    let (b',_)= eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
+    let (b',_) = eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
     return b'
     where
           mkSemi  = (\ e c -> fromProb $ prob probs $ chainRule e c,

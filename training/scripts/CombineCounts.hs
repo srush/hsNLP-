@@ -8,4 +8,4 @@ import Data.Monoid
 main = do 
   args <- getArgs
   counts <- mapM decodeFile $ tail (args::[String])
-  encodeFile (head args) (mconcat counts::Observation (Collins))
+  encodeFile (head args) (mconcat counts::ChainedObs (Collins))

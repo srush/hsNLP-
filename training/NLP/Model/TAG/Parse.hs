@@ -13,7 +13,7 @@ import qualified Data.Set as S
 import NLP.Grammar.TAG hiding (adjType)
 import NLP.Grammar.Spine
 import NLP.Language.SimpleLanguage
-import NLP.Semiring
+import Data.Semiring
 import NLP.ParseMonad
 --import ExtraParams
 import NLP.Model.CreateableSemi

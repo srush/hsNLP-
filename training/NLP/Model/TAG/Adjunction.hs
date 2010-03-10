@@ -24,6 +24,7 @@ import Control.DeepSeq
 import NLP.Atom
 import NLP.ParseMonad
 import NLP.Grammar.Dependency
+import NLP.Model.ChainHelpers
 --}}}
 
 emptyAdjunction = AdjunctionFullEvent Nothing Nothing Nothing Nothing Nothing Nothing Nothing
@@ -281,7 +282,7 @@ data Collins = Collins
 
 ssep = hcat .  punctuate (text " ") . filter (not. isEmpty) 
 
-dumpCollinsObs :: Observation Collins  ->  ParseMonad Doc 
+dumpCollinsObs :: Observations PairsCollins  ->  ParseMonad Doc 
 dumpCollinsObs (Observation (o1,o2,o3)) =do
     d1 <- showPretty o1 (liftM pPrint .  ae1ToReadable) (liftM pPrint . ac1ToReadable)
     d2 <- showPretty o2 (liftM pPrint .  ae2ToReadable) (liftM pPrint . ac2ToReadable)
@@ -289,7 +290,7 @@ dumpCollinsObs (Observation (o1,o2,o3)) =do
     return $ hcat [d1,d2,d3]
     where showPretty t mEventShow mShow = ST.mPretty (showObsPretty mEventShow) (\a -> do { a <- mapM mShow a; return $ hcat a}) t
    
-dumpPairs :: Pairs Collins -> ParseMonad Doc
+dumpPairs :: Chained Collins -> ParseMonad Doc
 dumpPairs pairs = do
   dae1 <- ae1ToReadable ae1
   dae2 <- ae2ToReadable ae2
@@ -304,29 +305,48 @@ dumpPairs pairs = do
            (ae2, ac2),
            (ae3, ac3)) = probInfo pairs 
 
-instance JointModel (Collins) where 
-     data Pairs (Collins) =  
-         Pairs {probInfo :: ((AE1, AC1),
-                             (AE2, AC2),
-                             (AE3, AC3)),
-                decisionInfo :: Maybe (Int, Int), -- Child, Head (m, h)
-                makesBaseNP :: (Bool, (Int, Int)), -- (is base np, covers)
-                enumVal :: (Int,Int)
-               }
-         deriving (Eq, Ord, Show)
+-- data PairsCollins = 
 
-     newtype Observation (Collins) = 
-         Observation (CondObserved (AE1) (AC1),
-                      CondObserved (AE2) (AC2),
-                      CondObserved (AE3) (AC3))
-         deriving (Monoid, Show, Pretty, Binary)
+instance ChainedDist (PairsCollins) where 
+     newtype Observations (PairsCollins) = 
+          Observation (CondObserved (AE1) (AC1),
+           CondObserved (AE2) (AC2),
+           CondObserved (AE3) (AC3))
+          deriving (Binary, Show, Monoid)
 
-     data Probs (Collins) = 
+     newtype Probs (PairsCollins) = 
          Probs (CondDistribution (AE1) (AC1),
-                CondDistribution (AE2) (AC2),
-                CondDistribution (AE3) (AC3))
+          CondDistribution (AE2) (AC2),
+          CondDistribution (AE3) (AC3))
+         
+     observe (Pairs {probInfo = (a,b,c)}) = 
+         Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
+
+     prob (Probs (p1,p2,p3)) (Pairs {probInfo = (a,b,c)}) =           
+         ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
+
+estimateCollins :: Observations PairsCollins -> Probs PairsCollins   
+estimateCollins (Observation (!obs1,  !obs2,  !obs3)) = 
+    Probs (est $! obs1, est $! obs2, est $! obs3) 
+        where  
+          est :: (Event a, Context b) => CondObserved a b -> CondDistribution a b 
+          est = mkDist . estimateGeneralLinear (wittenBell 5)
 
 
+data PairsCollins =          
+    Pairs {probInfo :: ((AE1, AC1),
+                        (AE2, AC2),
+                        (AE3, AC3)),
+           decisionInfo :: Maybe (Int, Int), -- Child, Head (m, h)
+           makesBaseNP :: (Bool, (Int, Int)), -- (is base np, covers)
+           enumVal :: (Int,Int)
+          }
+    deriving (Eq, Ord, Show)
+
+
+
+instance JointModel (Collins) where 
+     type Chained (Collins) = PairsCollins 
      data FullEvent (Collins)   = AdjunctionFullEvent {
       childWord  :: Maybe (AWord),
       childPOS   :: Maybe (APOS),
@@ -383,18 +403,6 @@ instance JointModel (Collins) where
                e3 = mkEvent3 fullEvent
                sortPair (a,b) = (min a b, max a b)
                     
-     observe (Pairs {probInfo = (a,b,c)}) = 
-         Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b), ((uncurry condObservation) c))
-
-     prob (Probs (p1,p2,p3)) (Pairs {probInfo = (a,b,c)}) =           
-         ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b) * ((uncurry $ flip p3) c)
-
-     estimate (Observation (!obs1,  !obs2,  !obs3)) = 
-         Probs (est $! obs1, est $! obs2, est $! obs3) 
-         where  
-           est :: (Event a, Context b) => CondObserved a b -> CondDistribution a b 
-           est = mkDist . estimateGeneralLinear (wittenBell 5)
-
 
 estimateDebug (Observation (!obs1,  !obs2,  !obs3)) = 
     (est $! obs1, est $! obs2, est $! obs3) 
@@ -402,7 +410,7 @@ estimateDebug (Observation (!obs1,  !obs2,  !obs3)) =
            est :: (Event a, Context b) => CondObserved a b -> DebugDist a b 
            est =  estimateGeneralLinear (wittenBell 5)
 
-probDebug :: ProbsDebug -> Pairs Collins -> ProbDebug
+probDebug :: ProbsDebug -> PairsCollins -> ProbDebug
 probDebug (p1,p2,p3) (Pairs {probInfo = (a,b,c)}) =           
          ProbDebug [((uncurry $ flip p1) a), ((uncurry $ flip p2) b), ((uncurry $ flip p3) c)]
 

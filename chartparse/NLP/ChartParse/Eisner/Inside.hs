@@ -6,7 +6,7 @@ import NLP.ChartParse
 import Helpers.Common
 import Data.List (find)
 import NLP.FSM
-import NLP.Semiring
+import Data.Semiring
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Monoid.Multiplicative (times, one) 

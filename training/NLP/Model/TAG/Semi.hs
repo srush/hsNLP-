@@ -6,15 +6,15 @@ import Helpers.Common
 import NLP.Grammar.TAG
 import NLP.Model.TAG.Wrap
 import NLP.Model.TAG.Adjunction
-import qualified NLP.Semiring.Derivation as D
+import qualified Data.Semiring.Derivation as D
 import NLP.Grammar.Dependency
-import NLP.Semiring
-import NLP.Semiring.Prob
-import NLP.Semiring.LogProb
+import Data.Semiring
+import Data.Semiring.Prob
+import Data.Semiring.LogProb
 import NLP.Model.CreateableSemi
 import NLP.Probability.Chain
-import NLP.Semiring.Viterbi
-import NLP.Semiring.ViterbiNBestDerivation
+import Data.Semiring.Viterbi
+import Data.Semiring.ViterbiNBestDerivation
 import NLP.Grammar.Spine
 import NLP.Language.SimpleLanguage
 --}}}

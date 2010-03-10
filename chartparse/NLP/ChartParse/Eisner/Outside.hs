@@ -1,6 +1,6 @@
 module NLP.ChartParse.Eisner.Outside where 
 import NLP.FSM
-import NLP.Semiring
+import Data.Semiring
 import NLP.ChartParse.Eisner.Inside
 import NLP.ChartParse
 import Data.Monoid.Multiplicative (times, one) 

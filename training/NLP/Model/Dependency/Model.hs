@@ -17,6 +17,7 @@ import Text.Printf
 import NLP.Probability.Chain
 import Control.DeepSeq
 import NLP.Grammar.Dependency
+import NLP.Model.ChainHelpers
 --}}}
 
 n = Nothing 
@@ -77,23 +78,17 @@ instance Context DC2 where
             where [d1, _, d3] = decompose $ DC1 $ runIdentity c 
 
 
-data FirstOrderDep = FirstOrderDep 
+data FirstOrderDep = FirstOrderDep
+type FirstOrderPair =  (P1 DE1 DC1,
+                        P1 DE2 DC2)
+deriving instance Binary (Observations (P1 DE1 DC1,
+                                        P1 DE2 DC2))    
+
+
 instance JointModel FirstOrderDep  where 
-     data Pairs FirstOrderDep  =  
-         Pairs {probInfo :: ((DE1, DC1),
-                             (DE2, DC2)),
-                decisionInfo ::  (Int, Int)}
-         deriving (Eq, Ord)
-
-     newtype Observation FirstOrderDep = 
-         Observation (CondObserved (DE1) (DC1),
-                      CondObserved (DE2) (DC2))
-         deriving (Monoid, Show, Binary)
-
-     data Probs FirstOrderDep = 
-         Probs (CondDistribution (DE1) (DC1),
-                CondDistribution (DE2) (DC2))
-
+     type Chained FirstOrderDep  = 
+         (P1 DE1 DC1,
+          P1 DE2 DC2)    
 
      data FullEvent FirstOrderDep   = DepFullEvent {
       childWord  :: AWord,
@@ -113,22 +108,15 @@ instance JointModel FirstOrderDep  where
      
      
      chainRule fullEvent fullContext = 
-         Pairs ((e1, DC1 $ mkAdjCon1 Identity fullContext),
-                (e2, DC2 $ mkAdjCon2 Identity fullContext e1))
-               (childInd fullEvent, parentInd fullContext)  
+         (P1(e1, DC1 $ mkAdjCon1 Identity fullContext),
+          P1 (e2, DC2 $ mkAdjCon2 Identity fullContext e1))
+         --      (childInd fullEvent, parentInd fullContext)  
          where e1 = mkEvent1 fullEvent
                e2 = mkEvent2 fullEvent
-                    
-     observe (Pairs (a,b) _) = 
-         Observation $ (((uncurry condObservation) a), ((uncurry condObservation) b))
-
-     prob (Probs (p1,p2)) (Pairs (a,b) _) =           
-         ((uncurry $ flip p1) a) * ((uncurry $ flip p2) b)
-
-     estimate (Observation (!obs1,  !obs2)) = 
-         Probs (est $! obs1, est $! obs2) 
+                 
+estimateDependency :: Observations FirstOrderPair -> Probs FirstOrderPair   
+estimateDependency (Observation2 (!obs1,  !obs2)) = 
+         Probs2 (est $! obs1, est $! obs2) 
          where  
            est :: (Event a, Context b) => CondObserved a b -> CondDistribution a b 
            est = mkDist . estimateGeneralLinear (wittenBell 5)
-
-

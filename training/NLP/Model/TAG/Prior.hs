@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell, FlexibleInstances #-}
 module NLP.Model.TAG.Prior where 
 
 --{{{  Imports
@@ -40,26 +40,22 @@ instance Event ASpine where type EventMap (ASpine) = M.Map
 --   And the conditional probability of a Spine given a GWord
     
 data CollinsPrior = CollinsPrior
+data PrPair = PrPair (GWord, ASpine)
+            deriving (Eq, Ord, Show)
 
-instance JointModel CollinsPrior where 
-    newtype FullEvent CollinsPrior  = PrEv (TWord) 
-    newtype FullContext CollinsPrior = PrCon ()
-
-    newtype Probs CollinsPrior = 
+instance ChainedDist (PrPair) where 
+    newtype Probs (PrPair) = 
         PriorProbs  (Distribution (GWord),
                      CondDistribution (ASpine) (GWord))
+
         
-    newtype Observation CollinsPrior =
+    newtype Observations (PrPair) =
         PriorObs (Counts GWord,
                   CondObserved ASpine GWord)
         deriving (Monoid, Binary)
 
-    newtype Pairs (CollinsPrior) = PrPair (GWord, ASpine)
-        deriving (Eq, Ord, Show)
-    chainRule (PrEv tagword) _ = (PrPair (twWord tagword, twAtomSpine tagword))
-        
     observe (PrPair (word, spine)) = PriorObs (observation $ word,
-                                               condObservation spine word)
+                                                   condObservation spine word)
                       
     prob (PriorProbs (udist, cdist)) = subProb
         where 
@@ -67,6 +63,19 @@ instance JointModel CollinsPrior where
               where p' = udist $ word
                     p = if isNaN p' then (1e-19) else max p' (1e-19)
 
+estimatePrior :: Observations PrPair -> Probs PrPair   
+estimatePrior (PriorObs (ucounts, ccounts) ) = 
+    PriorProbs (mle $ finish ucounts, 
+                mkDist $ estimateGeneralLinear (simpleLinear [0.7, 0.2, 0.1]) ccounts) 
+    
+
+instance JointModel CollinsPrior where 
+    newtype FullEvent CollinsPrior  = PrEv (TWord) 
+    newtype FullContext CollinsPrior = PrCon ()
+
+    type Chained (CollinsPrior) = PrPair
+        
+    chainRule (PrEv tagword) _ = (PrPair (twWord tagword, twAtomSpine tagword))
 --           subProb' tagword = unsafePerformIO $ do
 --                        cacheMap <- readIORef cache
 --                        case M.lookup tagword cacheMap of
@@ -78,9 +87,6 @@ instance JointModel CollinsPrior where
 --           cache = unsafePerformIO $ newIORef M.empty
 
 
-    estimate (PriorObs (ucounts, ccounts) ) = 
-        PriorProbs (mle $ finish ucounts, 
-                    mkDist $ estimateGeneralLinear (simpleLinear [0.7, 0.2, 0.1]) ccounts) 
     
 
 

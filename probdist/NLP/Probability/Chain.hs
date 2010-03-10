@@ -1,101 +1,80 @@
-{-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns, StandaloneDeriving #-}
-module NLP.Probability.Chain (simpleObserve,
-                              JointModel (..),
-                              M2(..), M3(..), M4(..), M5(..), M7(..), HolderPretty, holderPretty, hPretty
-                             ) where 
+{-# LANGUAGE TypeSynonymInstances, TypeSynonymInstances, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, UndecidableInstances, TemplateHaskell, MultiParamTypeClasses, BangPatterns, StandaloneDeriving, FlexibleContexts #-}
+module NLP.Probability.Chain  where 
 import NLP.Probability.ConditionalDistribution
 import NLP.Probability.Distribution 
 import NLP.Probability.Observation
 import qualified Data.Map as M
-import Control.Monad.Identity
 import Data.Monoid
-import Data.List (intercalate)
-import Control.Monad (liftM)
 import Data.Binary
 import Text.PrettyPrint.HughesPJClass
-import Control.DeepSeq
 
-class JointModel a where 
+type ChainedProbs a = Probs (Chained a) 
+type ChainedObs a = Observations (Chained a)
+
+class (ChainedDist (Chained a)) => JointModel a where 
     data FullEvent a
     data FullContext a
-    data Probs a
-    data Observation a
-    data Pairs a 
-    chainRule :: FullEvent a -> FullContext a -> Pairs a
-    observe :: Pairs a -> Observation a
-    prob :: Probs a -> Pairs a -> Prob
-    estimate :: Observation a -> Probs a
+    type Chained a 
+    chainRule :: FullEvent a -> FullContext a -> Chained a
 
 class Estimate a where 
     type Dist a 
 
+class ChainedDist a where 
+    data Observations a
+    data Probs a
+    observe :: a -> Observations a
+    prob :: Probs a -> a -> Prob
+    --estimate :: Observations a -> Probs a
+
+newtype P1 e c = P1 (e,c) 
+
+instance (Event e, Context c) => ChainedDist (P1 e c) where 
+    newtype Observations  (P1 e c) = Observation1 (CondObserved e c)
+
+    newtype Probs (P1 e c) = Probs1 (CondDistribution e c)
+
+    observe (P1 (e,c)) =  Observation1 $ condObservation e c 
+    prob (Probs1 p1) (P1 (e, c)) = p1 c e
+
+instance (Event a1, Event a2, 
+          Context b1, Context b2) => ChainedDist (P1 a1 b1, P1 a2 b2) where 
+    newtype Observations (P1 a1 b1, P1 a2 b2) = 
+        Observation2 (CondObserved a1 b1,
+                     CondObserved a2 b2)
+
+    newtype Probs (P1 a1 b1, P1 a2 b2) = 
+        Probs2 (CondDistribution a1 b1,
+               CondDistribution a2 b2)
+    
+    observe (P1 p1, P1 p2) = Observation2 (uncurry condObservation p1, uncurry condObservation p2) 
+
+    prob (Probs2 (p1, p2)) (P1 pa1, P1 pa2) = ((uncurry $ flip p1) pa1) * ((uncurry $ flip p2) pa2)
+
+
+instance (Event a1, Event a2, Event a3, 
+          Context b1, Context b2, Context b3) => ChainedDist (P1 a1 b1, P1 a2 b2, P1 a3 b3) where 
+    newtype Observations (P1 a1 b1, P1 a2 b2, P1 a3 b3) = 
+        Observation3 (CondObserved a1 b1,
+                      CondObserved a2 b2,
+                      CondObserved a3 b3)
+        
+    newtype Probs (P1 a1 b1, P1 a2 b2, P1 a3 b3) = 
+        Probs3 (CondDistribution a1 b1,
+                CondDistribution a2 b2,
+                CondDistribution a3 b3)
+    
+    observe (P1 p1, P1 p2, P1 p3) = Observation3 (uncurry condObservation p1, 
+                                         uncurry condObservation p2, 
+                                         uncurry condObservation p3) 
+
+    prob (Probs3 (p1, p2, p3)) (P1 pa1, P1 pa2, P1 pa3) = 
+        ((uncurry $ flip p1) pa1) * 
+        ((uncurry $ flip p2) pa2) * 
+        ((uncurry $ flip p3) pa3)
+
+
 instance Event String where type EventMap String = M.Map
 instance Event Int where type EventMap Int = M.Map
-
-data Con1 = Con1 (Int, String)
-          deriving (Eq, Ord)
-
-data Con2 = Con2 (String, Int, String)
-          deriving (Eq, Ord) 
-
-instance Context Con1 where 
-    type Sub Con1 = Con1
-    type SubMap Con1 = M.Map
-    decompose a = [a]
-
-instance Context Con2 where 
-    type Sub Con2 = Con2
-    type SubMap Con2 = M.Map
-    decompose a = [a]
-
-newtype M2 m a b = M2 (m a, m b)
-    deriving (Show, Eq, Ord, Binary, NFData)
-
-newtype M3 m a b c = M3 (m a, m b, m c)
-    deriving (Show, Eq, Ord, Binary, NFData )
-
-newtype M4 m a b c d = M4 (m a, m b, m c, m d)
-    deriving (Show, Eq, Ord, Binary, NFData)
-
-newtype M5 m a b c d e = M5 (m a, m b, m c, m d, m e)
-    deriving (Show, Eq, Ord, Binary, NFData)
-
-newtype M7 m a b c d e f g = M7 (m a, m b, m c, m d, m e, m f, m g)
-    deriving (Show, Eq, Ord, Binary, NFData)
-
-class HolderPretty a where 
-    holderPretty :: (b -> Doc) -> a b -> Doc
-
-instance HolderPretty Maybe where 
-    holderPretty s (Just a) = s a
-    holderPretty _ Nothing = empty
-
-hShow :: (HolderPretty m, Show a) => m a -> Doc
-hShow = holderPretty  (text .show)
-
-hPretty :: (HolderPretty m, Pretty a) => m a -> Doc
-hPretty = holderPretty pPrint
-
-csep = hsep .  punctuate comma . filter (not. isEmpty) 
-
-instance (HolderPretty m, Pretty a, Pretty b, Pretty c, Pretty d, Pretty e, Pretty f, Pretty g) => Pretty (M7 m a b c d e f g) where 
-    pPrint (M7 (a, b, c, d, e, f, g)) = csep [hPretty a, hPretty b, hPretty c, hPretty d, hPretty e, hPretty f, hPretty g]
-
-instance (HolderPretty m, Pretty a, Pretty b, Pretty c) => Pretty (M3 m a b c) where 
-    pPrint (M3 (a, b, c)) = csep [hPretty a, hPretty b, hPretty c]
-
-instance (Eq a) => Eq (Identity a) where 
-    (==) a b = (runIdentity a) ==  (runIdentity b)
-
-instance (Ord a) => Ord (Identity a) where 
-    compare a b = (runIdentity a) `compare`  (runIdentity b)
-
-instance (Show a) => Show (Identity a) where 
-    show = show . runIdentity
-
-deriving instance (Binary a) => Binary (Identity a)
-
-instance HolderPretty Identity where 
-    holderPretty s = s . runIdentity
 
 simpleObserve a b = observe $ chainRule a b 

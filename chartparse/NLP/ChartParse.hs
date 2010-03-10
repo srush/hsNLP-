@@ -2,7 +2,7 @@
 module NLP.ChartParse where
  
 --{{{  Imports
-import NLP.Semiring
+import Data.Semiring
 import NLP.WordLattice
 import Helpers.Common
 import qualified Data.Map as M

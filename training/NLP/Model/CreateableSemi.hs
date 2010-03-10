@@ -3,12 +3,12 @@ module NLP.Model.CreateableSemi where
 
 --{{{  Imports
 import Helpers.Common hiding (Derivation)
-import NLP.Semiring
-import qualified NLP.Semiring.Derivation as D
-import NLP.Semiring.LogProb
-import NLP.Semiring.Prob
-import NLP.Semiring.Viterbi
-import NLP.Semiring.ViterbiNBestDerivation
+import Data.Semiring
+import qualified Data.Semiring.Derivation as D
+import Data.Semiring.LogProb
+import Data.Semiring.Prob
+import Data.Semiring.Viterbi
+import Data.Semiring.ViterbiNBestDerivation
 import NLP.Grammar.Dependency
 import NLP.Language.SimpleLanguage
 import NLP.Probability.Chain

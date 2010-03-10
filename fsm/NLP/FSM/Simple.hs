@@ -2,7 +2,7 @@
 module NLP.FSM.Simple where 
 import qualified Data.Map as M 
 import NLP.FSM
-import NLP.Semiring
+import Data.Semiring
 import Data.Function (on)
 import Data.Graph.Inductive
 import Control.Exception

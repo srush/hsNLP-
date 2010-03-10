@@ -4,7 +4,7 @@ synopsis:            Semirings, ring-like structures used for dynamic programmin
 description:         This provides a type class for semirings and 
                      implementations of the common semirings used in natural language 
                      processing.
-category:            Natural Language Processing
+category:            Math, Natural Language Processing
 license:             BSD3
 license-file:        LICENSE
 author:              Sasha Rush
@@ -32,7 +32,7 @@ library
     if flag(testing)
         buildable: False
 
-    build-Depends:   base      ,
+    build-Depends:   base      <= 4.0,
                      containers >= 0.1 && < 0.3,
                      monoids    >= 0.2.0.2 && < 0.3,
                      Boolean
