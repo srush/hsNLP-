@@ -17,9 +17,13 @@ main = do
   sequence_ $ 
          map (\sents -> do  
                   putStrLn $ render $ vcat $ punctuate (text "\n") $ 
-                           map (pPrint . toWIS . augmentNP np npb . reapply 20 (liftNode (isComma' . pos)) . reapply 5 (removeFront (isComma' . pos)) . reapply 5 (removeEnd (isComma' . pos)) .  filterNode (isPunc' . pos) . fromWIS . (\s -> runParseMonad s dm)) sents
+                           map (pPrint . toWIS . augmentNP np npb . reapply 20 (liftNode (isComma' . head. pos)) . reapply 5 (removeFront (isComma' . head. pos)) . reapply 5 (removeEnd (isComma' . head . pos)) .  filterNode (isDefPunc . wordStr) . filterNode (isPunc' . head . pos) . fromWIS . (\s -> runParseMonad s dm)) sents
                   putStrLn ""
    ) sentbundle
   where
     reapply 0 _ d = d 
     reapply n f d = reapply (n-1) f $ f d 
+    isDefPunc (Word "'") = True
+    isDefPunc (Word "\"") = True 
+    isDefPunc (Word ".") = True 
+    isDefPunc _ = False

@@ -21,7 +21,7 @@ ignore a = do {a; return ()}
 spaceSep p = manyTill p (ignore space <|> eof)
  
 instance Parsable POS where 
-    parser = POS `liftM` spaceSep anyChar
+    parser = POS `liftM` (many1 $ choice [upper, oneOf "$#-`':,."])
 
 newtype NonTerm = NonTerm String
     deriving (Eq, Ord, Binary, Show, Read)

@@ -24,7 +24,7 @@ root ind = do
 toDepSentence :: WordInfoSent  -> ParseMonad (Sentence (DWord))
 toDepSentence (WordInfoSent wis)= do
   dr <- depRoot
-  return $ mkSentence $ zipWith mkDepWord ((map (\wi -> (GWord (word wi, pos wi))) $ elems wis) ++ [dr]) [1..]
+  return $ mkSentence $ zipWith mkDepWord ((map (\wi -> (GWord (word wi, head $ pos wi))) $ elems wis) ++ [dr]) [1..]
 
 
 type Labeler = (WordInfo -> Maybe WordInfo -> ALabel)

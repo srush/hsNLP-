@@ -86,8 +86,8 @@ convertGoldFile sentFile = do
    sents <- readSentences sentFile
    return $ render $ vcat $ punctuate (text "\n") $ map (convertToGold) (runParseMonad sents dm)
 
-convertToPOS :: WordInfoSent -> Doc
-convertToPOS (WordInfoSent wis) = 
+convertToSpine :: WordInfoSent -> Doc
+convertToSpine (WordInfoSent wis) = 
     vcat $ map (\wi -> 
                 (pPrint $  wordStr wi) <+>  
                 (pPrint $  posStr wi) <+>  
@@ -95,11 +95,28 @@ convertToPOS (WordInfoSent wis) =
                 (((\a -> if isEmpty a then text "O" else text "B-" <> a) $ hcat $  punctuate (text "-") $ map pPrint $ toList $ spine wi))
                 ) $ elems wis
 
+
+convertToPOS :: WordInfoSent -> Doc
+convertToPOS (WordInfoSent wis) = 
+    vcat $ map (\wi -> 
+                (pPrint $  wordStr wi) <+>  
+                --(text "O")
+                (pPrint $ head $  posStr wi)
+                ) $ elems wis
+
+
+
 convertToWords :: WordInfoSent -> Doc
 convertToWords (WordInfoSent wis) = 
     hcat $ punctuate space  $ map (\wi -> 
                 (pPrint $  wordStr wi)) $ elems wis
 
+
+convertFileSpine :: String -> IO String
+convertFileSpine sentFile = do
+   dm <- loadMappers $ defaultLoadMap{shouldCollapseWords = False} 
+   sents <- readSentences sentFile
+   return $ render $ vcat $ punctuate (text "\n") $ map (convertToSpine) (runParseMonad sents dm)
 
 convertFilePOS :: String -> IO String
 convertFilePOS sentFile = do

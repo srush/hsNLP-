@@ -13,6 +13,7 @@ import NLP.Grammar.Spine
 import Control.Exception hiding (try)
 import NLP.Model.TAG.Wrap
 import NLP.Grammar.TAG
+import Debug.Trace
 data WordTripSent = WordTripSent {
       words :: Array Int WordTrip
     }
@@ -38,7 +39,7 @@ parseTrip :: Parser Trip
 parseTrip = do 
   adjoinInd <- nat
   tripAtom <- nat
-  score <- float
+  score <- onlyfloat
   return (fromIntegral adjoinInd, 
           Atom $ fromIntegral  tripAtom,
          score)
@@ -68,19 +69,20 @@ validByDepPrior cutoff (isnpb, isComma, mapper) (root,pruner) event context =
           Just spine ->  (maybe False id $ 
                                 do
                                   trip <- mapper (parent, head, top spine)
-                                  return $ maybe False (> cutoff) $ M.lookup (fromJustNote "goodchild" $ childInd event, 
-                                                   parentInd context,
-                                                   trip) pruner)
+                                  let m = M.lookup (fromJustNote "goodchild" $ childInd event, 
+                                                    parentInd context,
+                                                    trip) pruner
+                                  return $ maybe False (> cutoff) m) 
 
-              where parent = if isnpb $ parentNT context then
+                 where parent = if isnpb $ parentNT context then
                                  fromJustNote "isnpb" $ lookupNonTerm ((spinePos context) +1) (twSpine $ parentTWord context)  
-                             else parentNT context 
-                    head = if maybe False isnpb tmphead then
+                                else parentNT context 
+                       head = if maybe False isnpb tmphead then
                                  lookupNonTerm ((spinePos context) -1) (twSpine $ parentTWord context)  
-                           else tmphead
-                    tmphead = if prevRegular context then 
+                              else tmphead
+                       tmphead = if prevRegular context then 
                                   Just $ parentNT context
-                              else headNT context
+                                 else headNT context
                              
 
 readPruning :: String -> IO [TripletPrune]

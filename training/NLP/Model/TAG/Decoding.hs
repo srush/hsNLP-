@@ -13,7 +13,8 @@ import NLP.Model.ParseTree
 import Data.Semiring.ViterbiNBestDerivation
 import NLP.Probability.Chain
 import qualified Data.Map as M
-import NLP.ChartParse.Eisner.Inside as EI
+import qualified NLP.ChartParse.Eisner.Inside as EI
+import qualified NLP.ChartParse.MacDonald.Inside as MI
 import Data.Semiring.Prob
 import Data.Semiring.LogProb
 import NLP.Grammar.TAG
@@ -54,20 +55,22 @@ readDecodeParams adjCountFile spineCountFile spineProbFile = do
 
 
 data DecodingOpts = DecodingOpts {
-      extraDepScore :: (Chained (Collins) -> LogProb -> LogProb),
+      extraDepScore :: (FullContext (Collins)) -> (FullEvent Collins) -> LogProb -> LogProb,
       validator :: TSentence -> Validity Collins ,
       beamThres :: Double,
       commaPrune :: Bool,
-      listPruning :: Bool
+      listPruning :: Bool,
+      fixedPOS :: Bool
     }
 
 defaultDecoding =  DecodingOpts {
-                     extraDepScore = const id,
+                     extraDepScore = (\_ _ -> id),
                      validator = const allValid,
                      beamThres = 10000,
                      commaPrune = True,
-                     listPruning = True
-                   }
+                     listPruning = True,
+                     fixedPOS    = True
+             }
 
 decodeSentence :: (TAGDecodeSemi semi,  Model semi ~ Collins, Counter semi ~ TAGCounter) => 
                   DecodeParams ->  WordInfoSent -> 
@@ -82,16 +85,20 @@ genDecodeSentence ::(TAGDecodeSemi semi,
                   DecodeParams  ->   WordInfoSent -> 
                   ParseMonad (Maybe semi)
 genDecodeSentence  opts (spineCounts, probs,probsDebug, probSpine) insent = do 
-  testsent <- toTAGTest spineCounts insent 
+  testsent <- toTAGTest spineCounts (fixedPOS opts) insent 
   sent <- toTAGSentence insent
   dsent <- toTAGDependency insent
   fsm <- makeFSM  sent dsent opts  (mkSemi,mkSemiDebug)
-  let (b',chart)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)
-                  (if (listPruning opts) then globalThresList getSpineProb else globalThresOne (beamThres opts) getSpineProb) (globalThresOne (1e5) getSpineProb)
+  let (b',chart)= EI.eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb (beamThres opts) wher {-$ globalThres thres wher-} m)
+                  (if listPruning opts then 
+                       globalThresList getSpineProb 
+                   else 
+                       globalThresOne (beamThres opts) getSpineProb) 
+                  $ globalThresOne 1e5 getSpineProb
   return $ {- trace (show $ chartStats chart) -}  b'
         where 
               getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
-              mkSemi e c = extraDepScore opts pairs $ LogProb $ (log $ getProb pairs)
+              mkSemi e c = extraDepScore opts c e $ LogProb $ (log $ getProb pairs)
                   where pairs = chainRule e c
               mkSemiDebug e c = probDebug probsDebug pairs
                   where pairs = chainRule e c
@@ -158,11 +165,12 @@ decodeGold ::(TAGDecodeSemi semi, Model semi ~ Collins, Counter semi ~ TAGCounte
 decodeGold = genDecodeGold defaultGoldDecoding
 
 defaultGoldDecoding =  DecodingOpts {
-                     extraDepScore = const id,
+                     extraDepScore = (\ _ _ -> id),
                      validator = newValid,
                      beamThres = 1e100,
                      commaPrune = False,
-                     listPruning = False
+                     listPruning = False,
+                     fixedPOS = True
                    }
 
 
@@ -173,7 +181,7 @@ genDecodeGold opts (spineCounts, probs, probsDebug, probSpine) insent = do
     let actualsent = tSentence dsent 
     tagsent <- toTAGSentence insent
     fsm <- makeFSM tagsent dsent opts mkSemi 
-    let (b',_) = eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
+    let (b',_) = EI.eisnerParse fsm Just actualsent (\ wher m -> globalThres 0.0 wher m) id id
     return b'
     where
           mkSemi  = (\ e c -> fromProb $ prob probs $ chainRule e c,
@@ -202,7 +210,7 @@ globalThres n wher m =
     M.filter (\p -> getBestLogScore p >= n/100000) $  m    
 
 globalThresOne beamPrune probs  ps =  
-    filter (\p -> {-score p >= (n/100000) && -} score p >= (best/beamPrune))  ps  
+    filter (\p -> score p >= (best/beamPrune))  ps  
         where
           score p = getFOM probs p 
           best = case  map (getFOM probs) ps of
@@ -219,10 +227,12 @@ globalThresList probs ps =
 getFOM probs (sig, semi) = getPrior sig * getInside semi 
     where
       getProb = (\a  -> probs a) 
-      getPrior sig = (if hasParent $ leftEnd sig then 1.0 else 
-                          (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) (EI.word $ leftEnd sig) )) * 
-                     (if hasParent $ rightEnd sig then 1.0 else 
-                          (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) $ EI.word $ rightEnd sig)) 
+      getPrior sig = (if EI.hasParent $ EI.leftEnd sig then 1.0 else 
+                          (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) $ 
+                                 EI.word $ EI.leftEnd sig)) * 
+                     (if EI.hasParent $ EI.rightEnd sig then 1.0 else 
+                          (prior (\tword -> getProb $ chainRule (PrEv tword) (PrCon ())) $ 
+                                 EI.word $ EI.rightEnd sig)) 
       getInside i  =  p
           where p = getBestLogScore i 
 
@@ -245,9 +255,9 @@ prune probs beamprune wher m =
       --p' = M.filter (\(_,fom) -> fom >= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
       --p = M.filter (\(_,fom) -> fom <= (bestH / 50000)) $ M.mapWithKey (\sig semi -> (semi, getFOM (sig,semi))) m    
 
-      hasNoAdjoin (sig, semi) = hasParentPair sig == (False, False) 
-      hasAdjoinL (sig, semi) = hasParentPair sig == (True, False) 
-      hasAdjoinR (sig, semi) = hasParentPair sig == (False, True) 
+      hasNoAdjoin (sig, semi) = EI.hasParentPair sig == (False, False) 
+      hasAdjoinL (sig, semi) = EI.hasParentPair sig == (True, False) 
+      hasAdjoinR (sig, semi) = EI.hasParentPair sig == (False, True) 
       best = case  map (getFOM probs )$ M.toList m of
                [] -> 0.0
                ls -> maximum $ ls

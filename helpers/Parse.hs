@@ -3,7 +3,8 @@ module Helpers.Parse (
                       makeParseRead,
                       makeParseAtomRead,
                       nat,
-                      float
+                      float,
+                      onlyfloat
                      ) where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Char
@@ -32,3 +33,6 @@ float  = do
              Right a -> a
              Left b -> fromIntegral b
   return $ maybe f2 (const $ -f2) p 
+
+onlyfloat  = do 
+  P.float lexer

@@ -47,6 +47,7 @@ library
                    Helpers.Arbitrary
                    Helpers.Parse
                    Helpers.Test
+                   NLP.Model.ChainHelpers
     ghc-options: -O2                     
     build-Depends:   base       >= 3   && < 4,                     
                  containers >= 0.1 && < 0.3,

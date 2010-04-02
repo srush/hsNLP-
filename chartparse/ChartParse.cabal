@@ -1,5 +1,5 @@
 name:                chartparse
-version:             0.3.1
+version:             0.4
 synopsis:            A framework for building chart parsers 
 description:         This provides a simple framework for building probabilistic 
                      chart parsers.
@@ -20,6 +20,7 @@ library
     ghc-options: -O2                     
     exposed-modules:     NLP.ChartParse
                          NLP.ChartParse.Eisner.Inside
+                         NLP.ChartParse.MacDonald.Inside
                          NLP.ChartParse.Eisner.Outside
                          NLP.ChartParse.CKY.Inside
                          NLP.ChartParse.CKY.Outside

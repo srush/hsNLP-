@@ -37,9 +37,13 @@ root ind = do
     return $ mkTAGWord  word spine ind 
 
 toTAGSentence :: WordInfoSent  -> ParseMonad (Sentence (TWord))
-toTAGSentence (WordInfoSent wis)= do
+toTAGSentence  (WordInfoSent wis)= do
   tr <- tagRoot
-  return $ mkTAGWords $ (map (\wi -> ((GWord (word wi, pos wi), aspine wi), tspine wi )) $ elems wis) ++ [tr]
+  return $ mkTAGWords $ [ ((GWord (word wi, pos'), aspine wi), tspine wi ) | 
+                          wi <- elems wis,
+                          pos' <- [head $ pos wi]
+                        ] 
+                        ++ [tr]
 
 toTAGDependency :: WordInfoSent  -> ParseMonad TSentence 
 toTAGDependency (WordInfoSent wis) = do
@@ -65,18 +69,21 @@ tagWordHelper word pos sp ind = do
   tspine <- mapM toAtom sp
   return $ mkTAGWord (GWord (word, pos), aspine) tspine ind 
 
-mkTestTAGWord :: SpineExist -> (Int, GWord) -> ParseMonad [TWord]
-mkTestTAGWord counts (ind, GWord (word,pos)) =
-     mapM (\sp -> tagWordHelper word pos sp ind) spinels 
-         where spinels = S.toList $ 
-                         fromJustDef mempty $ 
-                         M.lookup pos counts
+mkTestTAGWord :: SpineExist  -> (Int, AWord, [APOS]) -> ParseMonad [TWord]
+mkTestTAGWord counts  (ind, word, pos) =
+     mapM (\(pos, sp) -> tagWordHelper word pos sp ind) spinels 
+         where spinels = do
+                 pos' <- pos
+                 spine <- S.toList $ fromJustDef mempty $ 
+                           M.lookup pos' counts
+                 return $ (pos', spine)
 
-toTAGTest :: SpineExist -> WordInfoSent -> ParseMonad (SentenceLat TWord) 
-toTAGTest counts (WordInfoSent wis) = do 
+toTAGTest :: SpineExist -> Bool -> WordInfoSent -> ParseMonad (SentenceLat TWord) 
+toTAGTest counts useFirstPOS (WordInfoSent wis) = do 
   r <- root (n+1)
-  testTagWords <- mapM (mkTestTAGWord counts) $ 
-                  map (\wi -> (ind wi, GWord (word wi, pos wi))) $ elems wis
+  testTagWords <- mapM (mkTestTAGWord counts ) $ 
+                  [ (ind wi, word wi, if useFirstPOS then [head $ pos wi] else pos wi) | 
+                    wi <- elems wis] 
   return $ mkSentenceLat $ testTagWords  ++ [[r]]
       where
             (_,n) = bounds wis

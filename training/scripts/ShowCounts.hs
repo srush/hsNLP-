@@ -11,6 +11,8 @@ import NLP.Model.CreateableSemi
 import NLP.Model.TAG.Semi
 import NLP.ParseMonad
 import Debug.Trace
+import NLP.Model.TAG.Adjunction
+import NLP.Probability.Chain
 main = do 
   [adjCountFile, spineCountFile, spineProbFile, pruneFile, testFile, n] <- getArgs
   params <- (readDecodeParams adjCountFile spineCountFile spineProbFile) :: IO (DecodeParams)
@@ -26,15 +28,15 @@ main = do
                         tm <- tripletMapper
                         Just b <- (genDecodeGold (defaultGoldDecoding {validator = (\s e c-> if newValid s e c then 
                                                                                                 if not $ validByDepPrior 1e-8 tm p e c then 
-                                                                                                    trace ("Pruning fail " ++ show e ++ " " ++show c) True
+                                                                                                    trace ("Pruning fail " ++ (render $ runParseMonad (dumpPairs $  chainRule e c) mappers)) True
                                                                                                 else
                                                                                                     True
                                                                                             else False
-                                                                                  ) } ) params s) :: ParseMonad (Maybe (CVD TAGDerivation)) 
-                        b' <- (genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5, validator=const $ validByDepPrior 1e-8 tm p} ) params s) :: ParseMonad (Maybe (CVD TAGDerivation)) 
+                                                                                  ) , fixedPOS = False} ) params s) :: ParseMonad (Maybe (CVD TAGDerivation)) 
+                        b' <- (genDecodeSentence (defaultDecoding {-validator = newValid-} {listPruning = False, beamThres = 1e5, validator=const $ validByDepPrior 1e-8 tm p, fixedPOS = False} ) params s) :: ParseMonad (Maybe (CVD TAGDerivation)) 
                         b'' <- case b' of 
                                  Just b -> return $ Just  b
-                                 Nothing -> genDecodeSentence (defaultDecoding {listPruning = False, beamThres = 1e5 } ) params s 
+                                 Nothing -> trace "failed" $ genDecodeSentence (defaultDecoding {listPruning = False, beamThres = 1e5 } ) params s 
                         return (b'', b)) $ zip sents prunes
   let results = [(b', b)
                       |  (Just b', b) <- runParseMonad parses mappers]

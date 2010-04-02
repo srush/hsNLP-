@@ -24,64 +24,81 @@ import qualified Data.Traversable as TR
 newtype WordInfoSent = WordInfoSent (Array Int (WordInfo))
     deriving (Eq)
 
+
+data RawWordInfo = 
+    RawWordInfo {
+      raw_ind :: Int,
+      raw_word :: Word,
+      raw_pos :: [POS],
+      raw_adjoinInd :: Int,
+      raw_spine  :: Spine (NonTerm),
+      raw_adjPos :: Int, 
+      raw_sister :: AdjunctionType
+    } deriving (Eq,Show)
+
 data WordInfo = 
      WordInfo {
-      ind    :: Int, 
+      raw :: RawWordInfo,
       word   :: AWord,
-      wordStr :: Word,
-      wordOrig :: Word,
-      pos    :: APOS,
-      posStr :: POS,
-      adjoinInd :: Int,
+      pos    :: [APOS],
       aspine :: Atom (Spine NonTerm),
-      tspine :: Spine (ANonTerm),
-      spine  :: Spine (NonTerm),
-      adjPos :: Int,
-      sister :: AdjunctionType
-} deriving (Eq)
+      tspine :: Spine (ANonTerm)
+} deriving (Eq, Show)
 
+ind = raw_ind . raw 
+adjoinInd = raw_adjoinInd . raw 
+spine  = raw_spine . raw
+adjPos = raw_adjPos . raw 
+sister = raw_sister . raw
+posStr = raw_pos . raw
+wordStr = raw_word . raw
+
+--instance UnAtom WordInfo RawWordInfo ParseMonad where 
+--    unAtom = 
+
+toWordInfo :: RawWordInfo -> ParseMonad WordInfo
+toWordInfo rawWI = do
+  newword <- collapseWord $ raw_word rawWI 
+  aword <- toAtom newword
+  apos <- mapM toAtom $ raw_pos rawWI
+  aspine <- toAtom $ raw_spine rawWI 
+  tspine <- TR.mapM toAtom $ raw_spine rawWI 
+  return $ WordInfo {
+                     raw = rawWI,
+                     word = aword,
+                     pos = apos,
+                     aspine = aspine,
+                     tspine = tspine
+                   }
 
 --{{{  WordInfo Classes
 
-instance Show (WordInfo) where 
-    show wi = 
-        intercalate "\t" $ 
-        map (\f -> f wi) 
-              [show . ind,
-               show . wordStr,
-               show . posStr,
-               show . adjoinInd,
-               const "HOLDER",
-               show . spine, 
-               show . adjPos,
-               show . sister
-              ]
-
-instance Pretty WordInfo where 
-    pPrint wi = 
+instance Pretty RawWordInfo where 
+    pPrint rwi = 
         hcat $ punctuate (text "\t") $ 
-        map (\f -> f wi) 
-              [int . ind,
-               pPrint . wordStr,
-               pPrint . posStr,
-               pPrint . adjoinInd,
+        map (\f -> f rwi) 
+              [int . raw_ind,
+               pPrint . raw_word,
+               hcat . punctuate (text "|") . map pPrint . raw_pos,
+               pPrint . raw_adjoinInd,
                text . const "HOLDER",
-               pPrint . spine, 
-               pPrint . adjPos,
-               pPrint . sister
+               pPrint . raw_spine, 
+               pPrint . raw_adjPos,
+               pPrint . raw_sister
               ]
 
+instance Pretty WordInfo where
+    pPrint = pPrint . raw
 --}}}
 
 -- parsing Xavier's tree files with spines
-
-parseWordInfo :: Parser (ParseMonad WordInfo)
-parseWordInfo =  do 
+parseRawWordInfo :: Parser RawWordInfo
+parseRawWordInfo = do
       n <- nat
       spaces
       word <- parser
       spaces 
-      pos <- parser
+      pos <- parser `sepBy` (char '|') 
       spaces
       adjInd <- nat
       spaces
@@ -92,27 +109,23 @@ parseWordInfo =  do
       adjPos <- nat 
       spaces
       sister <- anyChar
-      return $ do
-        newword <- collapseWord word 
-        aword <- toAtom newword
-        apos <- toAtom pos
-        aspine <- toAtom spine
-        tspine <- TR.mapM toAtom spine 
-
-        return $ WordInfo {
-                   ind  = fromIntegral n,
-                   wordOrig = word,
-                   wordStr =  newword,
-                   word = aword,
-                   pos = apos,
-                   posStr = pos,
-                   adjoinInd = fromIntegral adjInd,
-                   tspine = tspine,
-                   aspine = aspine,
-                   spine = spine, 
-                   sister = if sister == 's' then Sister else Regular,
-                   adjPos = fromIntegral adjPos
+      return $ 
+             RawWordInfo {
+                   raw_ind  = fromIntegral n,
+                   raw_word = word,
+                   raw_pos = pos,
+                   raw_adjoinInd = fromIntegral adjInd,
+                   raw_spine = spine, 
+                   raw_sister = if sister == 's' then Sister else Regular,
+                   raw_adjPos = fromIntegral adjPos
                  }
+
+
+parseWordInfo :: Parser (ParseMonad WordInfo)
+parseWordInfo =  do 
+  rawWI <- parseRawWordInfo
+  return $ 
+         toWordInfo rawWI
 
 -- parseNT :: Parser (NT.NonTermWrap) 
 -- parseNT = NT.mkNonTerm `liftM` parser
@@ -170,10 +183,14 @@ parseSentence file contents =
 --{{{  TESTS
    
 
-testData :: [(String, WordInfo) ]
+testData :: [(String, RawWordInfo) ]
 testData = [(
  "23  in           IN     20  VP+*+PP      *+PP    0  s",
- WordInfo 23 (Atom 2) (mkWord "in") (mkWord "in") (Atom 1) (mkPOS "IN") 20 (Atom 1) (mkSpine [Atom 2]) (mkSpine [mkNonTerm "PP"])  0 Sister)] 
+ RawWordInfo 23 (mkWord "in") [mkPOS "IN"] 20 (mkSpine [mkNonTerm "PP"])  0 Sister),
+            ("23  in           IN|RB     20  VP+*+PP      *+PP    0  s",
+             RawWordInfo 23 (mkWord "in") [mkPOS "IN",mkPOS "RB"] 20 (mkSpine [mkNonTerm "PP"])  0 Sister)
+ ] 
+
 
 
 tests = runTestTT $ TestList [TestLabel "Parsing" test1]
@@ -181,9 +198,9 @@ tests = runTestTT $ TestList [TestLabel "Parsing" test1]
 test1 = TestCase $ do 
           mappers <- liftIO $ loadDebugMappers 
           (mapM_ (\(str, testParse) -> 
-                      case parse parseWordInfo "" str of
+                      case parse parseRawWordInfo "" str of
                         Right p -> 
-                           assertEqual "parse fail" (runParseMonad  p  mappers) testParse
+                           assertEqual "parse fail" p testParse
                         Left mes ->
                            liftIO $ print mes
                  ) 

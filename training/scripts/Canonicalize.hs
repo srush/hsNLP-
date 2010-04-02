@@ -10,6 +10,7 @@ import NLP.Language.SimpleLanguage
 import Debug.Trace
 import NLP.ParseMonad hiding (unAtom)
 
+
 isWord tree = 
     if isList tree then
         (isAtom $ head $ unList tree) &&  (isAtom $ head $ tail $ unList tree)
@@ -22,7 +23,8 @@ addBackWords (WordInfoSent wis) tree =
     where 
       (tr, k) = count ([], 1) tree
       (1,m) = bounds wis
-      getWord n =   wis ! n  
+      getWord n =  --trace (show n) $  
+                   wis ! n  
       count :: ([Sexpr String], Int) -> Sexpr String -> ([Sexpr String], Int) 
       count (ls, n) tree  = 
           if isAtom tree then
@@ -36,25 +38,25 @@ addBackWords (WordInfoSent wis) tree =
               let (child,n') = foldl count ([], n) $ unList tree in
               (ls ++ [list child], n')
       getAtomsBefore pos' n =
-      --    trace (show "before" ++show n) $  
-          if pos' /= (transFor $ show $ posStr $ getWord n) then
+          --trace (show "before" ++show n++ show pos') $  
+          if not $ pos' `elem` (map (transFor. render .pPrint) $ posStr $ getWord n) then
               (getAtomN n) : getAtomsBefore pos' (n+1)
           else
               []
-      getAtomN n = 
-          
-          list [atom $ transFor $ show $ posStr $ getWord n, 
+      getAtomN n =           
+          list [atom $ transFor $ render $ pPrint $ head $ posStr $ getWord n, 
                 atom $ transFor $ unWord $ wordStr $ getWord n ]
 
       getAtom pos' n = 
-
-          if pos' /= (transFor $ show $ posStr $ getWord n) then
+          --trace (show "norm" ++show n++ show pos') $  
+          if not $ pos' `elem` (map (transFor. render .pPrint) $ posStr $ getWord n) then
               getAtom pos' (n+1)
           else 
               getAtomN n
-      getNewN pos' n =
-          
-          if pos' /= (transFor $ show $ posStr $ getWord n) then
+      getNewN pos' n =          
+          --trace (show "new" ++show n++ show pos' ++ show (posStr $ getWord n)) $  
+          if not $ (pos' `elem` (map (transFor. render .pPrint) $ posStr $ getWord n)) then
+              --trace "moving on" $ 
               getNewN pos' (n+1)
           else
               n

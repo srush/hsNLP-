@@ -4,8 +4,11 @@ module NLP.Model.TAG.Counts where
 import Prelude hiding (catch)
 import NLP.Grammar.TAG
 import NLP.Model.TAG.Parse 
-import NLP.ChartParse.Eisner.Inside
-import NLP.ChartParse.Eisner.Outside
+import qualified NLP.ChartParse.Eisner.Inside as EI
+import qualified NLP.ChartParse.Eisner.Outside as EO
+import qualified NLP.ChartParse.MacDonald.Inside as MI
+
+
 import Data.Semiring.Derivation
 import NLP.TreeBank.TreeBank
 import Control.Exception
@@ -38,7 +41,7 @@ readSent f =  readSentence f
 
 showCount f obs = do
    t <- readTAG f
-   let c = t >>= countTAG obs
+   let c = t >>= countTAG obs True
    return c
    --putStrLn $ render $ pPrint $ fst $ c
 
@@ -75,17 +78,22 @@ newValid sent  event context =
     valid sent (parentTWord context) (childTWord event) (spinePos context) (fromJustDef Sister $ ADJ.adjType event)
 
 --countTAG :: TSentence  -> ParseMonad TAGDerivation 
-countTAG obs dsent   = do 
+countTAG obs useEisner dsent   = do 
         (lopts, ropts) <- makeParseOpts dsent obs 
         lstate <- initState lopts [] ALeft
         rstate <- initState ropts [] ARight
         let getFSM = (\ i (Just word) -> (lstate i word, rstate i word))
-            (semi,chart) =   eisnerParse getFSM Just sent (\ _ i -> i) id id   
+            (semi) =  if useEisner then
+                                fst $ EI.eisnerParse getFSM Just sent (\ _ i -> i) id id
+                            else 
+                                let (s,c) = MI.macdonaldParse getFSM Just sent (\ _ i -> i) id id 
+                                in trace (show "hello" ++ show c) s 
+
         return $ case semi of 
-          Nothing -> trace ("failed to parse" ) (mempty,undefined) -- throw $ AssertionFailed $ show dsent
+          Nothing -> trace ("failed to parse" ) mempty -- throw $ AssertionFailed $ show dsent
           Just s -> case s of 
-                    (CD (Derivation (Just m))) ->  (m,chart)
-                    (CD (Derivation (Nothing))) -> trace ("no derivation") (mempty,undefined)
+                    (CD (Derivation (Just m))) ->  m
+                    (CD (Derivation (Nothing))) -> trace ("no derivation") mempty
     where 
       sent = tSentence dsent
     
@@ -102,12 +110,12 @@ testCounts = testGroup "Count tests" [
 t_getCounts obs f = 
   liftIO $ do
     t <- readTAG f
-    let c = t >>= (countTAG obs)
+    let c = t >>= (countTAG obs False)
     dm <- loadDebugMappers 
     return $ runParseMonad c dm
 
 t_getters f = do  
-  ((countsEnd, countsAdj),_) <- t_getCounts testing f
+  ((countsEnd, countsAdj)) <- t_getCounts testing f
   let get = (\(m,h) -> (M.!) countsAdj (m,h) )
       getEmp = (\(s,p,h) -> (M.!) countsEnd (s,p,h) )
   return (get,getEmp)

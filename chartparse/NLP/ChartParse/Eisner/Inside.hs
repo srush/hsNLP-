@@ -20,7 +20,6 @@ type Semi fsa = FSMSemiring (State fsa)
 type Sym fsa = FSMSymbol (State fsa)
 type EItem fsa = Item (ESpan fsa) (Semi fsa) 
 
-
 data Seal a = Sealed | Open a
               deriving (Eq, Ord, Show)
 

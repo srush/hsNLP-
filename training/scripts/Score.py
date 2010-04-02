@@ -8,8 +8,8 @@ os.system("rm /tmp/test /tmp/gold")
 if sys.argv[2] == "C":
   for i in range(int(sys.argv[3]), int(sys.argv[4])):
     #if i == 13 : continue
-    os.system("scripts/GetGold T < %s/result%s.data | scripts/Canonicalize val2/val2.%s.data +RTS -K1G >> /tmp/test"%(sys.argv[1],i,i))
-    os.system("scripts/GetGold G < %s/result%s.data | scripts/Canonicalize val2/val2.%s.data +RTS -K1G >> /tmp/gold"%(sys.argv[1],i,i))
+    os.system("scripts/GetGold T < %s/result%s.data | scripts/Canonicalize %s/val2.%s.data +RTS -K1G >> /tmp/test"%(sys.argv[1],i,sys.argv[5],i))
+    os.system("scripts/GetGold G < %s/result%s.data | scripts/Canonicalize %s/val2.%s.data +RTS -K1G >> /tmp/gold"%(sys.argv[1],i, sys.argv[5], i ))
 elif sys.argv[2] == "C2":
   for i in range(int(sys.argv[3]), int(sys.argv[4])):
     os.system("scripts/GetGold T < %s/test.%s | scripts/Canonicalize val2/val2.%s.data +RTS -K1G >> /tmp/test"%(sys.argv[1],i,i))

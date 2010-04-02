@@ -28,7 +28,7 @@ library
                      list-tries,
                      pretty,
                      prettyclass, 
-                     text,
+                     text <= 0.4,
                      deepseq,
                      MonadRandom,
                      QuickCheck >= 2.0, 
