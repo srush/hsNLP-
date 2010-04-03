@@ -39,8 +39,8 @@ readAndCount file1 file2 = do
       where 
         countSome dm (ls,n) = runParseMonad  (do
                              ls' <- sequence (ls:: [ParseMonad WordInfoSent])
-                             counts <- mapM  (\wis -> toTAGDependency wis >>= countTAG observation) (ls'::[WordInfoSent]) 
+                             counts <- mapM  (\wis -> toTAGDependency wis >>= countTAG observation False) (ls'::[WordInfoSent]) 
                              return $ trace (show n) $ 
-                                    mconcat $ map fst counts) dm
+                                    mconcat $ counts) dm
         
             

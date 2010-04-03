@@ -83,6 +83,24 @@ genDecodeSentence  opts (spineCounts, probs, probSpine) insent = do
               mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
               getSpineProb = memoize (prob probSpine) 
 
+genDecodeSentenceNew ::
+                  DecodingOpts  ->
+                  DecodeParams  ->   WordInfoSent -> 
+                  ParseMonad (Maybe (CVD TAGDerivation))
+genDecodeSentenceNew  opts (spineCounts, probs, probSpine) insent = do 
+  testsent <- toTAGTest spineCounts insent 
+  sent <- toTAGSentence insent
+  fsm <- makeFSM  sent (validator opts) mkSemi $ commaPrune opts
+  let (b',_)= eisnerParse fsm Just testsent (\ wher m -> prune getSpineProb wher {-$ globalThres thres wher-} m)                             
+                  (globalThresOne (beamThres opts) getSpineProb)
+
+  return b'
+        where 
+              getProb = memoize (prob probs) 
+              mkSemi pairs = getProb pairs + (extraDepScore opts) pairs
+              getSpineProb = memoize (prob probSpine) 
+
+
 memoize :: Ord a => (a -> b) -> (a -> b) 
 memoize f =
     unsafePerformIO $ 

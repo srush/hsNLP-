@@ -280,7 +280,8 @@ processCell getFSA sentence wordConv beamFirst (i, k) chart beam =
    if k > latticeLength sentence then []
    else
     catMaybes $ map seal $ 
-    if k-i == 1 then        
+    if k == i then [] 
+    else if k-i == 1 then        
         (let seedCells = beam $ beamFirst {-$ M.toList $ M.fromListWith mappend -} $ seed getFSA i 
                         (map wordConv $ getWords sentence i) 
                         (map wordConv  $ getWords sentence (i+1))

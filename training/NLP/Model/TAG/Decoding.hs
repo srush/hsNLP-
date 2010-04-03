@@ -78,6 +78,29 @@ decodeSentence :: (TAGDecodeSemi semi,  Model semi ~ Collins, Counter semi ~ TAG
 decodeSentence = genDecodeSentence defaultDecoding
                          
 
+genDecodeSentenceNoPrune ::(TAGDecodeSemi semi,
+                    Model semi ~ Collins, Counter semi ~ TAGCounter
+                    ) => 
+                  DecodingOpts  ->
+                  DecodeParams  ->   WordInfoSent -> 
+                  ParseMonad (Maybe semi)
+genDecodeSentenceNoPrune  opts (spineCounts, probs,probsDebug, probSpine) insent = do 
+  testsent <- toTAGTest spineCounts (fixedPOS opts) insent 
+  sent <- toTAGSentence insent
+  dsent <- toTAGDependency insent
+  fsm <- makeFSM  sent dsent opts  (mkSemi,mkSemiDebug)
+  let (b',chart)= MI.macdonaldParse fsm Just testsent (\ wher m -> m) id id 
+      
+  return $ trace (show $ chartStats chart)  b'
+        where 
+              getProb = memoizeIntInt enumVal (prob probs) -- OPTIMIZATION 
+              mkSemi e c = extraDepScore opts c e $ LogProb $ (log $ getProb pairs)
+                  where pairs = chainRule e c
+              mkSemiDebug e c = probDebug probsDebug pairs
+                  where pairs = chainRule e c
+              getSpineProb = memoize False (prob probSpine) -- OPTIMIZATION
+
+
 genDecodeSentence ::(TAGDecodeSemi semi,
                     Model semi ~ Collins, Counter semi ~ TAGCounter
                     ) => 

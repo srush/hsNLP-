@@ -82,7 +82,7 @@ chartParse sent combine prune beam  = Chart chart
               [((i,k), Cell $ prune (i,k) $ M.fromListWith mappend $ 
                 combine (i,k) (\i-> M.toList $ uncell $ 
                                fromJustNote "lookup fail" $ M.lookup i chart) beam)
-                   | d <- [1..n], 
+                   | d <- [0..n], 
                      i <- [1..n],
                      let k = i + d,
                      k <= n+1]

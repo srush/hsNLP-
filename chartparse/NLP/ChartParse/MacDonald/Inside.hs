@@ -13,7 +13,6 @@ import Data.Monoid.Multiplicative (times, one)
 import Control.Exception
 import NLP.WordLattice
 import Debug.Trace 
-import Data.Maybe (isJust)
 --}}}
 
 
@@ -39,13 +38,22 @@ data MSig fsa =
 --data Seal a = Sealed | Open a
 --              deriving (Eq, Ord)
 
-deriving instance (WFSM fsa) => Show (MSig fsa) 
+instance (WFSM fsa) => Show (MSig fsa) where 
+    show msig = 
+        intercalate " " $ [
+                         show $ dir msig, 
+                         show $ shape msig,
+                         show $ headWord msig,
+                         show $ sideWord msig
+                        ] 
+deriving instance (WFSM fsa) => Eq (MSig fsa) 
+deriving instance (WFSM fsa) => Ord (MSig fsa) 
 
 
 type Seal a = Maybe a
 
-isSealed (Just a) = True
-isSealed _ = False
+isSealed (Just a) = False
+isSealed _ = True
 
 unSeal (Just a) = a 
 
@@ -61,24 +69,24 @@ sealed = Nothing
 
 
 --{{{  MSig Classes
-expandMSig sp =  (dir sp, shape sp, headWord sp, sigState sp) --   TODO- fix back, 
+-- expandMSig sp =  (dir sp, shape sp, headWord sp, sigState sp) --   TODO- fix back, 
 
-instance (WFSM fsa) => Eq (MSig fsa) where 
-    (==)  = (==) `on` expandMSig
+-- instance (WFSM fsa) => Eq (MSig fsa) where 
+--     (==)  = (==) `on` expandMSig
 
-instance (WFSM fsa) => Ord (MSig fsa) where 
-    compare = compare `on` expandMSig
+-- instance (WFSM fsa) => Ord (MSig fsa) where 
+--     compare = compare `on` expandMSig
 --}}}
 
 
 -- Advances an internal WFSM (equivalent in this model to "adjoining" a new
 -- dependency. 
-advance :: (WFSM fsa) => Maybe (State fsa) -> Int -> Sym fsa -> 
-           [(State fsa, Semi fsa)] 
-advance st split nextWord  = 
-    assert (not $ isSealed st) $ do 
-    (newState, p) <- next (unSeal st) nextWord split 
-    return (newState, p) 
+-- advance :: (WFSM fsa) => Maybe (State fsa) -> Int -> Sym fsa -> 
+--            [(State fsa, Semi fsa)] 
+-- advance st split nextWord  = 
+--     assert (not $ isSealed st) $ do 
+--     (newState, p) <- next (unSeal st) nextWord split 
+--     return (newState, p) 
  
 
 
@@ -86,9 +94,10 @@ advance st split nextWord  =
 -- one side to the head on the other. 
 --optLinkL'
 optL :: (WFSM fsa) => Int -> (MSig fsa) -> (MSig fsa) -> [MItem fsa]
-optL split rtri ltri = do
-      guard $ not $ isJust $ sigState ltri 
-      guard $ isJust $ sigState rtri
+optL split rtri ltri = do 
+    --trace (show rtri ++ show ltri ++ show split) $ do
+      guard $ not $ isSealed $ sigState ltri 
+      guard $ isSealed $ sigState rtri
       (newState, p) <- next (unSeal $ sigState ltri) (headWord rtri) split
       return $ (ltri { 
                   shape = Trap,
@@ -100,20 +109,21 @@ optL split rtri ltri = do
 
 optR :: (WFSM fsa) => Int -> (MSig fsa) -> (MSig fsa) -> [MItem fsa]
 optR split rtri ltri = do
+  --trace (show "opt r" ++ show rtri) $ do  
       guard $ (not $ isSealed $ sigState rtri)
       guard $ isSealed $ sigState ltri
-      (newState, p) <- next (unSeal $ sigState rtri) (headWord ltri) split
-      return $ (ltri { 
+      (newState, p) <- next (unSeal $ sigState rtri) (headWord ltri) (split)
+      return $ (rtri { 
                   shape = Trap,
                   sideWord = Just $ headWord ltri,
                   sigState = unsealed newState
                 },
-                
                p)
 
 
 combineL :: (WFSM fsa) => (MSig fsa) -> (MSig fsa) -> [MItem fsa]
-combineL tri trap =  
+combineL tri trap = 
+  --trace (show "combine l" ++ show trap) $ 
   assert ((shape tri) == Tri && (dir tri == L)) $
   assert ((shape trap) == Trap && (dir trap == L)) $
   do 
@@ -132,6 +142,7 @@ combineL tri trap =
 
 combineR :: (WFSM fsa) => (MSig fsa) -> (MSig fsa) -> [MItem fsa]
 combineR trap tri = 
+  --trace (show "combine r" ++ show trap) $ 
   assert ((shape trap) == Trap && (dir trap == R)) $
   assert ((shape tri) == Tri && (dir tri == R)) $
           do 
@@ -151,6 +162,7 @@ combineR trap tri =
 
 seal :: (WFSM fsa) => Span ->  (MItem fsa) -> [MItem fsa]
 seal (i, k) item@(sig,semi) = 
+    --trace (show "seal" ++ show (i,k)) $ 
     item : do
       guard $ Tri == shape sig
       guard $ not $ isSealed $ sigState sig
@@ -165,24 +177,31 @@ seal (i, k) item@(sig,semi) =
      
     
 genCombine :: (WFSM fsa) => ((MSig fsa) -> (MSig fsa) -> [MItem fsa]) -> MItem fsa -> MItem fsa -> [MItem fsa]
-genCombine comb (span1, semi1) (span2, semi2) = do 
-  (span', semi') <- comb span1 span2
-  return (span', semi' `times` semi1 `times` semi2) 
+genCombine comb (sig1, semi1) (sig2, semi2) = do 
+  (sig', semi') <- comb sig1 sig2
+  return (sig', semi' `times` semi1 `times` semi2) 
 
-tryCombine :: (WFSM fsa) => Int -> (MItem fsa) -> (MItem fsa) -> [MItem fsa]
-tryCombine split item1@(sig1, semi1) item2@(sig2, semi2) = 
+tryOpt :: (WFSM fsa) => Int -> (MItem fsa) -> (MItem fsa) -> [MItem fsa]
+tryOpt split item1@(sig1, semi1) item2@(sig2, semi2) = 
     case ((shape sig1, dir sig1), (shape sig2, dir sig2)) of 
-      ((Tri, R), (Tri, L)) ->  genCombine (optL split) item1 item2 ++ genCombine (optR split) item1 item2 
+         ((Tri, R), (Tri, L)) ->  (genCombine (optL split) item1 item2) ++ 
+                                  (genCombine (optR split) item1 item2)
+         _ -> []
+
+tryCombine :: (WFSM fsa) => (MItem fsa) -> (MItem fsa) -> [MItem fsa]
+tryCombine item1@(sig1, semi1) item2@(sig2, semi2) = 
+    case ((shape sig1, dir sig1), (shape sig2, dir sig2)) of 
       ((Trap, R), (Tri, R)) -> genCombine combineR item1 item2
       ((Tri, L), (Trap, L)) -> genCombine combineL item1 item2
-    
+      _ -> []
+
 -- Seed 
 seed :: (WFSM fsa) => 
         GetFSM fsa -> 
         Int ->
        [Sym fsa] -> 
        InitialDerivationRule (MItem fsa)
-seed getFSA i sym1s = do  
+seed getFSA i sym1s = do --trace (show "seed" ++ show i) $ do  
       sym1 <- sym1s 
       let (leftFSA, rightFSA) = getFSA i sym1
       dir <- [R,L]
@@ -207,7 +226,7 @@ processCell :: ( Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) =>
                (Span -> [MItem fsa]) -> -- function from cell to contenst 
                ([MItem fsa] -> [MItem fsa]) -> 
                [MItem fsa] -- contents of the new cell 
-processCell getFSA sentence wordConv beamFirst (i, k) chart beam = 
+processCell getFSA sentence wordConv beamFirst (i, k) chart beam = -- trace (show (i,k)) $ 
    if k > latticeLength sentence then []
    else
     concat $ map (seal (i,k)) $ 
@@ -215,12 +234,18 @@ processCell getFSA sentence wordConv beamFirst (i, k) chart beam =
         beam $ beamFirst $ seed getFSA i $
                  map wordConv $ getWords sentence i
     else
-        beam $ M.toList $ M.fromListWith mappend $ concat 
-                 [tryCombine j s1 s2
-                      | j  <- [i+1..k-1],
-                        s2 <- chart (j,k),
+        let newtraps = finish
+                 [tryOpt j s1 s2
+                      | j  <- [i..k-1],
+                        s2 <- chart (j+1,k),
                         s1 <- chart (i,j)]
-        
+            newtris = finish
+                 [tryCombine s1 s2
+                      | j  <- [i..k],
+                        s2 <- if (j,k) == (i,k) then newtraps else chart (j,k),
+                        s1 <- if (i,j) == (i,k) then newtraps else chart (i,j)]
+        in newtraps ++ newtris
+    where finish = beam . M.toList . M.fromListWith mappend . concat
 
 macdonaldParse :: ( Show (FSMSemiring (State fsa)), WFSM fsa, WordLattice sent) => 
                GetFSM  fsa -> 
@@ -241,4 +266,4 @@ macdonaldParse getFSM wordConv sent prune beam beamFirst = (semi, chart)
 
 accept :: (WFSM fsa) => MItem fsa -> Bool
 accept (sig, _) = 
-    (shape sig == Trap) && (dir sig == L) && (isSealed $ sigState sig) 
+    (shape sig == Tri) && (dir sig == L) && (isSealed $ sigState sig) 

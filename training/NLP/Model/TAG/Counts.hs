@@ -7,7 +7,7 @@ import NLP.Model.TAG.Parse
 import qualified NLP.ChartParse.Eisner.Inside as EI
 import qualified NLP.ChartParse.Eisner.Outside as EO
 import qualified NLP.ChartParse.MacDonald.Inside as MI
-
+import qualified Data.Set as S
 
 import Data.Semiring.Derivation
 import NLP.TreeBank.TreeBank
@@ -29,6 +29,7 @@ import NLP.Grammar.Dependency
 import Helpers.Test
 import Control.Monad.Trans
 import qualified Data.Map as M
+import Debug.Trace.Helpers
 --}}}
 
 readTAG :: String -> IO (ParseMonad TSentence) 
@@ -74,8 +75,9 @@ makeParseOpts dsent obs = do
                                       }
                              }
               
-newValid sent  event context = 
-    valid sent (parentTWord context) (childTWord event) (spinePos context) (fromJustDef Sister $ ADJ.adjType event)
+newValid sent event context = 
+    valid sent (parentTWord context) (childTWord event) (spinePos context) 
+              (fromJustDef Sister $ ADJ.adjType event)
 
 --countTAG :: TSentence  -> ParseMonad TAGDerivation 
 countTAG obs useEisner dsent   = do 
@@ -86,8 +88,8 @@ countTAG obs useEisner dsent   = do
             (semi) =  if useEisner then
                                 fst $ EI.eisnerParse getFSM Just sent (\ _ i -> i) id id
                             else 
-                                let (s,c) = MI.macdonaldParse getFSM Just sent (\ _ i -> i) id id 
-                                in trace (show "hello" ++ show c) s 
+                                let (sem, cha) = MI.macdonaldParse getFSM Just sent (\ _ i -> i) id id 
+                                in  sem 
 
         return $ case semi of 
           Nothing -> trace ("failed to parse" ) mempty -- throw $ AssertionFailed $ show dsent
@@ -104,18 +106,33 @@ testCounts = testGroup "Count tests" [
               testCase "comma sent" test_commaSent,
               testCase "verb sent" test_verbSent,
               testCase "verb sent3" test_verbSent3,
-              testCase "fidelity " test_fidelity
+              testCase "fidelity " test_fidelity,
+              testCase "are same " $ test_areSame "CodeTest/Simple.sent",
+              testCase "are same " $ test_areSame "CodeTest/Comma.sent",
+              testCase "are same " $ test_areSame "CodeTest/Verb.sent",
+              testCase "are same " $ test_areSame "CodeTest/Verb3.sent"
            ]
 
-t_getCounts obs f = 
+t_getCounts obs f eis = 
   liftIO $ do
     t <- readTAG f
-    let c = t >>= (countTAG obs False)
+    let c = t >>= (countTAG obs eis)
     dm <- loadDebugMappers 
     return $ runParseMonad c dm
 
+test_areSame f = do 
+  ((ce,ca)) <- t_getCounts testing f False
+  ((ce',ca')) <- t_getCounts testing f True
+  assertEqual "" True $ M.null (traceIt $ M.difference ce ce')  
+  assertEqual "" True $ M.null (traceIt $ M.difference ce' ce) 
+  assertEqual "" True $ M.null (traceIt $ M.difference ca ca') 
+  assertEqual "" True $ M.null (traceIt $ M.difference ca' ca) 
+  return ()
+
+
+
 t_getters f = do  
-  ((countsEnd, countsAdj)) <- t_getCounts testing f
+  ((countsEnd, countsAdj)) <- t_getCounts testing f False
   let get = (\(m,h) -> (M.!) countsAdj (m,h) )
       getEmp = (\(s,p,h) -> (M.!) countsEnd (s,p,h) )
   return (get,getEmp)
@@ -173,8 +190,8 @@ test_commaSent = do
   assertEqual "left comma" (prevComma $ delta $ snd $ get (1,8)) True 
 
   assertEqual "verb" (crossesVerb $  snd $ get (16,8)) (mkVerbDis True) 
-  assertEqual "no verb" (crossesVerb $  snd $ get (10,9)) (mkVerbDis False) 
-  assertEqual "no verb" (crossesVerb $  snd $ get (1,8)) (mkVerbDis False) 
+  assertEqual "no verb (adj) " (crossesVerb $  snd $ get (10,9)) (mkVerbDis False) 
+  assertEqual "no verb (clause)" (crossesVerb $  snd $ get (1,8)) (mkVerbDis False) 
 
   assertEqual "regular" (ADJ.adjType $ fst $ get (2,1)) (Just Regular) 
   assertEqual "regular" (ADJ.adjType $ fst $ get (1,8)) (Just Sister) 

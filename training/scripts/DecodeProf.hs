@@ -9,9 +9,9 @@ import NLP.TreeBank.TreeBank
 import NLP.ParseMonad
 import NLP.Model.TAG.DependencyPrior
 
+main :: IO ()
 main = do 
   [testFile,pruneFile] <- getArgs
-  --params <- (readDecodeParams adjCountFile spineCountFile spineProbFile) :: IO (DecodeParams English)
   params <- basicParams
   dm <- loadDebugMappers 
   --print $ params `seq` "Params Loaded"
@@ -24,8 +24,9 @@ main = do
             runParseMonad (do 
                             tm <- tripletMapper
                             Just b <- decodeGold params s 
-                            Just b' <- genDecodeSentence (defaultDecoding{validator=validByDepPrior tm p}) params s
+                            Just b' <- genDecodeSentence (defaultDecoding{validator= (\ s e c -> validByDepPrior 1e-8 tm p e c)}) params s
                             renderSentences b b'
                             --return $ print "hello"
-                            ) dm) $ zip (take 20 newsents) prunes
+                            ) dm) $ zip (take 1 newsents) prunes
 
+  return ()
